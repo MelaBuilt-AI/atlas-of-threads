@@ -141,10 +141,11 @@ directory already exists → `$XDG_DATA_HOME/thought-archaeology` or
 Exit codes: `0` ok, `1` validation / `--strict` policy failure, `2` usage,
 `3` I/O, `4` not-implemented (Depth 2/3 runners).
 
-`ta serve` is a **read-only** localhost server (default `127.0.0.1:7462`). It
-serves Inhabit Space: you stand at a thought-node. Walking a chamber fetches
-`/api/inhabit/{node}` — the same omit-set as `ta inhabit`. No writes. No Node
-runtime; `viz/dist` is committed.
+`ta serve` is a localhost server (default `127.0.0.1:7462`). It serves
+Inhabit Space: you stand at a thought-node. Walking a chamber fetches
+`/api/inhabit/{node}` — the same omit-set as `ta inhabit`. Fork (`f`) and
+veto (`v`) POST to Python; the browser does not compute the omit-set.
+No Node runtime; `viz/dist` is committed.
 
 `ta canvas` / `ta export-wiki` write a lossy Markdown projection (`type: overview`,
 Obsidian wikilinks). Hidden reasoning stays JSON-only. Dual archaeology appears
@@ -155,7 +156,8 @@ only with `--fingerprint PATH`. Neither command writes `wiki/index.md` or
 clustering of model taste-calls and human vetoes. Default `min_sessions=2`.
 A single session is all `emerging`. No ML. Writes
 `data/fingerprints/{id}.json` (write-once). `--out PATH` copies the JSON;
-`--out -` prints it.
+`--out -` prints it. Inhabit Space uses the latest fingerprint as **climate**
+(fog and light at the standing node), not a cluster chart.
 
 `ta probe plan` writes a `ProbeSpec` JSON next to the graph (sibling
 `probes/` directory) and exits 0. `ta probe diff` matches nodes by id, then

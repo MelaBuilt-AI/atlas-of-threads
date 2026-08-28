@@ -308,6 +308,20 @@ class Store:
         _write_json(path, data)
         return path
 
+    def iter_fingerprint_ids(self) -> Iterator[str]:
+        self._require()
+        if not self.fingerprints_dir.is_dir():
+            return
+            yield  # pragma: no cover
+        for path in sorted(self.fingerprints_dir.glob("*.json")):
+            yield path.stem
+
+    def latest_fingerprint(self) -> dict | None:
+        ids = list(self.iter_fingerprint_ids())
+        if not ids:
+            return None
+        return self.load_fingerprint(ids[-1])
+
     def load_fingerprint(self, fingerprint_id: str) -> dict:
         self._require()
         path = self.fingerprints_dir / f"{fingerprint_id}.json"

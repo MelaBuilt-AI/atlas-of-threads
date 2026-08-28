@@ -255,6 +255,86 @@ class Fingerprint:
         )
 
 
+CLIMATE_KINDS = ("divergence", "veto", "recurring", "emerging", "calm")
+
+CLIMATE_LABELS = {
+    "divergence": "you fight this cut",
+    "veto": "a human no lives here",
+    "recurring": "the model's recurring taste",
+    "emerging": "emerging taste",
+    "calm": "still air",
+}
+
+
+def _best_cluster(
+    node: ThoughtNode, clusters: tuple[TasteCluster, ...], *, threshold: float
+) -> tuple[float, TasteCluster] | None:
+    toks = token_set(node.text)
+    best: tuple[float, TasteCluster] | None = None
+    for cluster in clusters:
+        if node.id in cluster.node_ids:
+            score = 1.0
+        else:
+            score = jaccard(toks, token_set(cluster.canonical))
+        if score < threshold:
+            continue
+        if best is None or score > best[0]:
+            best = (score, cluster)
+        elif best is not None and score == best[0] and cluster.canonical < best[1].canonical:
+            best = (score, cluster)
+    return best
+
+
+def climate_at(node: ThoughtNode, fp: Fingerprint | None) -> dict | None:
+    """Atmosphere at a standing node. Not a dashboard of clusters."""
+    if fp is None:
+        return None
+    taste = _best_cluster(node, fp.model_taste, threshold=MERGE_THRESHOLD)
+    veto = _best_cluster(node, fp.human_vetoes, threshold=MERGE_THRESHOLD)
+    kind = "calm"
+    canonical = None
+    score = 0.0
+    recurrence = None
+    if taste is not None:
+        t_score, t_cluster = taste
+        fought = any(
+            d.taste_canonical == t_cluster.canonical for d in fp.divergence
+        )
+        if fought:
+            kind = "divergence"
+        elif t_cluster.recurrence == "recurring":
+            kind = "recurring"
+        else:
+            kind = "emerging"
+        canonical = t_cluster.canonical
+        score = t_score
+        recurrence = t_cluster.recurrence
+    if veto is not None:
+        v_score, v_cluster = veto
+        if taste is not None and any(
+            d.taste_canonical == taste[1].canonical
+            and d.veto_canonical == v_cluster.canonical
+            for d in fp.divergence
+        ):
+            kind = "divergence"
+            canonical = taste[1].canonical
+            score = taste[0]
+            recurrence = taste[1].recurrence
+        elif taste is None or kind in ("calm", "emerging"):
+            kind = "veto"
+            canonical = v_cluster.canonical
+            score = v_score
+            recurrence = v_cluster.recurrence
+    return {
+        "kind": kind,
+        "label": CLIMATE_LABELS[kind],
+        "canonical": canonical,
+        "jaccard": round(score, 6) if canonical else None,
+        "recurrence": recurrence,
+        "fingerprint_id": fp.id,
+    }
+
+
 def fingerprint(
     graphs: Iterable[ThoughtGraph],
     *,

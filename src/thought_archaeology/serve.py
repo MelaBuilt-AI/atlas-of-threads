@@ -6,8 +6,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from thought_archaeology.edits import commit, plan_fork, plan_veto
 from thought_archaeology.fork import ForkError
 from thought_archaeology.inhabit import inhabit
+from thought_archaeology.schema import ValidationError
 from thought_archaeology.store import Store, StoreError
 
 DEFAULT_PORT = 7462
@@ -15,7 +17,7 @@ DEFAULT_BIND = "127.0.0.1"
 
 
 class ServeError(Exception):
-    """Read-only HTTP adapter failure."""
+    """HTTP adapter failure."""
 
 
 def viz_dist_path() -> Path:
@@ -91,7 +93,7 @@ class InhabitHandler(BaseHTTPRequestHandler):
         qs = parse_qs(parsed.query)
         try:
             if path == "/api/health":
-                self._json(200, {"ok": True, "write": False})
+                self._json(200, {"ok": True, "write": True, "bind": "localhost"})
                 return
             if path == "/api/sessions":
                 self._json(200, bootstrap_payload(self.store))
@@ -122,14 +124,114 @@ class InhabitHandler(BaseHTTPRequestHandler):
         except OSError as exc:
             self._json(500, {"error": str(exc)})
 
+    def _read_json(self) -> dict:
+        length = int(self.headers.get("Content-Length") or 0)
+        if length > 100_000:
+            raise ServeError("payload too large")
+        raw = self.rfile.read(length) if length else b"{}"
+        if not raw:
+            return {}
+        data = json.loads(raw.decode("utf-8"))
+        if not isinstance(data, dict):
+            raise ServeError("JSON object required")
+        return data
+
     def do_POST(self) -> None:  # noqa: N802
-        self._json(405, {"error": "Inhabit Space v0 is read-only"})
+        parsed = urlparse(self.path)
+        path = parsed.path
+        try:
+            if path == "/api/fork":
+                self._edit_fork()
+                return
+            if path == "/api/veto":
+                self._edit_veto()
+                return
+            self._json(405, {"error": "unknown write"})
+        except ServeError as exc:
+            self._json(400, {"error": str(exc)})
+        except ForkError as exc:
+            self._json(404, {"error": str(exc)})
+        except StoreError as exc:
+            self._json(404, {"error": str(exc)})
+        except ValidationError as exc:
+            self._json(400, {"error": "; ".join(exc.messages)})
+        except json.JSONDecodeError as exc:
+            self._json(400, {"error": str(exc)})
+
+    def _standing_args(self, body: dict) -> tuple[str, str | None, str]:
+        node_id = body.get("node") or body.get("node_id")
+        if not node_id:
+            raise ServeError("node is required")
+        graph_id = body.get("graph") or body.get("graph_id")
+        session_id = body.get("session") or body.get("session_id")
+        if not session_id and graph_id:
+            session_id = self.store.load_graph(str(graph_id)).session_id
+        if not session_id:
+            raise ServeError("session is required")
+        return str(node_id), (str(graph_id) if graph_id else None), str(session_id)
+
+    def _edit_fork(self) -> None:
+        body = self._read_json()
+        node_id, graph_id, session_id = self._standing_args(body)
+        reason = body.get("reason")
+        reason_s = str(reason).strip() if reason else None
+        plan = plan_fork(
+            self.store,
+            node_id,
+            session_id=session_id,
+            graph_id=graph_id,
+            reason=reason_s or None,
+        )
+        commit(self.store, plan)
+        # Stay in G0 at the cut. The continuation is a ring, not a teleport.
+        self._json(
+            200,
+            {
+                "ok": True,
+                "op": "fork",
+                "graph_id": plan.g1.id,
+                "from_graph_id": plan.g0.id,
+                "from_node_id": plan.node.id,
+                "warnings": plan.warnings,
+                "stand": {"graph_id": plan.g0.id, "node_id": plan.node.id},
+            },
+        )
+
+    def _edit_veto(self) -> None:
+        body = self._read_json()
+        node_id, graph_id, session_id = self._standing_args(body)
+        reason = body.get("reason")
+        reason_s = str(reason).strip() if reason else ""
+        if not reason_s:
+            self._json(400, {"error": "veto requires a reason"})
+            return
+        plan = plan_veto(
+            self.store,
+            node_id,
+            session_id=session_id,
+            graph_id=graph_id,
+            reason=reason_s,
+        )
+        commit(self.store, plan)
+        # Follow into G1: the chamber remains, now with a human no.
+        self._json(
+            200,
+            {
+                "ok": True,
+                "op": "veto",
+                "graph_id": plan.g1.id,
+                "from_graph_id": plan.g0.id,
+                "from_node_id": plan.node.id,
+                "warnings": plan.warnings,
+                "stand": {"graph_id": plan.g1.id, "node_id": plan.node.id},
+            },
+        )
 
     def do_PUT(self) -> None:  # noqa: N802
-        self._json(405, {"error": "Inhabit Space v0 is read-only"})
+        self._json(405, {"error": "PUT is not a gesture"})
 
     def do_DELETE(self) -> None:  # noqa: N802
-        self._json(405, {"error": "Inhabit Space v0 is read-only"})
+        self._json(405, {"error": "DELETE is not a gesture"})
 
     def _static(self, path: str) -> None:
         dist = self.dist.resolve()
@@ -179,7 +281,16 @@ def make_server(
 
     Bound.store = store
     Bound.dist = dist or viz_dist_path()
-    return ThreadingHTTPServer((bind, port), Bound)
+    try:
+        return ThreadingHTTPServer((bind, port), Bound)
+    except OSError as exc:
+        err = str(exc).lower()
+        if "address already in use" in err or getattr(exc, "errno", None) == 98:
+            raise ServeError(
+                f"port {port} already in use — stop the other ta serve "
+                f"(ss -ltnp | grep {port})"
+            ) from exc
+        raise ServeError(str(exc)) from exc
 
 
 def serve_forever(
@@ -190,7 +301,7 @@ def serve_forever(
     dist: Path | None = None,
 ) -> None:
     httpd = make_server(store, bind=bind, port=port, dist=dist)
-    print(f"Inhabit Space  http://{bind}:{port}/  (read-only, story graph)")
+    print(f"Inhabit Space  http://{bind}:{port}/  (localhost · fork/veto from the chamber)")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

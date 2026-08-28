@@ -1,4 +1,4 @@
-/* Inhabit Space v0 — stand at a node. Not a dashboard. */
+/* Inhabit Space — stand at a node. Fork/veto are gestures. Not a dashboard. */
 (function () {
   const KIND_COLOR = {
     claim: 0xe8d5a3,
@@ -15,6 +15,9 @@
   const elMeta = document.getElementById("meta");
   const elEmpty = document.getElementById("empty");
   const elHelp = document.getElementById("help");
+  const elComposer = document.getElementById("composer");
+  const elComposerLabel = document.getElementById("composer-label");
+  const elComposerInput = document.getElementById("composer-input");
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -32,6 +35,7 @@
 
   let view = null;
   let targets = [];
+  let portals = [];
   let cycle = [];
   let cycleIndex = 0;
   let dragging = false;
@@ -39,6 +43,8 @@
   let yaw = 0.18;
   let pitch = 0.22;
   let helpOn = true;
+  let composing = null;
+  let busy = false;
 
   const root = new THREE.Group();
   scene.add(root);
@@ -50,6 +56,25 @@
   const fill = new THREE.PointLight(0xb08d57, 0.7, 22, 2);
   fill.position.set(-4, 1.4, 3);
   scene.add(fill);
+
+  const CLIMATE = {
+    divergence: { fog: 0x2a1828, density: 0.07, key: 0xb08d57, fill: 0x8a7396, clear: 0x1a1018 },
+    veto: { fog: 0x1a1420, density: 0.058, key: 0x8a7396, fill: 0x5c4060, clear: 0x141018 },
+    recurring: { fog: 0x1c1810, density: 0.036, key: 0xe2c48a, fill: 0xf0a35e, clear: 0x16140e },
+    emerging: { fog: 0x12100e, density: 0.045, key: 0xc8f26a, fill: 0xb08d57, clear: 0x12100e },
+    calm: { fog: 0x12100e, density: 0.04, key: 0xc8f26a, fill: 0xb08d57, clear: 0x12100e },
+  };
+
+  function applyClimate(climate) {
+    const kind = (climate && climate.kind) || "calm";
+    const c = CLIMATE[kind] || CLIMATE.calm;
+    scene.fog.color.setHex(c.fog);
+    scene.fog.density = c.density;
+    key.color.setHex(c.key);
+    fill.color.setHex(c.fill);
+    renderer.setClearColor(c.clear, 1);
+    document.body.dataset.climate = kind;
+  }
 
   function resize() {
     const w = canvas.clientWidth;
@@ -71,13 +96,21 @@
     return { graphId: m[1], nodeId: m[2] };
   }
 
-  async function api(path) {
-    const res = await fetch(path);
+  async function api(path, opts) {
+    const res = await fetch(path, opts || {});
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: res.statusText }));
       throw new Error(err.error || res.statusText);
     }
     return res.json();
+  }
+
+  async function post(path, body) {
+    return api(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
   }
 
   function stoneMat(color, opacity) {
@@ -197,6 +230,7 @@
       root.remove(ch);
     }
     targets = [];
+    portals = [];
   }
 
   function layout(payload) {
@@ -234,24 +268,68 @@
 
     const forks = payload.fork_children || [];
     forks.forEach((f, i) => {
-      const geo = new THREE.TorusGeometry(0.7, 0.07, 10, 32);
-      const mat = new THREE.MeshStandardMaterial({
+      const ring = portalRing({
+        x: (i - (forks.length - 1) / 2) * 2.2,
+        z: 5.4,
         color: 0xb08d57,
         emissive: 0x5a3c18,
-        emissiveIntensity: 0.4,
-        metalness: 0.7,
-        roughness: 0.3,
+        portal: { graphId: f.id, nodeId: f.spawn_node_id },
       });
-      const ring = new THREE.Mesh(geo, mat);
-      ring.position.set((i - (forks.length - 1) / 2) * 2.2, 0.9, 5.4);
-      ring.rotation.x = Math.PI / 2;
-      ring.userData = { id: null, forkGraph: f.id };
       root.add(ring);
+      portals.push(ring);
     });
 
-    cycle = [payload.node, ...shaped, ...rejected];
+    const parent = payload.parent;
+    if (parent && parent.graph_id && parent.node_id) {
+      const back = portalRing({
+        x: forks.length ? -(forks.length * 1.1 + 1.6) : 0,
+        z: 5.4,
+        color: 0x8a7396,
+        emissive: 0x3a2040,
+        portal: { graphId: parent.graph_id, nodeId: parent.node_id },
+      });
+      root.add(back);
+      portals.push(back);
+    }
+
+    const vetoes = payload.vetoes || [];
+    vetoes.forEach((n, i) => {
+      const mesh = chamberMesh(n, {
+        x: (i - (vetoes.length - 1) / 2) * 1.8,
+        z: 2.4,
+        scale: 0.42,
+        ghost: true,
+      });
+      root.add(mesh);
+      targets.push(mesh);
+    });
+
+    cycle = [payload.node, ...shaped, ...rejected, ...vetoes];
     cycleIndex = 0;
     plate(payload);
+  }
+
+  function portalRing({ x, z, color, emissive, portal }) {
+    const geo = new THREE.TorusGeometry(0.7, 0.07, 10, 32);
+    const mat = new THREE.MeshStandardMaterial({
+      color,
+      emissive,
+      emissiveIntensity: 0.4,
+      metalness: 0.7,
+      roughness: 0.3,
+    });
+    const ring = new THREE.Mesh(geo, mat);
+    ring.position.set(x, 0.9, z);
+    ring.rotation.x = Math.PI / 2;
+    ring.userData = { portal };
+    const hit = new THREE.Mesh(
+      new THREE.TorusGeometry(0.7, 0.22, 8, 24),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    hit.rotation.x = Math.PI / 2;
+    hit.userData = { portal };
+    ring.add(hit);
+    return ring;
   }
 
   function plate(payload) {
@@ -263,8 +341,14 @@
       `${(payload.shaped || []).length} shaped`,
       `${(payload.rejected_siblings || []).length} negative space`,
       `${(payload.fork_children || []).length} forks`,
+      `${(payload.vetoes || []).length} vetoes`,
     ];
+    if (payload.parent && payload.parent.graph_id) bits.push("has cut behind");
+    if (payload.climate && payload.climate.label) {
+      bits.push(`climate ${payload.climate.kind}`);
+    }
     elMeta.textContent = bits.join("  ·  ");
+    applyClimate(payload.climate);
   }
 
   async function inhabit(graphId, nodeId) {
@@ -309,30 +393,116 @@
     lastX = e.clientX;
   });
 
+  function pickUserData(hits, pred) {
+    for (const h of hits) {
+      let o = h.object;
+      while (o) {
+        if (o.userData && pred(o.userData)) return o.userData;
+        o = o.parent;
+      }
+    }
+    return null;
+  }
+
   canvas.addEventListener("click", (e) => {
+    if (composing) return;
     const rect = canvas.getBoundingClientRect();
     pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
-    const hits = raycaster.intersectObjects(targets, true);
-    const hit = hits.find((h) => {
-      let o = h.object;
-      while (o) {
-        if (o.userData && o.userData.id) return true;
-        o = o.parent;
-      }
-      return false;
-    });
-    if (!hit) return;
-    let o = hit.object;
-    while (o && !(o.userData && o.userData.id)) o = o.parent;
-    if (o && o.userData.id && view) inhabit(view.graph_id, o.userData.id);
+    const portalHit = pickUserData(
+      raycaster.intersectObjects(portals, true),
+      (d) => d.portal && d.portal.graphId && d.portal.nodeId
+    );
+    if (portalHit) {
+      inhabit(portalHit.portal.graphId, portalHit.portal.nodeId);
+      return;
+    }
+    const nodeHit = pickUserData(
+      raycaster.intersectObjects(targets, true),
+      (d) => d.id
+    );
+    if (nodeHit && view) inhabit(view.graph_id, nodeHit.id);
   });
 
+  function openComposer(kind) {
+    if (!view || busy) return;
+    composing = kind;
+    elComposer.hidden = false;
+    elComposerLabel.textContent =
+      kind === "fork"
+        ? "fork · accept the chain except this cut"
+        : "veto · this stays, with a human no";
+    elComposerInput.value = "";
+    elComposerInput.placeholder =
+      kind === "fork" ? "why this cut (optional)" : "why this is the wrong cut";
+    elComposerInput.focus();
+  }
+
+  function closeComposer() {
+    composing = null;
+    elComposer.hidden = true;
+    elComposerInput.blur();
+  }
+
+  async function commitGesture() {
+    if (!composing || !view || busy) return;
+    const kind = composing;
+    const reason = elComposerInput.value.trim();
+    if (kind === "veto" && !reason) {
+      elComposerLabel.textContent = "veto · a reason is required";
+      return;
+    }
+    busy = true;
+    try {
+      const result = await post(kind === "fork" ? "/api/fork" : "/api/veto", {
+        node: view.node.id,
+        graph: view.graph_id,
+        session: view.session_id,
+        reason: reason || undefined,
+      });
+      closeComposer();
+      const stand = result.stand;
+      await inhabit(stand.graph_id, stand.node_id);
+    } catch (err) {
+      elComposerLabel.textContent = String(err.message || err);
+    } finally {
+      busy = false;
+    }
+  }
+
+  function walkBack() {
+    if (!view || !view.parent || !view.parent.graph_id) return;
+    inhabit(view.parent.graph_id, view.parent.node_id);
+  }
+
   window.addEventListener("keydown", (e) => {
+    if (composing) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeComposer();
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        commitGesture();
+      }
+      return;
+    }
     if (e.key === "h") {
       helpOn = !helpOn;
       elHelp.style.opacity = helpOn ? "1" : "0";
+    }
+    if (e.key === "f") {
+      e.preventDefault();
+      openComposer("fork");
+    }
+    if (e.key === "v") {
+      e.preventDefault();
+      openComposer("veto");
+    }
+    if (e.key === "b") {
+      e.preventDefault();
+      walkBack();
     }
     if (e.key === "[" || e.key === "]") {
       if (!cycle.length || !view) return;

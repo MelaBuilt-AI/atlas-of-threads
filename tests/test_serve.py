@@ -61,11 +61,26 @@ def _get(url: str) -> tuple[int, str, str]:
         return exc.code, exc.read().decode("utf-8"), "application/json"
 
 
+def _post(url: str, payload: dict) -> tuple[int, str]:
+    raw = json.dumps(payload).encode("utf-8")
+    req = Request(
+        url,
+        data=raw,
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urlopen(req, timeout=5) as resp:
+            return resp.status, resp.read().decode("utf-8")
+    except HTTPError as exc:
+        return exc.code, exc.read().decode("utf-8")
+
+
 def test_health_and_static_shell(httpd_url: str):
     code, body, ctype = _get(httpd_url + "/api/health")
     assert code == 200
     assert json.loads(body)["ok"] is True
-    assert json.loads(body)["write"] is False
+    assert json.loads(body)["write"] is True
     code, body, ctype = _get(httpd_url + "/")
     assert code == 200
     assert "Inhabit Space" in body
@@ -95,13 +110,124 @@ def test_inhabit_json_matches_cli(httpd_url: str, tmp_path: Path):
     assert "hidden_reasoning" not in body
 
 
-def test_writes_rejected(httpd_url: str):
-    req = Request(httpd_url + "/api/sessions", method="POST", data=b"{}")
+def test_unknown_post_rejected(httpd_url: str):
+    code, body = _post(httpd_url + "/api/sessions", {})
+    assert code == 405
+
+
+def test_fork_from_space_keeps_g0(httpd_url: str, tmp_path: Path):
+    store_path = tmp_path / "data"
+    st = Store(store_path)
+    sessions = json.loads(_get(httpd_url + "/api/sessions")[1])
+    spawn = sessions["sessions"][0]["spawn"]
+    sid = sessions["sessions"][0]["id"]
+    gid = spawn["graph_id"]
+    graph = st.load_graph(gid)
+    target = next(n for n in graph.nodes if n.kind == "taste_call")
+    before = (store_path / "sessions" / sid / "graphs" / f"{gid}.json").read_bytes()
+    code, body = _post(
+        httpd_url + "/api/fork",
+        {
+            "node": target.id,
+            "graph": gid,
+            "session": sid,
+            "reason": "accept chain except this cut",
+        },
+    )
+    assert code == 200, body
+    payload = json.loads(body)
+    assert payload["ok"] is True
+    assert payload["op"] == "fork"
+    assert payload["from_graph_id"] == gid
+    assert payload["stand"]["graph_id"] == gid
+    assert payload["stand"]["node_id"] == target.id
+    assert payload["graph_id"] != gid
+    after = (store_path / "sessions" / sid / "graphs" / f"{gid}.json").read_bytes()
+    assert after == before
+    g1 = st.load_graph(payload["graph_id"])
+    assert target.id not in {n.id for n in g1.nodes}
+    view = json.loads(
+        _get(httpd_url + f"/api/inhabit/{target.id}?graph={gid}")[1]
+    )
+    child_ids = {f["id"] for f in view["fork_children"]}
+    assert payload["graph_id"] in child_ids
+    child = next(f for f in view["fork_children"] if f["id"] == payload["graph_id"])
+    assert child["spawn_node_id"]
+    assert "feature_ids" not in body
+
+
+def test_veto_from_space_requires_reason_then_follows(httpd_url: str, tmp_path: Path):
+    store_path = tmp_path / "data"
+    sessions = json.loads(_get(httpd_url + "/api/sessions")[1])
+    spawn = sessions["sessions"][0]["spawn"]
+    sid = sessions["sessions"][0]["id"]
+    gid = spawn["graph_id"]
+    nid = spawn["node_id"]
+    code, body = _post(
+        httpd_url + "/api/veto",
+        {"node": nid, "graph": gid, "session": sid},
+    )
+    assert code == 400
+    assert "reason" in json.loads(body)["error"]
+    code, body = _post(
+        httpd_url + "/api/veto",
+        {
+            "node": nid,
+            "graph": gid,
+            "session": sid,
+            "reason": "this taste-call is the wrong cut",
+        },
+    )
+    assert code == 200, body
+    payload = json.loads(body)
+    assert payload["stand"]["graph_id"] == payload["graph_id"]
+    assert payload["stand"]["node_id"] == nid
+    view = json.loads(
+        _get(
+            httpd_url
+            + f"/api/inhabit/{nid}?graph={payload['graph_id']}"
+        )[1]
+    )
+    assert view["parent"]["graph_id"] == gid
+    assert any(v["status"] == "vetoed" for v in view["vetoes"])
+    g0 = Store(store_path).load_graph(gid)
+    assert nid in {n.id for n in g0.nodes}
+
+
+def test_space_shell_mentions_gestures(httpd_url: str):
+    code, body, _ = _get(httpd_url + "/")
+    assert code == 200
+    assert "f fork" in body
+    assert "v veto" in body
+    js = _get(httpd_url + "/space.js")[1]
+    assert "/api/fork" in js
+    assert "/api/veto" in js
+    assert "omit_set" not in js
+    assert "applyClimate" in js
+    assert "model_taste" not in js
+
+
+def test_inhabit_climate_none_without_fingerprint(httpd_url: str):
+    sessions = json.loads(_get(httpd_url + "/api/sessions")[1])
+    spawn = sessions["sessions"][0]["spawn"]
+    code, body, _ = _get(
+        httpd_url + f"/api/inhabit/{spawn['node_id']}?graph={spawn['graph_id']}"
+    )
+    assert code == 200
+    payload = json.loads(body)
+    assert payload["climate"] is None
+
+
+def test_serve_port_in_use(tmp_path: Path):
+    store = Store(tmp_path / "data")
+    store.init_session("t")
+    first = make_server(store, port=0)
+    _host, port = first.server_address[:2]
     try:
-        urlopen(req, timeout=5)
-        raise AssertionError("POST should fail")
-    except HTTPError as exc:
-        assert exc.code == 405
+        with pytest.raises(ServeError, match="already in use"):
+            make_server(store, port=port)
+    finally:
+        first.server_close()
 
 
 def test_serve_refuses_non_localhost():

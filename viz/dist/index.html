@@ -9,11 +9,16 @@
 <body>
   <canvas id="c"></canvas>
   <div id="banner">story graph · not a circuit trace</div>
-  <div id="help">drag to look · click a chamber to inhabit · [ ] cycle · h help</div>
+  <div id="help">drag to look · click a chamber · [ ] cycle · f fork · v veto · b back · h help</div>
   <div id="plate">
     <div class="kind" id="kind"></div>
     <h1 id="text"></h1>
     <div class="meta" id="meta"></div>
+  </div>
+  <div id="composer" hidden>
+    <div class="kind" id="composer-label">fork</div>
+    <input id="composer-input" type="text" maxlength="400" autocomplete="off" spellcheck="false" />
+    <div class="hint">enter commits · esc cancels</div>
   </div>
   <div id="empty">
     <div>

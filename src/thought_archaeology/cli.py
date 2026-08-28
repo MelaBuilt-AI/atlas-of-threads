@@ -11,13 +11,12 @@ from pathlib import Path
 from thought_archaeology.compile_common import CompileError
 from thought_archaeology.compile_posthoc import compile_posthoc
 from thought_archaeology.compile_structured import compile_structured
+from thought_archaeology.edits import commit, plan_fork, plan_veto
 from thought_archaeology.fingerprint import DEFAULT_MIN_SESSIONS, Fingerprint, fingerprint
 from thought_archaeology.fork import (
     ForkError,
     detect_regen_compile_mode,
-    fork_from,
     fork_regen_prompt,
-    veto_from,
 )
 from thought_archaeology.ids import is_ulid, new_ulid, now_iso
 from thought_archaeology.inhabit import format_inhabit, inhabit, resolve_standing
@@ -693,41 +692,6 @@ def cmd_prompt(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
-def _append_op_turn(
-    store: Store,
-    *,
-    session_id: str,
-    turn_id: str,
-    now: str,
-    role: str,
-    prose: str,
-    graph_id: str,
-    fork_of_node_id: str,
-    provider: str | None,
-) -> None:
-    existing = list(store.iter_turns(session_id))
-    seq = len(existing)
-    session = store.load_session(session_id)
-    parent_id = session.head_turn_id
-    if parent_id is None and existing:
-        parent_id = existing[-1].id
-    turn = Turn(
-        schema_version=SCHEMA_VERSION,
-        id=turn_id,
-        session_id=session_id,
-        seq=seq,
-        role=role,  # type: ignore[arg-type]
-        created_at=now,
-        prose=prose,
-        graph_id=graph_id,
-        parent_turn_id=parent_id,
-        fork_of_node_id=fork_of_node_id,
-        provider=provider,  # type: ignore[arg-type]
-    )
-    store.append_turn(turn)
-    store.update_session_head(session_id, graph_id=graph_id, turn_id=turn_id)
-
-
 def cmd_inhabit(args: argparse.Namespace) -> int:
     store = _store(args)
     view = inhabit(
@@ -748,9 +712,6 @@ def cmd_fork(args: argparse.Namespace) -> int:
         graph_id=args.graph,
         session_id=args.session,
     )
-    t0 = time.perf_counter()
-    now = now_iso()
-    turn_id = new_ulid()
     model_name = args.model_name or graph.model.name or "unknown"
     regen_text: str | None = None
 
@@ -767,7 +728,7 @@ def cmd_fork(args: argparse.Namespace) -> int:
             provider_file=args.provider_file,
             provider_cmd=args.provider_cmd,
         )
-        user = fork_regen_prompt(graph, node, reason=args.reason, now=now)
+        user = fork_regen_prompt(graph, node, reason=args.reason, now=now_iso())
         regen_text = provider.complete(user, system=read_prompt("fork"))
         model = ModelInfo(
             provider=args.provider,
@@ -781,92 +742,37 @@ def cmd_fork(args: argparse.Namespace) -> int:
             compile_mode=graph.model.compile_mode,
         )
 
-    g1, warnings = fork_from(
-        graph,
-        node,
+    plan = plan_fork(
+        store,
+        args.node,
         session_id=args.session,
-        turn_id=turn_id,
-        now=now,
-        model=model,
+        graph_id=args.graph,
         reason=args.reason,
+        model=model,
         regen_text=regen_text,
     )
-    _emit_warnings(warnings, quiet=args.quiet)
-    if args.strict and warnings:
+    _emit_warnings(plan.warnings, quiet=args.quiet)
+    if args.strict and plan.warnings:
         return EXIT_VALIDATION
-
-    validate_graph(g1)
-    path = store.write_graph(g1)
-    role = "assistant" if regen_text else "human_edit"
-    provider_name = model.provider if regen_text else None
-    _append_op_turn(
-        store,
-        session_id=args.session,
-        turn_id=turn_id,
-        now=now,
-        role=role,
-        prose=g1.prose,
-        graph_id=g1.id,
-        fork_of_node_id=node.id,
-        provider=provider_name,
-    )
-    store.log(
-        "fork",
-        session_id=args.session,
-        graph_id=g1.id,
-        path=str(path),
-        duration_ms=round((time.perf_counter() - t0) * 1000, 3),
-        warnings=warnings,
-    )
-    print(g1.id)
+    commit(store, plan)
+    print(plan.g1.id)
     return EXIT_OK
 
 
 def cmd_veto(args: argparse.Namespace) -> int:
     store = _store(args)
-    graph, node = resolve_standing(
+    plan = plan_veto(
         store,
         args.node,
+        session_id=args.session,
         graph_id=args.graph,
-        session_id=args.session,
-    )
-    t0 = time.perf_counter()
-    now = now_iso()
-    turn_id = new_ulid()
-    g1, warnings = veto_from(
-        graph,
-        node,
-        session_id=args.session,
-        turn_id=turn_id,
-        now=now,
         reason=args.reason,
     )
-    _emit_warnings(warnings, quiet=args.quiet)
-    if args.strict and warnings:
+    _emit_warnings(plan.warnings, quiet=args.quiet)
+    if args.strict and plan.warnings:
         return EXIT_VALIDATION
-
-    validate_graph(g1)
-    path = store.write_graph(g1)
-    _append_op_turn(
-        store,
-        session_id=args.session,
-        turn_id=turn_id,
-        now=now,
-        role="human_edit",
-        prose=g1.prose,
-        graph_id=g1.id,
-        fork_of_node_id=node.id,
-        provider=None,
-    )
-    store.log(
-        "veto",
-        session_id=args.session,
-        graph_id=g1.id,
-        path=str(path),
-        duration_ms=round((time.perf_counter() - t0) * 1000, 3),
-        warnings=warnings,
-    )
-    print(g1.id)
+    commit(store, plan)
+    print(plan.g1.id)
     return EXIT_OK
 
 

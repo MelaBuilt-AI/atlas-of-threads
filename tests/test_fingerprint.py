@@ -9,6 +9,7 @@ from thought_archaeology.fingerprint import (
     DIVERGENCE_THRESHOLD,
     MERGE_THRESHOLD,
     Fingerprint,
+    climate_at,
     cluster_nodes,
     fingerprint,
     jaccard,
@@ -16,6 +17,7 @@ from thought_archaeology.fingerprint import (
     recompute_canonical,
     token_set,
 )
+from thought_archaeology.inhabit import inhabit
 from thought_archaeology.ids import new_ulid, now_iso
 from thought_archaeology.models import (
     SCHEMA_VERSION,
@@ -260,3 +262,44 @@ def test_write_once_fingerprint(tmp_path: Path):
 
     with pytest.raises(StoreError, match="write-once"):
         st.write_fingerprint(fp.to_dict())
+
+
+def test_climate_is_atmosphere_not_a_cluster_list(tmp_path: Path):
+    store = tmp_path / "data"
+    sid_a, sid_b = _compile_pair(store)
+    code, out, err = run(
+        ["fingerprint", "--session", sid_a, "--session", sid_b],
+        store=store,
+    )
+    assert code == 0, err
+    st = Store(store)
+    fp = Fingerprint.from_dict(st.latest_fingerprint())
+    graph = next(st.iter_graphs(sid_a))
+    by_text = {n.text: n for n in graph.nodes}
+
+    fought = climate_at(by_text[SHARED], fp)
+    assert fought["kind"] == "divergence"
+    assert fought["label"] == "you fight this cut"
+    assert fought["canonical"] == SHARED
+    assert "clusters" not in fought
+    assert "model_taste" not in fought
+
+    habit = climate_at(by_text[PARA_A], fp)
+    assert habit["kind"] == "recurring"
+    assert habit["label"] == "the model's recurring taste"
+
+    thin = climate_at(by_text[MISS_A], fp)
+    assert thin["kind"] == "emerging"
+
+    claim = next(n for n in graph.nodes if n.kind == "claim")
+    still = climate_at(claim, fp)
+    assert still["kind"] == "calm"
+    assert still["canonical"] is None
+
+    assert climate_at(claim, None) is None
+
+    view = inhabit(st, by_text[SHARED].id, session_id=sid_a)
+    assert view.climate["kind"] == "divergence"
+    text = view.to_dict()
+    assert text["climate"]["kind"] == "divergence"
+    assert "model_taste" not in text

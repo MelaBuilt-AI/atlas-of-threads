@@ -20,7 +20,7 @@ Python 3.11+.
 - Tests assert `(kind, text, status)` and edge triples, never compiled ULIDs (except canvas/inhabit fixtures that fix ids on purpose).
 - Do not add a `personality` node kind.
 - Do not write `wiki/index.md` or `wiki/log.md` from `ta`.
-- Inhabit Space is a read-only view of the store. Do not reimplement omit-set in JavaScript.
+- Inhabit Space may fork/veto, but omit-set lives in Python. Do not reimplement it in JavaScript. Gestures POST to `/api/fork` and `/api/veto`.
 
 ## Visual layer
 

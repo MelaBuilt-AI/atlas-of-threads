@@ -2,9 +2,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from thought_archaeology.fingerprint import Fingerprint, climate_at
 from thought_archaeology.fork import ForkError, omit_set
 from thought_archaeology.models import ThoughtGraph, ThoughtNode
 from thought_archaeology.store import Store, StoreError
+
+
+def _spawn_id(graph: ThoughtGraph) -> str | None:
+    for node in graph.nodes:
+        if node.kind == "claim":
+            return node.id
+    return graph.nodes[0].id if graph.nodes else None
 
 
 def node_payload(node: ThoughtNode) -> dict:
@@ -25,22 +33,36 @@ class InhabitView:
     rejected_siblings: tuple[ThoughtNode, ...]
     vetoes: tuple[ThoughtNode, ...]
     fork_children: tuple[ThoughtGraph, ...]
+    climate: dict | None = None
 
     def to_dict(self) -> dict:
+        fork = self.graph.fork
+        parent = None
+        if self.graph.parent_graph_id and fork is not None:
+            parent = {
+                "graph_id": self.graph.parent_graph_id,
+                "node_id": fork.from_node_id,
+                "discarded_graph_id": fork.discarded_graph_id,
+                "reason": fork.reason,
+            }
         return {
             "caption": "story graph, not a circuit trace",
             "graph_id": self.graph.id,
             "session_id": self.graph.session_id,
+            "parent_graph_id": self.graph.parent_graph_id,
+            "parent": parent,
             "node": node_payload(self.node),
             "shaped": [node_payload(n) for n in self.shaped],
             "rejected_siblings": [node_payload(n) for n in self.rejected_siblings],
             "vetoes": [node_payload(n) for n in self.vetoes],
+            "climate": self.climate,
             "fork_children": [
                 {
                     "id": g.id,
                     "from_node_id": g.fork.from_node_id if g.fork else None,
                     "discarded_graph_id": g.fork.discarded_graph_id if g.fork else None,
                     "reason": g.fork.reason if g.fork else None,
+                    "spawn_node_id": _spawn_id(g),
                 }
                 for g in self.fork_children
             ],
@@ -169,6 +191,8 @@ def inhabit(
                     veto_by_id.setdefault(n.id, n)
 
     children.sort(key=lambda g: (g.created_at, g.id))
+    raw_fp = store.latest_fingerprint()
+    fp = Fingerprint.from_dict(raw_fp) if raw_fp else None
     return InhabitView(
         graph=graph,
         node=node,
@@ -176,6 +200,7 @@ def inhabit(
         rejected_siblings=tuple(sibling_by_id.values()),
         vetoes=tuple(veto_by_id.values()),
         fork_children=tuple(children),
+        climate=climate_at(node, fp),
     )
 
 
@@ -193,9 +218,15 @@ def format_inhabit(view: InhabitView) -> str:
             f"graph {view.graph.id}  session={view.graph.session_id}  "
             "(story graph, not a circuit trace)"
         ),
-        "",
-        "shaped",
     ]
+    if view.climate:
+        c = view.climate
+        extra = c["canonical"] or ""
+        lines.append(
+            f"climate  {c['kind']}  {c['label']}"
+            + (f"  — {extra}" if extra else "")
+        )
+    lines.extend(["", "shaped"])
     if view.shaped:
         lines.extend(_node_line(s) for s in view.shaped)
     else:
