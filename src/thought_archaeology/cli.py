@@ -32,6 +32,16 @@ from thought_archaeology.schema import (
     validate_graph,
     validate_schema,
 )
+from thought_archaeology.depth2 import (
+    PROBE_KINDS,
+    STORY_FALSIFIED,
+    ProbeError,
+    ProbeHarness,
+    ProbeSpec,
+    diff_graphs,
+    make_plan,
+)
+from thought_archaeology.providers.none import NoneProvider
 from thought_archaeology.depth3 import (
     DisplayRefused,
     NullSensor,
@@ -157,6 +167,37 @@ def _parser() -> argparse.ArgumentParser:
     p_veto.add_argument("--session", required=True, metavar="ID")
     p_veto.add_argument("--graph", default=None, metavar="G")
     p_veto.add_argument("--reason", required=True)
+
+    p_probe = sub.add_parser(
+        "probe",
+        parents=[sub_globals],
+        help="depth-2 probe harness (stubs)",
+    )
+    probe_sub = p_probe.add_subparsers(dest="probe_cmd", required=True)
+    p_plan = probe_sub.add_parser(
+        "plan",
+        parents=[sub_globals],
+        help="write a ProbeSpec JSON next to the graph (no model call)",
+    )
+    p_plan.add_argument("--graph", required=True, metavar="G")
+    p_plan.add_argument("--kind", required=True, choices=list(PROBE_KINDS))
+    p_plan.add_argument("--node", required=True, metavar="N")
+    p_plan.add_argument("--out", default=None, metavar="PATH")
+    p_run = probe_sub.add_parser(
+        "run",
+        parents=[sub_globals],
+        help="run a probe (not implemented; exits 4)",
+    )
+    p_run.add_argument("--spec", required=True, metavar="PATH")
+    p_diff = probe_sub.add_parser(
+        "diff",
+        parents=[sub_globals],
+        help="diff two graphs by id then kind+Jaccard (bookkeeping)",
+    )
+    p_diff.add_argument("a")
+    p_diff.add_argument("b")
+    p_diff.add_argument("--spec", default=None, metavar="PATH")
+    p_diff.add_argument("--out", default=None, metavar="PATH")
 
     p_sensor = sub.add_parser(
         "sensor",
@@ -829,6 +870,91 @@ def cmd_veto(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _emit_json_out(payload: dict, out: str | None) -> None:
+    if not out:
+        return
+    text = json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
+    if out == "-":
+        sys.stdout.write(text)
+        return
+    dest = Path(out).expanduser()
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(text, encoding="utf-8")
+
+
+def _load_probe_spec(path: str) -> ProbeSpec:
+    raw = json.loads(_read_path(path))
+    if not isinstance(raw, dict):
+        raise ValidationError(["probe spec JSON must be an object"])
+    validate_schema("probe.schema.json", raw)
+    return ProbeSpec.from_dict(raw)
+
+
+def cmd_probe(args: argparse.Namespace) -> int:
+    if args.probe_cmd == "plan":
+        return _cmd_probe_plan(args)
+    if args.probe_cmd == "run":
+        return _cmd_probe_run(args)
+    if args.probe_cmd == "diff":
+        return _cmd_probe_diff(args)
+    raise UsageError("unknown probe command")
+
+
+def _cmd_probe_plan(args: argparse.Namespace) -> int:
+    store = _store(args)
+    graph = store.load_graph(args.graph)
+    spec = make_plan(graph, kind=args.kind, node_id=args.node)
+    validate_schema("probe.schema.json", spec.to_dict())
+    path = store.write_probe(graph.session_id, spec.to_dict())
+    store.log(
+        "probe_plan",
+        session_id=graph.session_id,
+        graph_id=graph.id,
+        path=str(path),
+        warnings=[],
+    )
+    _emit_json_out(spec.to_dict(), args.out)
+    if args.out != "-":
+        print(spec.id)
+    return EXIT_OK
+
+
+def _cmd_probe_run(args: argparse.Namespace) -> int:
+    spec = _load_probe_spec(args.spec)
+    store = _store(args)
+    graph = store.load_graph(spec.target_graph_id)
+    ProbeHarness().plan(graph, spec)
+    try:
+        ProbeHarness().run(graph, spec, NoneProvider())
+    except NotImplementedError as exc:
+        print(exc, file=sys.stderr)
+        return EXIT_NOT_IMPLEMENTED
+    raise RuntimeError("ProbeHarness.run must raise NotImplementedError")
+
+
+def _cmd_probe_diff(args: argparse.Namespace) -> int:
+    store = _store(args)
+    a = store.load_graph(args.a)
+    b = store.load_graph(args.b)
+    spec = _load_probe_spec(args.spec) if args.spec else None
+    diff = diff_graphs(a, b, spec=spec)
+    validate_schema("graph-diff.schema.json", diff.to_dict())
+    path = store.write_graph_diff(a.session_id, diff.to_dict())
+    store.log(
+        "probe_diff",
+        session_id=a.session_id,
+        graph_id=a.id,
+        path=str(path),
+        warnings=[],
+    )
+    if diff.notes == STORY_FALSIFIED:
+        print(STORY_FALSIFIED, file=sys.stderr)
+    _emit_json_out(diff.to_dict(), args.out)
+    if args.out != "-":
+        print(diff.id)
+    return EXIT_OK
+
+
 def cmd_sensor(args: argparse.Namespace) -> int:
     if args.sensor_cmd != "attach":
         raise UsageError("unknown sensor command")
@@ -994,6 +1120,7 @@ def main(argv: list[str] | None = None) -> int:
         "fork": cmd_fork,
         "veto": cmd_veto,
         "sensor": cmd_sensor,
+        "probe": cmd_probe,
         "fingerprint": cmd_fingerprint,
         "canvas": cmd_canvas,
         "export-wiki": cmd_export_wiki,
@@ -1008,6 +1135,9 @@ def main(argv: list[str] | None = None) -> int:
         print(exc, file=sys.stderr)
         return EXIT_IO
     except SensorError as exc:
+        print(exc, file=sys.stderr)
+        return EXIT_IO
+    except ProbeError as exc:
         print(exc, file=sys.stderr)
         return EXIT_IO
     except ServeError as exc:

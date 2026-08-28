@@ -28,6 +28,8 @@ SCHEMA_NAMES = (
     "turn.schema.json",
     "attribution.schema.json",
     "fingerprint.schema.json",
+    "probe.schema.json",
+    "graph-diff.schema.json",
 )
 
 DAG_EDGE_KINDS = frozenset({"supports", "depends_on", "taste_of"})

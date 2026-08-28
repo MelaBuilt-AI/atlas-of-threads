@@ -13,7 +13,7 @@ License: MIT.
 Python 3.11+. Runtime dependency is `jsonschema` only.
 
 ```bash
-git clone <this-repo>
+git clone https://github.com/MelaBuilt-AI/thought-archaeology.git
 cd thought-archaeology
 python3 -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
@@ -126,6 +126,9 @@ ta sensor attach --from-attribution PATH
 ta fingerprint [--session ID ...] [--min-sessions N] [--out PATH]
 ta canvas GRAPH [--out PATH] [--fingerprint PATH]
 ta export-wiki GRAPH --out PATH [--fingerprint PATH]
+ta probe plan --graph G --kind drop_premise|invert_constraint|resample|steer_later --node N
+ta probe diff GRAPH_A GRAPH_B [--spec PATH]
+ta probe run --spec PATH
 ta serve [--port 7462] [--bind 127.0.0.1]
 ```
 
@@ -153,6 +156,13 @@ clustering of model taste-calls and human vetoes. Default `min_sessions=2`.
 A single session is all `emerging`. No ML. Writes
 `data/fingerprints/{id}.json` (write-once). `--out PATH` copies the JSON;
 `--out -` prints it.
+
+`ta probe plan` writes a `ProbeSpec` JSON next to the graph (sibling
+`probes/` directory) and exits 0. `ta probe diff` matches nodes by id, then
+by kind + Jaccard ≥ 0.8, and writes a `GraphDiff`. If `--spec` is a
+`drop_premise` whose target vanished while the conclusion stayed, stderr
+prints `story falsified under intervention; not a weight-level proof`.
+`ta probe run` does not call a model: it exits 4 (`not implemented`).
 
 `ta sensor attach NODE` is a Depth-3 stub: it binds nothing, prints that
 open weights or a vendor interpretability API are required, and exits 4.

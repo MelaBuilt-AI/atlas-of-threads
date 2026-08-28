@@ -275,6 +275,39 @@ class Store:
         _write_json(path, data)
         return path
 
+    def probes_dir(self, session_id: str) -> Path:
+        return self.session_dir(session_id) / "probes"
+
+    def diffs_dir(self, session_id: str) -> Path:
+        return self.session_dir(session_id) / "diffs"
+
+    def write_probe(self, session_id: str, data: dict) -> Path:
+        """Write-once ProbeSpec JSON next to the session's graphs/."""
+        self._require()
+        if not self.session_exists(session_id):
+            raise StoreError(f"session not found: {session_id}")
+        validate_schema("probe.schema.json", data)
+        _mkdir(self.probes_dir(session_id))
+        pid = data["id"]
+        path = self.probes_dir(session_id) / f"{pid}.json"
+        if path.exists():
+            raise StoreError(f"probe {pid} already exists (write-once)")
+        _write_json(path, data)
+        return path
+
+    def write_graph_diff(self, session_id: str, data: dict) -> Path:
+        self._require()
+        if not self.session_exists(session_id):
+            raise StoreError(f"session not found: {session_id}")
+        validate_schema("graph-diff.schema.json", data)
+        _mkdir(self.diffs_dir(session_id))
+        did = data["id"]
+        path = self.diffs_dir(session_id) / f"{did}.json"
+        if path.exists():
+            raise StoreError(f"graph-diff {did} already exists (write-once)")
+        _write_json(path, data)
+        return path
+
     def load_fingerprint(self, fingerprint_id: str) -> dict:
         self._require()
         path = self.fingerprints_dir / f"{fingerprint_id}.json"
