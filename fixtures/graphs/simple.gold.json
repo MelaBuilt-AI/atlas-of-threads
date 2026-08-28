@@ -1,0 +1,67 @@
+{
+  "nodes": [
+    {
+      "local_id": "n1",
+      "kind": "claim",
+      "text": "The product is the medium, not the microscope.",
+      "status": "accepted"
+    },
+    {
+      "local_id": "n2",
+      "kind": "premise",
+      "text": "A chat log has no named parts or causal tests.",
+      "status": "accepted"
+    },
+    {
+      "local_id": "n3",
+      "kind": "taste_call",
+      "text": "Invent the medium first.",
+      "status": "accepted"
+    },
+    {
+      "local_id": "n4",
+      "kind": "rejected_alternative",
+      "text": "A dashboard of neurons.",
+      "status": "rejected"
+    },
+    {
+      "local_id": "n5",
+      "kind": "rejected_alternative",
+      "text": "Wait for weight access before building.",
+      "status": "rejected"
+    },
+    {
+      "local_id": "n6",
+      "kind": "uncertainty",
+      "text": "Depth 3 needs open weights or a vendor API.",
+      "status": "uncertain"
+    }
+  ],
+  "edges": [
+    {
+      "from": "n2",
+      "to": "n1",
+      "kind": "supports"
+    },
+    {
+      "from": "n3",
+      "to": "n1",
+      "kind": "taste_of"
+    },
+    {
+      "from": "n4",
+      "to": "n1",
+      "kind": "rejects"
+    },
+    {
+      "from": "n5",
+      "to": "n1",
+      "kind": "rejects"
+    },
+    {
+      "from": "n6",
+      "to": "n1",
+      "kind": "qualifies"
+    }
+  ]
+}

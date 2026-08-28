@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mela.ai/schemas/thought-archaeology/v1/thought-graph.schema.json",
+  "title": "ThoughtGraph",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "session_id", "turn_id", "created_at", "prose", "nodes", "edges", "model"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "id": { "type": "string", "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$" },
+    "session_id": { "type": "string", "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$" },
+    "turn_id": { "type": "string", "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$" },
+    "created_at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "prose": { "type": "string" },
+    "hidden_reasoning": { "type": ["string", "null"] },
+    "parent_graph_id": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string", "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$" }
+      ]
+    },
+    "fork": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["from_graph_id", "from_node_id"],
+          "properties": {
+            "from_graph_id": { "type": "string", "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$" },
+            "from_node_id": { "type": "string", "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$" },
+            "discarded_graph_id": {
+              "oneOf": [
+                { "type": "null" },
+                { "type": "string", "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$" }
+              ]
+            },
+            "reason": { "type": ["string", "null"] }
+          }
+        }
+      ]
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "name", "compile_mode"],
+      "properties": {
+        "provider": { "type": "string", "enum": ["none", "file", "stdin", "shell"] },
+        "name": { "type": "string" },
+        "compile_mode": { "type": "string", "enum": ["structured_emit", "posthoc"] }
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "items": { "$ref": "thought-node.schema.json" }
+    },
+    "edges": {
+      "type": "array",
+      "items": { "$ref": "thought-edge.schema.json" }
+    },
+    "metadata": { "type": "object" }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "nodes": [
+    {
+      "local_id": "A",
+      "kind": "claim",
+      "text": "Dependent claim A.",
+      "status": "accepted"
+    },
+    {
+      "local_id": "B",
+      "kind": "premise",
+      "text": "Prerequisite B.",
+      "status": "accepted"
+    },
+    {
+      "local_id": "R",
+      "kind": "rejected_alternative",
+      "text": "Not this path.",
+      "status": "rejected"
+    }
+  ],
+  "edges": [
+    {
+      "from": "A",
+      "to": "B",
+      "kind": "depends_on"
+    },
+    {
+      "from": "R",
+      "to": "A",
+      "kind": "rejects"
+    }
+  ]
+}

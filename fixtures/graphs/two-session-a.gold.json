@@ -1,0 +1,47 @@
+{
+  "nodes": [
+    {
+      "local_id": "c1",
+      "kind": "claim",
+      "text": "The product is the medium, not the microscope.",
+      "status": "accepted"
+    },
+    {
+      "local_id": "t_shared",
+      "kind": "taste_call",
+      "text": "Invent the medium first.",
+      "status": "accepted"
+    },
+    {
+      "local_id": "t_para",
+      "kind": "taste_call",
+      "text": "Make thought an object you can inhabit and fork.",
+      "status": "accepted"
+    },
+    {
+      "local_id": "t_miss",
+      "kind": "taste_call",
+      "text": "Prefer short names for the CLI.",
+      "status": "accepted"
+    },
+    {
+      "local_id": "r1",
+      "kind": "rejected_alternative",
+      "text": "A dashboard of neurons.",
+      "status": "rejected"
+    },
+    {
+      "local_id": "r2",
+      "kind": "rejected_alternative",
+      "text": "Wait for weight access before building.",
+      "status": "rejected"
+    }
+  ],
+  "edges": [
+    { "from": "t_shared", "to": "c1", "kind": "taste_of" },
+    { "from": "t_para", "to": "c1", "kind": "taste_of" },
+    { "from": "t_miss", "to": "c1", "kind": "taste_of" },
+    { "from": "r1", "to": "c1", "kind": "rejects" },
+    { "from": "r2", "to": "c1", "kind": "rejects" }
+  ]
+}

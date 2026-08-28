@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Inhabit Space — Thought Archaeology</title>
+  <link rel="stylesheet" href="./theme.css" />
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div id="banner">story graph · not a circuit trace</div>
+  <div id="help">drag to look · click a chamber to inhabit · [ ] cycle · h help</div>
+  <div id="plate">
+    <div class="kind" id="kind"></div>
+    <h1 id="text"></h1>
+    <div class="meta" id="meta"></div>
+  </div>
+  <div id="empty">
+    <div>
+      <p>No thought-graph in this store.</p>
+      <p class="meta">Run <code>ta init</code> and compile a fixture, then refresh.</p>
+    </div>
+  </div>
+  <script src="./three.min.js"></script>
+  <script src="./space.js"></script>
+</body>
+</html>

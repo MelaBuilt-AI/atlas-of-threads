@@ -1,0 +1,23 @@
+{
+  "nodes": [
+    {
+      "local_id": "r1",
+      "kind": "rejected_alternative",
+      "text": "Invent the medium first — internals later. That cut is discarded here.",
+      "status": "rejected"
+    },
+    {
+      "local_id": "c1",
+      "kind": "claim",
+      "text": "Thought-objects can exist before any depth-3 sensor exists.",
+      "status": "accepted"
+    }
+  ],
+  "edges": [
+    {
+      "from": "r1",
+      "to": "c1",
+      "kind": "rejects"
+    }
+  ]
+}

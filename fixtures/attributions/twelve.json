@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0.0",
+  "id": "01M13D3AAAAAAAAAAAAAAA0003",
+  "graph_id": "01M13D3AAAAAAAAAAAAAAA0001",
+  "node_id": "01M13D3AAAAAAAAAAAAAAA0002",
+  "span": { "start": 0, "end": 42, "unit": "char" },
+  "raw_feature_count": 4000,
+  "vendor": "custom",
+  "created_at": "2026-08-27T00:00:00Z",
+  "supernodes": [
+    {
+      "id": "01M13D3AAAAAAAAAAAAAAA00A1",
+      "label": "named parts",
+      "nla_sentence": "The model is thinking about git-like named parts.",
+      "feature_ids": ["feat_1", "feat_2"],
+      "exemplars": ["a repo has named parts"]
+    },
+    { "id": "01M13D3AAAAAAAAAAAAAAA00A2", "label": "causal tests" },
+    { "id": "01M13D3AAAAAAAAAAAAAAA00A3", "label": "shared object" },
+    { "id": "01M13D3AAAAAAAAAAAAAAA00A4", "label": "story why" },
+    { "id": "01M13D3AAAAAAAAAAAAAAA00A5", "label": "machinery why" },
+    { "id": "01M13D3AAAAAAAAAAAAAAA00A6", "label": "source map" },
+    { "id": "01M13D3AAAAAAAAAAAAAAA00A7", "label": "invent the medium" },
+    { "id": "01M13D3AAAAAAAAAAAAAAA00A8", "label": "three depths" },
+    { "id": "01M13D3AAAAAAAAAAAAAAA00A9", "label": "negative space" },
+    { "id": "01M13D3AAAAAAAAAAAAAAA00AA", "label": "dual archaeology" },
+    { "id": "01M13D3AAAAAAAAAAAAAAA00AB", "label": "no neuron dashboard" },
+    {
+      "id": "01M13D3AAAAAAAAAAAAAAA00AC",
+      "label": "suppressed path",
+      "suppressed": true,
+      "nla_sentence": "A dashboard of neurons was considered and dropped."
+    }
+  ]
+}

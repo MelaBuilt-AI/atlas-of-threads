@@ -1,0 +1,189 @@
+{
+  "nodes": [
+    {
+      "local_id": "n1",
+      "kind": "claim",
+      "text": "A repo has named parts, causal tests, and a place two people can stand inside the same object; a chat log has none of those.",
+      "status": "accepted"
+    },
+    {
+      "local_id": "n2",
+      "kind": "claim",
+      "text": "Do not collapse the story-why (what the model says it thought) and the machinery-why (which features moved the tokens).",
+      "status": "accepted"
+    },
+    {
+      "local_id": "n3",
+      "kind": "premise",
+      "text": "Asking the model \"why\" returns a commit message; ground truth comes from intervention — ablate, steer, delete a premise, regenerate, observe what changes.",
+      "status": "accepted"
+    },
+    {
+      "local_id": "n4",
+      "kind": "claim",
+      "text": "True insight is a source map: bind the sentence the human reads to the circuit that caused it, without claiming they are the same.",
+      "status": "accepted"
+    },
+    {
+      "local_id": "n5",
+      "kind": "taste_call",
+      "text": "\"Show me the neurons\" is the wrong port. Make thought an object you can inhabit, fork, and break on purpose.",
+      "status": "accepted"
+    },
+    {
+      "local_id": "n6",
+      "kind": "taste_call",
+      "text": "Invent the medium first. Internals plug in later as a deeper sensor on the same objects. Git did not wait for cycle-accurate CPU traces.",
+      "status": "accepted"
+    },
+    {
+      "local_id": "n7",
+      "kind": "analogy",
+      "text": "A source map binds minified JavaScript to the original file the way a thought-object should bind prose to a circuit.",
+      "status": "accepted"
+    },
+    {
+      "local_id": "n8",
+      "kind": "analogy",
+      "text": "Fork is `git checkout -b` for a thought; intervention is `git bisect` for cognition.",
+      "status": "accepted"
+    },
+    {
+      "local_id": "n9",
+      "kind": "claim",
+      "text": "Three depths share the same thought-objects: visible mind, gray-box causality, source-mapped internals.",
+      "status": "accepted"
+    },
+    {
+      "local_id": "n10",
+      "kind": "claim",
+      "text": "Depth 1 must work on any chat model with no internals, including this Grok TUI session.",
+      "status": "accepted"
+    },
+    {
+      "local_id": "n11",
+      "kind": "rejected_alternative",
+      "text": "Treat the model's self-report as ground truth (a more eloquent black box).",
+      "status": "rejected"
+    },
+    {
+      "local_id": "n12",
+      "kind": "rejected_alternative",
+      "text": "A dashboard of neurons — how this idea dies in a lab.",
+      "status": "rejected"
+    },
+    {
+      "local_id": "n13",
+      "kind": "rejected_alternative",
+      "text": "Faithful English inner monologue of the forward pass.",
+      "status": "rejected"
+    },
+    {
+      "local_id": "n14",
+      "kind": "rejected_alternative",
+      "text": "Wait for xAI to open Grok weights before building anything.",
+      "status": "rejected"
+    },
+    {
+      "local_id": "n15",
+      "kind": "rejected_alternative",
+      "text": "Ship a Neuronpedia-style raw circuit explorer as the product.",
+      "status": "rejected"
+    },
+    {
+      "local_id": "n16",
+      "kind": "uncertainty",
+      "text": "Grok weights are not available from this chat; Depth 3 needs open weights or a vendor interpretability API.",
+      "status": "uncertain"
+    },
+    {
+      "local_id": "n17",
+      "kind": "taste_call",
+      "text": "Rejected alternatives (negative space) are first-class and always stored.",
+      "status": "accepted"
+    },
+    {
+      "local_id": "n18",
+      "kind": "claim",
+      "text": "Dual archaeology: human forks and vetoes are first-class; over time a map of how the human thinks against the model.",
+      "status": "accepted"
+    }
+  ],
+  "edges": [
+    {
+      "from": "n1",
+      "to": "n5",
+      "kind": "supports"
+    },
+    {
+      "from": "n2",
+      "to": "n4",
+      "kind": "supports"
+    },
+    {
+      "from": "n3",
+      "to": "n4",
+      "kind": "supports"
+    },
+    {
+      "from": "n7",
+      "to": "n4",
+      "kind": "analogizes"
+    },
+    {
+      "from": "n8",
+      "to": "n5",
+      "kind": "analogizes"
+    },
+    {
+      "from": "n6",
+      "to": "n9",
+      "kind": "taste_of"
+    },
+    {
+      "from": "n5",
+      "to": "n18",
+      "kind": "taste_of"
+    },
+    {
+      "from": "n17",
+      "to": "n5",
+      "kind": "taste_of"
+    },
+    {
+      "from": "n11",
+      "to": "n4",
+      "kind": "rejects"
+    },
+    {
+      "from": "n12",
+      "to": "n5",
+      "kind": "rejects"
+    },
+    {
+      "from": "n13",
+      "to": "n4",
+      "kind": "rejects"
+    },
+    {
+      "from": "n14",
+      "to": "n10",
+      "kind": "rejects"
+    },
+    {
+      "from": "n15",
+      "to": "n6",
+      "kind": "rejects"
+    },
+    {
+      "from": "n16",
+      "to": "n10",
+      "kind": "qualifies"
+    },
+    {
+      "from": "n9",
+      "to": "n10",
+      "kind": "supports"
+    }
+  ]
+}
