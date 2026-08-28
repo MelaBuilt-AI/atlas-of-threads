@@ -49,11 +49,17 @@ def bootstrap_payload(store: Store) -> dict:
             except StoreError:
                 graph = None
             if graph is not None and graph.nodes:
-                claim = next((n for n in graph.nodes if n.kind == "claim"), graph.nodes[0])
+                spawn_node = next(
+                    (n for n in graph.nodes if n.kind == "taste_call"),
+                    None,
+                ) or next(
+                    (n for n in graph.nodes if n.kind == "claim"),
+                    graph.nodes[0],
+                )
                 spawn = {
                     "graph_id": graph.id,
-                    "node_id": claim.id,
-                    "node": _node_brief(claim),
+                    "node_id": spawn_node.id,
+                    "node": _node_brief(spawn_node),
                 }
         sessions.append(
             {

@@ -15,6 +15,73 @@ def _spawn_id(graph: ThoughtGraph) -> str | None:
     return graph.nodes[0].id if graph.nodes else None
 
 
+KIND_SENSE = {
+    "claim": "a conclusion this answer is standing on",
+    "premise": "a supporting belief",
+    "taste_call": "a judgment the premises did not force",
+    "analogy": "a mapping used to think",
+    "uncertainty": "a scoped unknown",
+    "rejected_alternative": "a road not taken",
+}
+
+
+def _count_phrase(n: int, singular: str, plural: str) -> str:
+    if n == 1:
+        return f"1 {singular}"
+    return f"{n} {plural}"
+
+
+def chamber_read(view: InhabitView) -> dict:
+    """How the chamber speaks. Schema kinds stay; the human hears sense."""
+    node = view.node
+    sense = KIND_SENSE.get(node.kind, node.kind.replace("_", " "))
+    if node.status == "vetoed":
+        sense = "a human no"
+    shaped_n = len(view.shaped)
+    keep_n = len(view.graph.nodes) - 1 - shaped_n
+    if shaped_n == 0:
+        drop = "only this chamber"
+    else:
+        drop = "this chamber and " + _count_phrase(
+            shaped_n, "thought it made", "thoughts it made"
+        )
+    stay = _count_phrase(max(keep_n, 0), "other chamber stays", "other chambers stay")
+    fork_line = (
+        f"fork does not erase this. it opens a continuation that omits {drop} "
+        f"({stay}). you remain in this chamber; a bronze ring is the path without it"
+    )
+    veto_line = (
+        "veto does not erase this. it copies the whole graph and writes a human no "
+        "on this chamber"
+    )
+    climate = view.climate
+    kind = (climate or {}).get("kind")
+    climate_line = {
+        "divergence": "climate: you have fought this taste before",
+        "recurring": "climate: the model reaches for this taste again and again",
+        "emerging": "climate: this taste has only shown up in this sitting",
+        "veto": "climate: a human no already lives on this thought",
+        "calm": "climate: still air — this thought is not a habit yet",
+    }.get(kind) if climate else None
+    here = ["you are here"]
+    if shaped_n:
+        here.append("ahead: what this thought made")
+    if view.rejected_siblings:
+        here.append("to the sides: roads not taken")
+    if view.fork_children:
+        here.append("bronze ring: a continuation you already cut")
+    if view.graph.parent_graph_id and view.graph.fork is not None:
+        here.append("violet ring: walk back to the cut")
+    return {
+        "kind_line": f"{node.kind.replace('_', ' ')} — {sense}",
+        "here_line": " · ".join(here),
+        "fork_line": fork_line,
+        "veto_line": veto_line,
+        "climate_line": climate_line,
+        "look_line": "left/right preview a path · enter walk it · up deeper · down or b retrace",
+    }
+
+
 def node_payload(node: ThoughtNode) -> dict:
     return {
         "id": node.id,
@@ -56,6 +123,7 @@ class InhabitView:
             "rejected_siblings": [node_payload(n) for n in self.rejected_siblings],
             "vetoes": [node_payload(n) for n in self.vetoes],
             "climate": self.climate,
+            "read": chamber_read(self),
             "fork_children": [
                 {
                     "id": g.id,
@@ -219,13 +287,12 @@ def format_inhabit(view: InhabitView) -> str:
             "(story graph, not a circuit trace)"
         ),
     ]
-    if view.climate:
-        c = view.climate
-        extra = c["canonical"] or ""
-        lines.append(
-            f"climate  {c['kind']}  {c['label']}"
-            + (f"  — {extra}" if extra else "")
-        )
+    spoken = chamber_read(view)
+    lines.append(spoken["kind_line"])
+    lines.append(spoken["here_line"])
+    if spoken["climate_line"]:
+        lines.append(spoken["climate_line"])
+    lines.append(spoken["fork_line"])
     lines.extend(["", "shaped"])
     if view.shaped:
         lines.extend(_node_line(s) for s in view.shaped)

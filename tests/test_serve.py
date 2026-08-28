@@ -102,6 +102,9 @@ def test_inhabit_json_matches_cli(httpd_url: str, tmp_path: Path):
     assert payload["graph_id"] == view.graph.id
     assert payload["node"]["id"] == view.node.id
     assert payload["caption"] == "story graph, not a circuit trace"
+    assert "read" in payload
+    assert "does not erase" in payload["read"]["fork_line"]
+    assert "human no" in payload["read"]["veto_line"]
     assert {n["text"] for n in payload["shaped"]} == {n.text for n in view.shaped}
     assert {n["text"] for n in payload["rejected_siblings"]} == {
         n.text for n in view.rejected_siblings
@@ -197,14 +200,29 @@ def test_veto_from_space_requires_reason_then_follows(httpd_url: str, tmp_path: 
 def test_space_shell_mentions_gestures(httpd_url: str):
     code, body, _ = _get(httpd_url + "/")
     assert code == 200
-    assert "f fork" in body
-    assert "v veto" in body
+    assert "preview a path" in body
+    assert "overhead" in body
+    assert "shift+c home" in body
+    assert "human no" in body
     js = _get(httpd_url + "/space.js")[1]
     assert "/api/fork" in js
     assert "/api/veto" in js
     assert "omit_set" not in js
     assert "applyClimate" in js
     assert "model_taste" not in js
+    assert "ArrowUp" in js
+    assert "CELL" in js
+    assert "starTexture" in js
+    assert "markRise" in js
+    assert "trail" in js
+    assert "selectFocus" in js
+    assert "CHOICE_STRIDE" in js
+    assert "overhead" in js
+    assert "overheadLook" in js
+    assert "overSun" in js
+    assert "shiftKey" in js
+    assert "cycleChoice" in js
+    assert "inhabit(view.graph_id, cycle[" not in js
 
 
 def test_inhabit_climate_none_without_fingerprint(httpd_url: str):

@@ -19,7 +19,7 @@
 
 html, body {
   height: 100%;
-  background: var(--stone);
+  background: #03050c;
   color: var(--ink);
   font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", serif;
   overflow: hidden;
@@ -56,8 +56,17 @@ html, body {
   font-size: clamp(1.1rem, 2.4vw, 1.65rem);
   font-weight: 500;
   line-height: 1.25;
-  margin: 0.35rem 0 0.5rem;
+  margin: 0.35rem 0 0.35rem;
   max-width: 36rem;
+}
+
+#plate .here {
+  font-size: 0.92rem;
+  line-height: 1.4;
+  color: var(--ink);
+  opacity: 0.82;
+  max-width: 36rem;
+  margin-bottom: 0.45rem;
 }
 
 #plate .meta {
@@ -117,10 +126,12 @@ body[data-climate="emerging"] #banner { color: #c8f26a; }
 #composer .kind {
   font-family: ui-monospace, Menlo, monospace;
   font-size: 0.72rem;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  text-transform: none;
   color: var(--phosphor);
   margin-bottom: 0.35rem;
+  line-height: 1.4;
+  max-width: 42rem;
 }
 
 #composer input {
