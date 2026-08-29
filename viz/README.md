@@ -11,6 +11,7 @@ Gestures from the chamber:
 - `b` back — walk to the parent cut
 - arrows: left/right **preview** a path in front (no walk). Enter walks the focused path. No paths → keys do nothing. Up deeper, down/`b` retrace.
 - `c` cycles camera: overhead map of the grid, then back behind the chamber. Drag pans the map overhead. Shift+c returns behind the home chamber. Overhead gets extra sun/hemisphere light.
+- `r` opens the relic index. Its 20 PNG cards document the vocabulary of forms. Choosing one previews its matching GLB at the standing chamber without changing graph data; Escape restores the semantic mapping.
 - click a ring to enter that graph
 
 The sky is a starfield (not the floor). The floor is a grid whose cell is the default claim chamber footprint (1.4). Path chambers sit on that grid at a stride of 3 cells so they do not overlap. Chambers rise when they spawn.
@@ -18,5 +19,29 @@ The sky is a starfield (not the floor). The floor is a grid whose cell is the de
 Writes go through `/api/fork` and `/api/veto`. Do not compute the omit-set in `space.js`.
 
 Fingerprint is **climate**: fog and light at the standing node (recurring judgment, human no, divergence). Not a chart of clusters. Python scores; JS paints.
+
+## Relics
+
+Thought chambers use the generated GLBs under `dist/assets/models/`. The small
+loader in `dist/relic-loader.js` reads their embedded base-color,
+metallic/roughness, normal, specular, and volume properties into Three.js
+physical materials. A procedural environment map supplies the reflections.
+
+The default form follows the thought kind. Evidence on the standing node takes
+precedence: provenance becomes the lens, behavioral intervention the intervened
+claim, activation correlation the scanner, neural intervention the key,
+recurrence the crucible, and checkpoint emergence the stratigraphic core.
+Fork and return portals use the compass and counterfactual gate.
+
+Regenerate the runtime assets from a source folder of matching `.glb`/`.png`
+pairs with:
+
+```bash
+python tools/import_relic_assets.py SOURCE_DIR viz/dist/assets
+```
+
+The importer keeps geometry and PBR channels intact, resizes embedded runtime
+textures to 1K, and creates 360px PNG index cards. The chamber remains local and
+requires no CDN or Node build.
 
 Dev with Node is optional — edit `viz/dist/space.js` directly.

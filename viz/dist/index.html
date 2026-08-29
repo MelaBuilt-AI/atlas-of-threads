@@ -7,10 +7,10 @@
   <link rel="stylesheet" href="./theme.css" />
 </head>
 <body>
-  <canvas id="c"></canvas>
+  <canvas id="c" tabindex="0"></canvas>
   <div id="topbar">
     <div id="banner">story graph · not a circuit trace</div>
-    <div id="help">← → preview a path · enter walk it · ↑ deeper · ↓ / b back · c overhead · shift+c home · f cut · v human no · h help</div>
+    <div id="help">← → preview a path · enter walk it · ↑ deeper · ↓ / b back · c overhead · shift+c home · r relic index · f cut · v human no · h help</div>
   </div>
   <div id="plate">
     <div class="kind" id="kind"></div>
@@ -23,6 +23,16 @@
     <input id="composer-input" type="text" maxlength="400" autocomplete="off" spellcheck="false" />
     <div class="hint">enter commits · esc cancels</div>
   </div>
+  <div id="relic-index" hidden aria-label="Relic index">
+    <div class="relic-index-head">
+      <div>
+        <div class="kind">relic index · forms of thought and evidence</div>
+        <p>Choose a form to preview it in the standing chamber. This changes no graph data.</p>
+      </div>
+      <button id="relic-close" type="button">close · esc</button>
+    </div>
+    <div id="relic-grid"></div>
+  </div>
   <div id="empty">
     <div>
       <p>No thought-graph in this store.</p>
@@ -30,6 +40,7 @@
     </div>
   </div>
   <script src="./three.min.js"></script>
+  <script src="./relic-loader.js"></script>
   <script src="./space.js"></script>
 </body>
 </html>

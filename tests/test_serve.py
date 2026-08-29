@@ -61,6 +61,11 @@ def _get(url: str) -> tuple[int, str, str]:
         return exc.code, exc.read().decode("utf-8"), "application/json"
 
 
+def _get_bytes(url: str) -> tuple[int, bytes, str]:
+    with urlopen(url, timeout=5) as resp:
+        return resp.status, resp.read(), resp.headers.get_content_type()
+
+
 def _post(url: str, payload: dict) -> tuple[int, str]:
     raw = json.dumps(payload).encode("utf-8")
     req = Request(
@@ -242,6 +247,8 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert "shift+c home" in body
     assert "human no" in body
     assert 'id="topbar"' in body
+    assert 'id="relic-index"' in body
+    assert "relic-loader.js" in body
     js = _get(httpd_url + "/space.js")[1]
     assert "/api/fork" in js
     assert "/api/veto" in js
@@ -260,11 +267,25 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert "overSun" in js
     assert "shiftKey" in js
     assert "--plate-height" in js
+    assert "RelicGLBLoader.load" in js
+    assert "EVIDENCE_RELIC" in js
+    assert "openRelicIndex" in js
+    assert "assets/previews" in js
     css = _get(httpd_url + "/theme.css")[1]
     assert "calc(2.25rem + var(--plate-height" in css
     assert "grid-template-columns: max-content minmax(0, 1fr)" in css
     assert "cycleChoice" in js
     assert "inhabit(view.graph_id, cycle[" not in js
+
+    code, loader, _ = _get(httpd_url + "/relic-loader.js")
+    assert code == 200
+    assert "MeshPhysicalMaterial" in loader
+    code, model, ctype = _get_bytes(
+        httpd_url + "/assets/models/narrated-claim.glb"
+    )
+    assert code == 200
+    assert ctype == "model/gltf-binary"
+    assert model.startswith(b"glTF")
 
 
 def test_inhabit_climate_none_without_fingerprint(httpd_url: str):

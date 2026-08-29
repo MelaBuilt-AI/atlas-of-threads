@@ -266,6 +266,10 @@ class InhabitHandler(BaseHTTPRequestHandler):
             ".json": "application/json; charset=utf-8",
             ".map": "application/json; charset=utf-8",
             ".svg": "image/svg+xml",
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".glb": "model/gltf-binary",
             ".woff2": "font/woff2",
         }
         ctype = types.get(target.suffix, "application/octet-stream")

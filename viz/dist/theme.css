@@ -132,6 +132,120 @@ body[data-climate="emerging"] #banner { color: #c8f26a; }
 
 #composer[hidden] { display: none; }
 
+#relic-index {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  overflow: auto;
+  padding: clamp(1rem, 3vw, 2.5rem);
+  background:
+    radial-gradient(circle at 50% 0, rgba(42, 54, 38, 0.22), transparent 32rem),
+    rgba(3, 5, 12, 0.96);
+  backdrop-filter: blur(12px);
+}
+
+#relic-index[hidden] { display: none; }
+
+.relic-index-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 2rem;
+  max-width: 80rem;
+  margin: 0 auto 1.25rem;
+}
+
+.relic-index-head .kind {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--phosphor);
+}
+
+.relic-index-head p {
+  margin-top: 0.4rem;
+  color: var(--mute);
+}
+
+#relic-close {
+  border: 1px solid rgba(176, 141, 87, 0.45);
+  background: rgba(18, 16, 14, 0.6);
+  color: var(--bronze-hot);
+  padding: 0.5rem 0.7rem;
+  font: 0.68rem ui-monospace, Menlo, monospace;
+  cursor: pointer;
+}
+
+#relic-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0.8rem;
+  max-width: 80rem;
+  margin: 0 auto;
+}
+
+.relic-card {
+  position: relative;
+  min-width: 0;
+  border: 1px solid rgba(176, 141, 87, 0.22);
+  background: rgba(18, 16, 14, 0.55);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 140ms ease, transform 140ms ease, background 140ms ease;
+}
+
+.relic-card:hover,
+.relic-card:focus-visible,
+.relic-card.mapped {
+  border-color: var(--phosphor);
+  background: rgba(31, 34, 24, 0.72);
+  outline: none;
+  transform: translateY(-2px);
+}
+
+.relic-card img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  background: #08090c;
+}
+
+.relic-card-copy {
+  display: block;
+  padding: 0.65rem;
+}
+
+.relic-card strong {
+  display: block;
+  color: var(--bronze-hot);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.relic-card small {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--mute);
+  font: 0.65rem/1.35 ui-monospace, Menlo, monospace;
+}
+
+.relic-card.mapped::after {
+  content: "mapped here";
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  padding: 0.25rem 0.35rem;
+  background: rgba(3, 5, 12, 0.82);
+  color: var(--phosphor);
+  font: 0.58rem ui-monospace, Menlo, monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
 #composer .kind {
   font-family: ui-monospace, Menlo, monospace;
   font-size: 0.72rem;
@@ -190,6 +304,10 @@ body[data-climate="emerging"] #banner { color: #c8f26a; }
   }
 
   #composer { bottom: calc(1.75rem + var(--plate-height, 9rem)); }
+
+  .relic-index-head { display: block; }
+  #relic-close { margin-top: 0.8rem; }
+  #relic-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 a { color: var(--phosphor); }

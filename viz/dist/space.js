@@ -9,6 +9,56 @@
     rejected_alternative: 0x8a7396,
   };
 
+  const RELICS = [
+    ["archaeology-scanner", "Archaeology Scanner", "activation correlation · measured internal activity"],
+    ["causal-test-crucible", "Causal Test Crucible", "recurring circuit · repeated causal tests"],
+    ["commit-tablet", "Commit Tablet", "judgment call · a committed cut"],
+    ["counterfactual-shard-gate", "Counterfactual Shard Gate", "return path · the cut behind you"],
+    ["fork-compass", "Fork Compass", "continuation · a navigable fork"],
+    ["forked-claim", "Forked Claim", "forked status · a claim on another path"],
+    ["gray-box-prism", "Gray-Box Prism", "uncertainty · bounded unknowns"],
+    ["intervened-claim", "Intervened Claim", "behavioral evidence · a tested thought"],
+    ["intervention-key", "Intervention Key", "neural intervention · a causal internal edit"],
+    ["named-parts-astrolabe", "Named-Parts Astrolabe", "analogy · a mapping used to think"],
+    ["narrated-claim", "Narrated Claim", "claim · the answer's stated story"],
+    ["provenance-lens", "Provenance Lens", "context provenance · an earlier artifact"],
+    ["shared-mind-chamber", "Shared-Mind Chamber", "inhabitable medium · a shared thought object"],
+    ["source-mapped-claim", "Source-Mapped Claim", "source map · story bound to evidence"],
+    ["story-mask", "Story Mask", "rejected alternative · visible negative space"],
+    ["stratigraphic-thought-core", "Stratigraphic Thought Core", "checkpoint emergence · change through layers"],
+    ["tacit-claim", "Tacit Claim", "premise · a supporting belief"],
+    ["tacit-knowledge-fossil", "Tacit-Knowledge Fossil", "unspoken premise · preserved assumption"],
+    ["thought-graph-reliquary", "Thought-Graph Reliquary", "thought graph · the inspectable object"],
+    ["two-whys-vessel", "Two-Whys Vessel", "story and machinery · held apart, then bound"],
+  ].map(([key, name, role]) => ({
+    key,
+    name,
+    role,
+    model: `./assets/models/${key}.glb`,
+    preview: `./assets/previews/${key}.png`,
+  }));
+  const RELIC_BY_KEY = Object.fromEntries(RELICS.map((relic) => [relic.key, relic]));
+  const KIND_RELIC = {
+    claim: "narrated-claim",
+    premise: "tacit-claim",
+    analogy: "named-parts-astrolabe",
+    judgment_call: "commit-tablet",
+    taste_call: "commit-tablet",
+    uncertainty: "gray-box-prism",
+    rejected_alternative: "story-mask",
+  };
+  const EVIDENCE_RELIC = {
+    story_report: "narrated-claim",
+    context_provenance: "provenance-lens",
+    behavioral_intervention: "intervened-claim",
+    activation_correlation: "archaeology-scanner",
+    neural_intervention: "intervention-key",
+    recurring_circuit: "causal-test-crucible",
+    checkpoint_emergence: "stratigraphic-thought-core",
+    training_provenance: "source-mapped-claim",
+    training_influence: "source-mapped-claim",
+  };
+
   const canvas = document.getElementById("c");
   const elKind = document.getElementById("kind");
   const elText = document.getElementById("text");
@@ -20,10 +70,18 @@
   const elComposer = document.getElementById("composer");
   const elComposerLabel = document.getElementById("composer-label");
   const elComposerInput = document.getElementById("composer-input");
+  const elRelicIndex = document.getElementById("relic-index");
+  const elRelicGrid = document.getElementById("relic-grid");
+  const elRelicClose = document.getElementById("relic-close");
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setClearColor(0x12100e, 1);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(0x12100e, 0.045);
@@ -65,6 +123,9 @@
   let sky = null;
   let trail = [];
   let overhead = false;
+  let manualRelicKey = null;
+  let mappedRelicKey = "narrated-claim";
+  let layoutGeneration = 0;
 
   const root = new THREE.Group();
   scene.add(root);
@@ -72,6 +133,9 @@
   scene.add(new THREE.AmbientLight(0x3a342c, 0.55));
   const key = new THREE.PointLight(0xc8f26a, 1.4, 28, 2);
   key.position.set(0, 3.2, 1.5);
+  key.castShadow = true;
+  key.shadow.mapSize.set(1024, 1024);
+  key.shadow.bias = -0.0008;
   scene.add(key);
   const fill = new THREE.PointLight(0xb08d57, 0.7, 22, 2);
   fill.position.set(-4, 1.4, 3);
@@ -192,10 +256,10 @@
     return tex;
   }
 
-  function makeSky() {
+  function makeSky(texture) {
     const geo = new THREE.SphereGeometry(120, 48, 32);
     const mat = new THREE.MeshBasicMaterial({
-      map: starTexture(),
+      map: texture,
       side: THREE.BackSide,
       fog: false,
       depthWrite: false,
@@ -252,7 +316,53 @@
     if (line) ctx.fillText(line, x, y + row * lh);
   }
 
-  function chamberMesh(node, { x, z, scale, ghost }) {
+  function relicForNode(node, evidence) {
+    const latest = evidence && evidence.length ? evidence[evidence.length - 1] : null;
+    if (latest && EVIDENCE_RELIC[latest.kind]) return EVIDENCE_RELIC[latest.kind];
+    if (node.status === "vetoed") return "story-mask";
+    const text = (node.text || "").toLowerCase();
+    if (/source map|source-map/.test(text)) return "source-mapped-claim";
+    if (/story.*machinery|machinery.*story|two whys/.test(text)) return "two-whys-vessel";
+    if (/thought.graph|inspectable object/.test(text)) return "thought-graph-reliquary";
+    if (/shared.*mind|inhabit|medium/.test(text) && node.kind === "claim") {
+      return "shared-mind-chamber";
+    }
+    if (/tacit|unspoken/.test(text) && node.kind === "premise") {
+      return "tacit-knowledge-fossil";
+    }
+    return KIND_RELIC[node.kind] || "thought-graph-reliquary";
+  }
+
+  function mountRelic(group, key, { scale, ghost, placeholder, generation }) {
+    const relic = RELIC_BY_KEY[key] || RELIC_BY_KEY["thought-graph-reliquary"];
+    group.userData.relicKey = relic.key;
+    RelicGLBLoader.load(relic.model)
+      .then((object) => {
+        if (!group.parent || generation !== layoutGeneration) return;
+        const box = new THREE.Box3().setFromObject(object);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        const fit = (2.25 * scale) / Math.max(size.y, size.x * 0.72, size.z * 0.72, 0.001);
+        object.scale.setScalar(fit);
+        object.position.set(-center.x * fit, 0.42 - box.min.y * fit, -center.z * fit);
+        object.traverse((part) => {
+          if (!part.material) return;
+          if (ghost) {
+            part.material.transparent = true;
+            part.material.opacity *= 0.38;
+            part.material.depthWrite = false;
+          }
+        });
+        placeholder.visible = false;
+        group.add(object);
+      })
+      .catch((error) => {
+        placeholder.material.color.setHex(0x6b3540);
+        placeholder.userData.loadError = String(error.message || error);
+      });
+  }
+
+  function chamberMesh(node, { x, z, scale, ghost, relicKey, evidence }) {
     const color = KIND_COLOR[node.kind] || 0xb08d57;
     const g = new THREE.Group();
     g.position.set(x, 0, z);
@@ -265,12 +375,26 @@
     plinth.position.y = 0.18;
     g.add(plinth);
 
-    const core = new THREE.Mesh(
-      new THREE.BoxGeometry(1.4 * scale, 2.2 * scale, 1.4 * scale),
-      stoneMat(color, ghost ? 0.45 : 0.92)
+    const placeholder = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.48 * scale),
+      new THREE.MeshStandardMaterial({
+        color,
+        emissive: color,
+        emissiveIntensity: 0.12,
+        metalness: 0.35,
+        roughness: 0.55,
+        transparent: true,
+        opacity: ghost ? 0.24 : 0.5,
+      })
     );
-    core.position.y = 1.35 * scale;
-    g.add(core);
+    placeholder.position.y = 1.35 * scale;
+    g.add(placeholder);
+    mountRelic(g, relicKey || relicForNode(node, evidence), {
+      scale,
+      ghost,
+      placeholder,
+      generation: layoutGeneration,
+    });
 
     const ring = new THREE.Mesh(
       new THREE.TorusGeometry(1.05 * scale, 0.04, 8, 24),
@@ -378,9 +502,26 @@
   }
 
   function layout(payload) {
+    layoutGeneration += 1;
     clearRoot();
     root.add(floor());
-    const here = chamberMesh(payload.node, { x: 0, z: 0, scale: 1, ghost: false });
+    mappedRelicKey = relicForNode(payload.node, payload.evidence || []);
+    if (
+      payload.parent_graph_id &&
+      payload.node.kind === "claim" &&
+      !(payload.evidence || []).length &&
+      mappedRelicKey === "narrated-claim"
+    ) {
+      mappedRelicKey = "forked-claim";
+    }
+    const here = chamberMesh(payload.node, {
+      x: 0,
+      z: 0,
+      scale: 1,
+      ghost: false,
+      relicKey: manualRelicKey || mappedRelicKey,
+      evidence: payload.evidence || [],
+    });
     root.add(here);
     markRise(here, 0);
 
@@ -402,6 +543,7 @@
         z: slot.z,
         scale: 0.7,
         ghost: item.ghost,
+        evidence: [],
       });
       root.add(mesh);
       targets.push(mesh);
@@ -422,6 +564,7 @@
         color: 0xb08d57,
         emissive: 0x5a3c18,
         portal: { graphId: f.id, nodeId: f.spawn_node_id },
+        relicKey: "fork-compass",
       });
       root.add(ring);
       portals.push(ring);
@@ -442,6 +585,7 @@
         color: 0x8a7396,
         emissive: 0x3a2040,
         portal: { graphId: parent.graph_id, nodeId: parent.node_id },
+        relicKey: "counterfactual-shard-gate",
       });
       root.add(back);
       portals.push(back);
@@ -451,7 +595,10 @@
     plate(payload);
   }
 
-  function portalRing({ x, z, color, emissive, portal }) {
+  function portalRing({ x, z, color, emissive, portal, relicKey }) {
+    const group = new THREE.Group();
+    group.position.set(x, 0, z);
+    group.userData = { portal, ghost: false };
     const geo = new THREE.TorusGeometry(0.7, 0.07, 10, 32);
     const mat = new THREE.MeshStandardMaterial({
       color,
@@ -461,17 +608,30 @@
       roughness: 0.3,
     });
     const ring = new THREE.Mesh(geo, mat);
-    ring.position.set(x, 0.9, z);
+    ring.position.set(0, 0.9, 0);
     ring.rotation.x = Math.PI / 2;
     ring.userData = { portal };
+    group.add(ring);
+    const placeholder = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.24),
+      new THREE.MeshStandardMaterial({ color, metalness: 0.5, roughness: 0.35 })
+    );
+    placeholder.position.y = 1.1;
+    group.add(placeholder);
+    mountRelic(group, relicKey, {
+      scale: 0.48,
+      ghost: false,
+      placeholder,
+      generation: layoutGeneration,
+    });
     const hit = new THREE.Mesh(
       new THREE.TorusGeometry(0.7, 0.22, 8, 24),
       new THREE.MeshBasicMaterial({ visible: false })
     );
     hit.rotation.x = Math.PI / 2;
     hit.userData = { portal };
-    ring.add(hit);
-    return ring;
+    group.add(hit);
+    return group;
   }
 
   function plate(payload) {
@@ -489,6 +649,14 @@
       bits.push("enter walks this path · esc clears");
     } else {
       if (read.look_line) bits.push(read.look_line);
+      const shownRelic = RELIC_BY_KEY[manualRelicKey || mappedRelicKey];
+      if (shownRelic) {
+        bits.push(
+          manualRelicKey
+            ? `relic preview: ${shownRelic.name} · esc restores mapped form`
+            : `form: ${shownRelic.name} · r opens relic index`
+        );
+      }
       if (choices.length) bits.push(`${choices.length} paths in front`);
       if ((payload.fork_children || []).length) bits.push("bronze ring: continuation");
       if (payload.parent && payload.parent.graph_id) bits.push("violet ring: back to the cut");
@@ -711,6 +879,49 @@
     showFocus();
   }
 
+  function renderRelicIndex() {
+    elRelicGrid.replaceChildren();
+    for (const relic of RELICS) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "relic-card";
+      if (relic.key === (manualRelicKey || mappedRelicKey)) button.classList.add("mapped");
+      const preview = document.createElement("img");
+      preview.src = relic.preview;
+      preview.alt = "";
+      preview.loading = "lazy";
+      const copy = document.createElement("span");
+      copy.className = "relic-card-copy";
+      const name = document.createElement("strong");
+      name.textContent = relic.name;
+      const role = document.createElement("small");
+      role.textContent = relic.role;
+      copy.append(name, role);
+      button.append(preview, copy);
+      button.addEventListener("click", () => {
+        manualRelicKey = relic.key;
+        elRelicIndex.hidden = true;
+        if (view) layout(view);
+      });
+      elRelicGrid.append(button);
+    }
+  }
+
+  function openRelicIndex() {
+    if (!view || composing) return;
+    renderRelicIndex();
+    elRelicIndex.hidden = false;
+    const selected = elRelicGrid.querySelector(".mapped") || elRelicGrid.firstElementChild;
+    if (selected) selected.focus();
+  }
+
+  function closeRelicIndex() {
+    elRelicIndex.hidden = true;
+    canvas.focus();
+  }
+
+  elRelicClose.addEventListener("click", closeRelicIndex);
+
   window.addEventListener("keydown", (e) => {
     if (composing) {
       if (e.key === "Escape") {
@@ -723,8 +934,25 @@
       }
       return;
     }
+    if (!elRelicIndex.hidden) {
+      if (e.key === "Escape" || e.key === "r" || e.key === "R") {
+        e.preventDefault();
+        closeRelicIndex();
+      }
+      return;
+    }
+    if (e.key === "r" || e.key === "R") {
+      e.preventDefault();
+      openRelicIndex();
+      return;
+    }
     if (e.key === "Escape") {
       e.preventDefault();
+      if (manualRelicKey) {
+        manualRelicKey = null;
+        if (view) layout(view);
+        return;
+      }
       clearFocus();
     }
     if (e.key === "Enter") {
@@ -831,7 +1059,14 @@
     requestAnimationFrame(tick);
   }
 
-  sky = makeSky();
+  const skyMap = starTexture();
+  const environmentMap = skyMap.clone();
+  environmentMap.mapping = THREE.EquirectangularReflectionMapping;
+  environmentMap.needsUpdate = true;
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromEquirectangular(environmentMap).texture;
+  pmrem.dispose();
+  sky = makeSky(skyMap);
   scene.add(sky);
   boot();
   tick();
