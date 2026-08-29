@@ -16,6 +16,10 @@ Gestures from the chamber:
 
 The sky is a starfield (not the floor). The floor is a grid whose cell is the default claim chamber footprint (1.4). Path chambers sit on that grid at a stride of 3 cells so they do not overlap. Chambers rise when they spawn.
 
+The inhabited relic keeps a key spotlight in both over-the-shoulder and overhead
+views. Left/right selection moves a second spotlight from path to path. Enter
+walks into the preview, where the newly inhabited relic takes over the key light.
+
 Writes go through `/api/fork` and `/api/veto`. Do not compute the omit-set in `space.js`.
 
 Fingerprint is **climate**: fog and light at the standing node (recurring judgment, human no, divergence). Not a chart of clusters. Python scores; JS paints.

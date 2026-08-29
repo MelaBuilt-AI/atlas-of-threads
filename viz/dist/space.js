@@ -126,17 +126,34 @@
   let manualRelicKey = null;
   let mappedRelicKey = "narrated-claim";
   let layoutGeneration = 0;
+  let standingMesh = null;
 
   const root = new THREE.Group();
   scene.add(root);
 
   scene.add(new THREE.AmbientLight(0x3a342c, 0.55));
-  const key = new THREE.PointLight(0xc8f26a, 1.4, 28, 2);
-  key.position.set(0, 3.2, 1.5);
+  const keyTarget = new THREE.Object3D();
+  scene.add(keyTarget);
+  const key = new THREE.SpotLight(0xc8f26a, 2.5, 32, Math.PI / 5, 0.62, 1.5);
+  key.position.set(3, 5.8, 3.5);
+  key.target = keyTarget;
   key.castShadow = true;
   key.shadow.mapSize.set(1024, 1024);
   key.shadow.bias = -0.0008;
   scene.add(key);
+  const selectionTarget = new THREE.Object3D();
+  scene.add(selectionTarget);
+  const selectionSpot = new THREE.SpotLight(
+    0xe2c48a,
+    0,
+    30,
+    Math.PI / 7,
+    0.72,
+    1.45
+  );
+  selectionSpot.position.set(-2.5, 5.2, 2.8);
+  selectionSpot.target = selectionTarget;
+  scene.add(selectionSpot);
   const fill = new THREE.PointLight(0xb08d57, 0.7, 22, 2);
   fill.position.set(-4, 1.4, 3);
   scene.add(fill);
@@ -483,6 +500,8 @@
     risers = [];
     choices = [];
     focusIndex = -1;
+    standingMesh = null;
+    selectionSpot.intensity = 0;
   }
 
   function choiceSlot(i, n) {
@@ -523,6 +542,7 @@
       evidence: payload.evidence || [],
     });
     root.add(here);
+    standingMesh = here;
     markRise(here, 0);
 
     const shaped = payload.shaped || [];
@@ -646,7 +666,7 @@
       const c = choices[focusIndex].choice;
       const kind = (c.kind || "").replace(/_/g, " ");
       elHere.textContent = `path ${focusIndex + 1}/${choices.length} · ${c.via} · ${kind} — ${c.text}`;
-      bits.push("enter walks this path · esc clears");
+      bits.push("spotlit preview · enter inhabits and makes this the key light · esc clears");
     } else {
       if (read.look_line) bits.push(read.look_line);
       const shownRelic = RELIC_BY_KEY[manualRelicKey || mappedRelicKey];
@@ -858,6 +878,7 @@
 
   function showFocus() {
     choices.forEach((c, i) => applyFocusVisual(c.mesh, i === focusIndex));
+    if (focusIndex < 0) selectionSpot.intensity = 0;
     if (view) plate(view);
   }
 
@@ -1027,15 +1048,40 @@
     }
   }
 
+  const lightAim = new THREE.Vector3();
+
+  function aimSpot(light, target, mesh, x, y, z) {
+    mesh.getWorldPosition(lightAim);
+    target.position.copy(lightAim);
+    target.position.y += 1.15;
+    light.position.set(lightAim.x + x, lightAim.y + y, lightAim.z + z);
+  }
+
+  function updateNavigationLights(t) {
+    if (standingMesh) {
+      aimSpot(key, keyTarget, standingMesh, 3, overhead ? 7 : 5.8, 3.5);
+      key.intensity = overhead
+        ? 2.35
+        : 2.5 + Math.sin(t * 1.3) * 0.16;
+    } else key.intensity = 0;
+
+    const focused = focusIndex >= 0 && choices[focusIndex]
+      ? choices[focusIndex].mesh
+      : null;
+    if (focused) {
+      aimSpot(selectionSpot, selectionTarget, focused, -2.5, overhead ? 7.5 : 5.2, 2.8);
+      selectionSpot.intensity = overhead ? 3.4 : 3.05;
+    } else selectionSpot.intensity = 0;
+  }
+
   function tick() {
     const t = clock.getElapsedTime();
     if (overhead) {
       camera.up.set(0, 0, -1);
       camera.position.set(overheadLook.x, 26, overheadLook.z);
       camera.lookAt(overheadLook.x, 0, overheadLook.z);
-      overSun.intensity = 2.35;
-      overHemi.intensity = 1.05;
-      key.intensity = 0.35;
+      overSun.intensity = 1.15;
+      overHemi.intensity = 0.5;
       fill.intensity = 0.2;
       starFill.intensity = 0.55;
       scene.fog.density = 0.005;
@@ -1048,13 +1094,13 @@
       camera.lookAt(0, 1.4, 0);
       overSun.intensity = 0;
       overHemi.intensity = 0;
-      key.intensity = 1.25 + Math.sin(t * 1.3) * 0.15;
       fill.intensity = 0.7;
       starFill.intensity = 0.22;
       scene.fog.density = climateFog;
     }
     if (sky) sky.rotation.y = t * 0.0045;
     tickRise(t);
+    updateNavigationLights(t);
     renderer.render(scene, camera);
     requestAnimationFrame(tick);
   }

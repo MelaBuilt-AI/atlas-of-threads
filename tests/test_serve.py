@@ -271,6 +271,9 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert "EVIDENCE_RELIC" in js
     assert "openRelicIndex" in js
     assert "assets/previews" in js
+    assert "selectionSpot" in js
+    assert "standingMesh" in js
+    assert "updateNavigationLights" in js
     css = _get(httpd_url + "/theme.css")[1]
     assert "calc(2.25rem + var(--plate-height" in css
     assert "grid-template-columns: max-content minmax(0, 1fr)" in css
