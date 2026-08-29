@@ -258,8 +258,14 @@ evidence.
 
 While Inhabit Space remains open, it polls the local store for finalized graph
 heads. A later `ta compile` rises as an optional teal doorway beside the current
-chamber; the user is never teleported. This is a turn-level companion for
-completed answers, not token-level hidden-thought streaming.
+chamber; the user is never teleported. Entering the doorway marks it seen but
+keeps a quieter reciprocal recent-thought route, bounded in browser memory so
+refreshes do not erase the conversation path. This is a turn-level companion
+for completed answers, not token-level hidden-thought streaming.
+
+Restart `ta serve` after updating project code. Static HTML/JavaScript reload on
+refresh, but an existing Python process cannot emit newly added read fields; the
+descent names this mismatch when `why this path` data is unavailable.
 
 `ta evidence context --graph G --node N --turn T` attaches verified context
 provenance only when `T` is in the graph turn's parent lineage. The binding

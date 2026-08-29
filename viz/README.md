@@ -18,8 +18,10 @@ Gestures from the chamber:
 The chamber also polls the local store for newly finalized graph heads. A graph
 written by `ta compile` while the space is open rises as a teal doorway beside
 the current thought; it never teleports the inhabitant. Walking through marks
-that arrival seen. This is turn-level companionship after an answer is complete,
-not token streaming or hidden chain-of-thought access.
+that arrival seen but keeps a quieter recent-thought doorway in both directions.
+The bounded companion memory survives refreshes in the browser; graph data stays
+canonical in the local store. This is turn-level companionship after an answer
+is complete, not token streaming or hidden chain-of-thought access.
 
 The sky is a starfield (not the floor). The floor is a grid whose cell is the default claim chamber footprint (1.4). Path chambers sit on that grid at a stride of 3 cells so they do not overlap. Chambers rise when they spawn.
 
@@ -48,6 +50,10 @@ Pressing `e` opens one archaeological record with a strict boundary: a
 server-authored **why this path** section shows the story graph's recorded
 supports, judgments, analogies, qualifications, descendants, and rejected
 roads; separate strata below show what evidence has actually tested.
+Because path relations are authored by Python, restart `ta serve` after updating
+the project code; refreshing alone updates the static surface but not an already
+running server process. A mismatched surface says this explicitly instead of
+showing an unexplained empty story section.
 
 Regenerate the runtime assets from a source folder of matching `.glb`/`.png`
 pairs with:

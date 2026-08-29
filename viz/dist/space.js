@@ -133,11 +133,45 @@
   let mappedRelicKey = "narrated-claim";
   let layoutGeneration = 0;
   let standingMesh = null;
+  const COMPANION_MEMORY_KEY = "thought-archaeology.companions.v1";
   const knownHeads = new Map();
-  let liveArrivals = [];
+  const sessionTitles = new Map();
+  let liveArrivals = loadCompanionThoughts();
   let arrivalsDirty = false;
   let companionPolling = false;
   let companionReady = false;
+
+  function loadCompanionThoughts() {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(COMPANION_MEMORY_KEY) || "[]");
+      if (!Array.isArray(saved)) return [];
+      return saved.filter(
+        (item) => item && item.graphId && item.nodeId && item.text && item.title
+      ).slice(-12);
+    } catch (_error) {
+      return [];
+    }
+  }
+
+  function saveCompanionThoughts() {
+    try {
+      window.localStorage.setItem(
+        COMPANION_MEMORY_KEY,
+        JSON.stringify(liveArrivals.slice(-12))
+      );
+    } catch (_error) {
+      // Browser memory is optional; the graph store remains canonical.
+    }
+  }
+
+  function rememberCompanion(entry) {
+    liveArrivals = liveArrivals.filter(
+      (item) => item.graphId !== entry.graphId || item.nodeId !== entry.nodeId
+    );
+    liveArrivals.push(entry);
+    liveArrivals = liveArrivals.slice(-12);
+    saveCompanionThoughts();
+  }
 
   const root = new THREE.Group();
   scene.add(root);
@@ -616,15 +650,15 @@
       const ring = portalRing({
         x,
         z,
-        color: 0x5c8a7b,
-        emissive: 0x183c38,
+        color: arrival.seen ? 0x496e68 : 0x5c8a7b,
+        emissive: arrival.seen ? 0x102a28 : 0x183c38,
         portal: { graphId: arrival.graphId, nodeId: arrival.nodeId },
         relicKey: "thought-graph-reliquary",
       });
       root.add(ring);
       portals.push(ring);
       addChoice(ring, {
-        via: "new thought",
+        via: arrival.seen ? "recent thought" : "new thought",
         kind: arrival.kind,
         text: `${arrival.title} — ${arrival.text}`,
         walk: () => inhabit(arrival.graphId, arrival.nodeId),
@@ -700,8 +734,8 @@
     if (focusIndex >= 0 && choices[focusIndex]) {
       const c = choices[focusIndex].choice;
       const kind = (c.kind || "").replace(/_/g, " ");
-      elHere.textContent = c.via === "new thought"
-        ? `new thought nearby · ${kind} — ${c.text}`
+      elHere.textContent = c.via === "new thought" || c.via === "recent thought"
+        ? `${c.via} nearby · ${kind} — ${c.text}`
         : `path ${focusIndex + 1}/${choices.length} · ${c.via} · ${kind} — ${c.text}`;
       bits.push("spotlit preview · enter inhabits and makes this the key light · esc clears");
     } else {
@@ -723,9 +757,17 @@
       if (pathCount) bits.push(`${pathCount} paths in front`);
       if ((payload.fork_children || []).length) bits.push("bronze ring: continuation");
       if (payload.parent && payload.parent.graph_id) bits.push("violet ring: back to the cut");
-      if (liveArrivals.length) {
+      const nearbyArrivals = liveArrivals.filter(
+        (arrival) => arrival.graphId !== payload.graph_id
+      );
+      const newArrivals = nearbyArrivals.filter((arrival) => !arrival.seen);
+      if (newArrivals.length) {
         bits.push(
-          `${liveArrivals.length} new ${liveArrivals.length === 1 ? "thought" : "thoughts"} nearby`
+          `${newArrivals.length} new ${newArrivals.length === 1 ? "thought" : "thoughts"} nearby`
+        );
+      } else if (nearbyArrivals.length) {
+        bits.push(
+          `${nearbyArrivals.length} recent ${nearbyArrivals.length === 1 ? "thought" : "thoughts"} nearby`
         );
       }
       if (trail.length) bits.push("b retraces your walk");
@@ -748,6 +790,26 @@
     const prev = view
       ? { graphId: view.graph_id, nodeId: view.node.id }
       : null;
+    const enteredCompanion = liveArrivals.some(
+      (arrival) => arrival.graphId === next.graphId
+    );
+    if (enteredCompanion) {
+      liveArrivals = liveArrivals.map((arrival) =>
+        arrival.graphId === next.graphId ? { ...arrival, seen: true } : arrival
+      );
+      saveCompanionThoughts();
+      if (origin === "walk" && view && prev) {
+        rememberCompanion({
+          sessionId: view.session_id,
+          graphId: prev.graphId,
+          nodeId: prev.nodeId,
+          kind: view.node.kind,
+          text: view.node.text,
+          title: sessionTitles.get(view.session_id) || "earlier thought",
+          seen: true,
+        });
+      }
+    }
     if (origin === "walk" && prev && !sameStand(prev, next)) {
       trail.push(prev);
       if (trail.length > 80) trail.shift();
@@ -757,7 +819,6 @@
         trail.pop();
       }
     }
-    liveArrivals = liveArrivals.filter((arrival) => arrival.graphId !== payload.graph_id);
     view = payload;
     if (origin !== "hash") hashTo(payload.graph_id, payload.node.id);
     layout(payload);
@@ -768,6 +829,7 @@
       const boot = await api("/api/sessions");
       for (const session of boot.sessions || []) {
         knownHeads.set(session.id, session.head_graph_id || null);
+        sessionTitles.set(session.id, session.title || "untitled thought");
       }
       companionReady = true;
       const fromHash = parseHash();
@@ -810,6 +872,7 @@
         const head = session.head_graph_id || null;
         const changed = !knownHeads.has(session.id) || knownHeads.get(session.id) !== head;
         knownHeads.set(session.id, head);
+        sessionTitles.set(session.id, session.title || "untitled thought");
         if (!changed || !head || !session.spawn) continue;
         if (view && head === view.graph_id) continue;
         if (
@@ -817,16 +880,14 @@
           (view.fork_children || []).some((child) => child.id === head)
         ) continue;
         if (liveArrivals.some((arrival) => arrival.graphId === head)) continue;
-        liveArrivals = liveArrivals.filter(
-          (arrival) => arrival.sessionId !== session.id
-        );
-        liveArrivals.push({
+        rememberCompanion({
           sessionId: session.id,
           graphId: head,
           nodeId: session.spawn.node_id,
           kind: session.spawn.node.kind,
           text: session.spawn.node.text,
           title: session.title || "untitled thought",
+          seen: false,
         });
         added = true;
       }
@@ -1057,7 +1118,9 @@
     const read = (view && view.read) || {};
     const story = read.story_path || {};
     const layers = read.evidence_layers || [];
-    elStoryIntro.textContent = story.intro_line || story.empty_line || "";
+    elStoryIntro.textContent = Object.prototype.hasOwnProperty.call(read, "story_path")
+      ? story.intro_line || story.empty_line || ""
+      : "path relations are unavailable from the running server · restart ta serve, then refresh";
     elStoryGroups.replaceChildren();
     for (const group of story.groups || []) {
       const section = document.createElement("section");

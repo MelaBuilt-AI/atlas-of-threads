@@ -329,9 +329,14 @@ def test_live_companion_uses_finalized_store_heads_as_optional_doorways(tmp_path
     assert "knownHeads" in js
     assert "pollLiveCompanion" in js
     assert 'api("/api/sessions")' in js
-    assert 'via: "new thought"' in js
+    assert 'arrival.seen ? "recent thought" : "new thought"' in js
+    assert '"recent thought"' in js
+    assert "rememberCompanion" in js
+    assert "window.localStorage" in js
+    assert "COMPANION_MEMORY_KEY" in js
     assert 'relicKey: "thought-graph-reliquary"' in js
     assert "setInterval(pollLiveCompanion" in js
+    assert "restart ta serve, then refresh" in js
 
 
 def test_inhabit_climate_none_without_fingerprint(httpd_url: str):
