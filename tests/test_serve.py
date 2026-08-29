@@ -152,7 +152,8 @@ def test_inhabit_json_carries_evidence_without_javascript_inference(
     assert "does not settle" in payload["read"]["evidence_line"]
     js = (viz_dist_path() / "space.js").read_text(encoding="utf-8")
     assert "read.evidence_line" in js
-    assert "behavioral_intervention" not in js
+    assert "supports this thought" not in js
+    assert "contradicts this thought" not in js
 
 
 def test_unknown_post_rejected(httpd_url: str):
@@ -248,6 +249,7 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert "human no" in body
     assert 'id="topbar"' in body
     assert 'id="relic-index"' in body
+    assert 'id="evidence-descent"' in body
     assert "relic-loader.js" in body
     js = _get(httpd_url + "/space.js")[1]
     assert "/api/fork" in js
@@ -270,6 +272,7 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert "RelicGLBLoader.load" in js
     assert "EVIDENCE_RELIC" in js
     assert "openRelicIndex" in js
+    assert "openEvidenceDescent" in js
     assert "assets/previews" in js
     assert "selectionSpot" in js
     assert "standingMesh" in js
@@ -289,6 +292,18 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert code == 200
     assert ctype == "model/gltf-binary"
     assert model.startswith(b"glTF")
+
+
+def test_evidence_descent_is_a_static_server_authored_read_surface():
+    dist = viz_dist_path()
+    html = (dist / "index.html").read_text(encoding="utf-8")
+    js = (dist / "space.js").read_text(encoding="utf-8")
+    assert 'id="evidence-descent"' in html
+    assert "read.evidence_layers" in js
+    assert "layer.heading_line" in js
+    assert "layer.summary" in js
+    assert "supports this thought" not in js
+    assert "contradicts this thought" not in js
 
 
 def test_inhabit_climate_none_without_fingerprint(httpd_url: str):

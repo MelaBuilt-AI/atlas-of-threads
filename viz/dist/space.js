@@ -73,6 +73,10 @@
   const elRelicIndex = document.getElementById("relic-index");
   const elRelicGrid = document.getElementById("relic-grid");
   const elRelicClose = document.getElementById("relic-close");
+  const elEvidenceDescent = document.getElementById("evidence-descent");
+  const elEvidenceIntro = document.getElementById("evidence-intro");
+  const elEvidenceStrata = document.getElementById("evidence-strata");
+  const elEvidenceClose = document.getElementById("evidence-close");
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -522,6 +526,7 @@
 
   function layout(payload) {
     layoutGeneration += 1;
+    elEvidenceDescent.hidden = true;
     clearRoot();
     root.add(floor());
     mappedRelicKey = relicForNode(payload.node, payload.evidence || []);
@@ -669,6 +674,7 @@
       bits.push("spotlit preview · enter inhabits and makes this the key light · esc clears");
     } else {
       if (read.look_line) bits.push(read.look_line);
+      if (read.evidence_action_line) bits.push(read.evidence_action_line);
       const shownRelic = RELIC_BY_KEY[manualRelicKey || mappedRelicKey];
       if (shownRelic) {
         bits.push(
@@ -943,6 +949,66 @@
 
   elRelicClose.addEventListener("click", closeRelicIndex);
 
+  function renderEvidenceDescent() {
+    const read = (view && view.read) || {};
+    const layers = read.evidence_layers || [];
+    elEvidenceIntro.textContent = read.evidence_line || read.evidence_empty_line || "";
+    elEvidenceStrata.replaceChildren();
+    for (const layer of layers) {
+      const stratum = document.createElement("article");
+      stratum.className = "evidence-stratum";
+
+      const position = document.createElement("div");
+      position.className = "evidence-position";
+      position.textContent = layer.position_line;
+      const heading = document.createElement("div");
+      heading.className = "evidence-heading";
+      heading.textContent = layer.heading_line;
+      const summary = document.createElement("p");
+      summary.className = "evidence-summary";
+      summary.textContent = layer.summary;
+      stratum.append(position, heading, summary);
+
+      if (layer.origin_line) {
+        const origin = document.createElement("div");
+        origin.className = "evidence-origin";
+        origin.textContent = layer.origin_line;
+        stratum.append(origin);
+      }
+      if (layer.follows_line) {
+        const follows = document.createElement("div");
+        follows.className = "evidence-follows";
+        follows.textContent = layer.follows_line;
+        stratum.append(follows);
+      }
+      if ((layer.artifact_lines || []).length) {
+        const artifacts = document.createElement("ul");
+        artifacts.className = "evidence-artifacts";
+        for (const line of layer.artifact_lines) {
+          const item = document.createElement("li");
+          item.textContent = line;
+          artifacts.append(item);
+        }
+        stratum.append(artifacts);
+      }
+      elEvidenceStrata.append(stratum);
+    }
+  }
+
+  function openEvidenceDescent() {
+    if (!view || composing) return;
+    renderEvidenceDescent();
+    elEvidenceDescent.hidden = false;
+    elEvidenceClose.focus();
+  }
+
+  function closeEvidenceDescent() {
+    elEvidenceDescent.hidden = true;
+    canvas.focus();
+  }
+
+  elEvidenceClose.addEventListener("click", closeEvidenceDescent);
+
   window.addEventListener("keydown", (e) => {
     if (composing) {
       if (e.key === "Escape") {
@@ -955,11 +1021,23 @@
       }
       return;
     }
+    if (!elEvidenceDescent.hidden) {
+      if (e.key === "Escape" || e.key === "e" || e.key === "E") {
+        e.preventDefault();
+        closeEvidenceDescent();
+      }
+      return;
+    }
     if (!elRelicIndex.hidden) {
       if (e.key === "Escape" || e.key === "r" || e.key === "R") {
         e.preventDefault();
         closeRelicIndex();
       }
+      return;
+    }
+    if (e.key === "e" || e.key === "E") {
+      e.preventDefault();
+      openEvidenceDescent();
       return;
     }
     if (e.key === "r" || e.key === "R") {

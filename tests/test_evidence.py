@@ -114,6 +114,16 @@ def test_inhabit_reads_typed_evidence_chain(tmp_path):
     assert payload["read"]["evidence_line"] == (
         "evidence: an intervention tested this — contradicts this thought (2 bindings)"
     )
+    assert [layer["heading_line"] for layer in payload["read"]["evidence_layers"]] == [
+        "story report — supports",
+        "behavioral intervention — contradicts",
+    ]
+    assert payload["read"]["evidence_layers"][1]["follows_line"] == (
+        f"follows {parent.id}"
+    )
+    assert payload["read"]["evidence_action_line"] == (
+        "e descends through 2 evidence strata"
+    )
     text = format_inhabit(view)
     assert "evidence beneath this thought" in text
     assert f"follows {parent.id}" in text
@@ -125,6 +135,8 @@ def test_inhabit_names_missing_evidence_as_absence(tmp_path):
     view = inhabit(store, graph.nodes[0].id, graph_id=graph.id)
     assert view.to_dict()["evidence"] == []
     assert view.to_dict()["read"]["evidence_line"] is None
+    assert view.to_dict()["read"]["evidence_layers"] == []
+    assert "absence is not evidence" in view.to_dict()["read"]["evidence_empty_line"]
     assert "absence is not evidence" in format_inhabit(view)
 
 

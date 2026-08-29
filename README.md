@@ -245,7 +245,9 @@ The long-term design and scientific limits live in
 `ta inhabit NODE --graph GRAPH` reads bindings beneath the standing node and
 resolves their parent chain across earlier graphs and nodes. The
 Inhabit Space receives the same typed bindings and a server-authored evidence
-sentence; browser code displays that sentence but does not infer causality.
+sentence. Press `e` in the chamber to descend through the server-authored strata,
+including lineage and concrete artifact references; browser code displays those
+lines but does not infer causality.
 When none are attached, the CLI says that absence is not evidence.
 
 `ta evidence context --graph G --node N --turn T` attaches verified context

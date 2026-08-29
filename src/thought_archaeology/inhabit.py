@@ -67,6 +67,7 @@ def chamber_read(view: InhabitView) -> dict:
         "calm": "climate: still air — this thought is not a habit yet",
     }.get(kind) if climate else None
     evidence_line = None
+    evidence_layers = []
     if view.evidence:
         words = {
             "story_report": "the story says so",
@@ -90,6 +91,28 @@ def chamber_read(view: InhabitView) -> dict:
             f"({len(view.evidence)} "
             f"{'binding' if len(view.evidence) == 1 else 'bindings'})"
         )
+        for index, binding in enumerate(view.evidence, start=1):
+            origin_line = None
+            if binding.graph_id != view.graph.id or binding.node_id != view.node.id:
+                origin_line = (
+                    f"bound at graph {binding.graph_id} · node {binding.node_id}"
+                )
+            evidence_layers.append(
+                {
+                    "position_line": f"stratum {index} of {len(view.evidence)}",
+                    "heading_line": (
+                        f"{binding.kind.replace('_', ' ')} — {binding.result}"
+                    ),
+                    "summary": binding.summary,
+                    "origin_line": origin_line,
+                    "follows_line": (
+                        f"follows {binding.parent_evidence_id}"
+                        if binding.parent_evidence_id
+                        else None
+                    ),
+                    "artifact_lines": list(binding.artifact_refs),
+                }
+            )
     here = ["you are here"]
     if shaped_n:
         here.append("ahead: what this thought made")
@@ -106,6 +129,17 @@ def chamber_read(view: InhabitView) -> dict:
         "veto_line": veto_line,
         "climate_line": climate_line,
         "evidence_line": evidence_line,
+        "evidence_action_line": (
+            f"e descends through {len(view.evidence)} evidence "
+            f"{'stratum' if len(view.evidence) == 1 else 'strata'}"
+            if view.evidence
+            else "e checks beneath this thought"
+        ),
+        "evidence_empty_line": (
+            "nothing is attached beneath this thought. absence is not evidence "
+            "against it"
+        ),
+        "evidence_layers": evidence_layers,
         "look_line": "left/right preview a path · enter walk it · up deeper · down or b retrace",
     }
 
