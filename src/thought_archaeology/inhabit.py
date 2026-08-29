@@ -33,6 +33,77 @@ def _count_phrase(n: int, singular: str, plural: str) -> str:
     return f"{n} {plural}"
 
 
+def story_path_read(view: InhabitView) -> dict:
+    """Server-authored story relations around the standing node."""
+    by_id = {node.id: node for node in view.graph.nodes}
+    relation_ids: dict[str, set[str]] = {
+        "stands on": set(),
+        "shaped by": set(),
+        "seen through": set(),
+        "held within": set(),
+    }
+    for edge in view.graph.edges:
+        if edge.target_id == view.node.id:
+            heading = {
+                "supports": "stands on",
+                "shapes": "shaped by",
+                "analogizes": "seen through",
+                "qualifies": "held within",
+            }.get(edge.kind)
+            if heading:
+                relation_ids[heading].add(edge.source_id)
+        if edge.source_id == view.node.id and edge.kind == "depends_on":
+            relation_ids["stands on"].add(edge.target_id)
+
+    descriptions = {
+        "stands on": "premises and claims recorded as support for this chamber",
+        "shaped by": "judgments that selected this cut",
+        "seen through": "analogies the answer used to think",
+        "held within": "uncertainties that limit the claim",
+        "this path made": "thoughts recorded as depending on this chamber",
+        "chosen over": "roads the answer explicitly rejected",
+    }
+
+    def item(node: ThoughtNode) -> dict:
+        kind = "judgment_call" if node.kind == "taste_call" else node.kind
+        return {
+            "kind_line": f"{kind.replace('_', ' ')} · {node.status}",
+            "text": node.text,
+        }
+
+    groups = []
+    for heading in ("stands on", "shaped by", "seen through", "held within"):
+        nodes = [node for node in view.graph.nodes if node.id in relation_ids[heading]]
+        if nodes:
+            groups.append(
+                {
+                    "heading_line": heading,
+                    "description_line": descriptions[heading],
+                    "items": [item(node) for node in nodes],
+                }
+            )
+    for heading, nodes in (
+        ("this path made", view.shaped),
+        ("chosen over", view.rejected_siblings),
+    ):
+        if nodes:
+            groups.append(
+                {
+                    "heading_line": heading,
+                    "description_line": descriptions[heading],
+                    "items": [item(node) for node in nodes],
+                }
+            )
+    return {
+        "intro_line": (
+            "relations recorded in the answer's story graph; these explain its "
+            "construction, not neural causation"
+        ),
+        "empty_line": "this graph records no surrounding reasons for this chamber",
+        "groups": groups,
+    }
+
+
 def chamber_read(view: InhabitView) -> dict:
     """How the chamber speaks. Schema kinds stay; the human hears sense."""
     node = view.node
@@ -140,6 +211,7 @@ def chamber_read(view: InhabitView) -> dict:
             "against it"
         ),
         "evidence_layers": evidence_layers,
+        "story_path": story_path_read(view),
         "look_line": "left/right preview a path · enter walk it · up deeper · down or b retrace",
     }
 

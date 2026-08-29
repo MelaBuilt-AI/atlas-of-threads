@@ -15,6 +15,12 @@ Gestures from the chamber:
 - `r` opens the relic index. Its 20 PNG cards document the vocabulary of forms. Choosing one previews its matching GLB at the standing chamber without changing graph data; Escape restores the semantic mapping.
 - click a ring to enter that graph
 
+The chamber also polls the local store for newly finalized graph heads. A graph
+written by `ta compile` while the space is open rises as a teal doorway beside
+the current thought; it never teleports the inhabitant. Walking through marks
+that arrival seen. This is turn-level companionship after an answer is complete,
+not token streaming or hidden chain-of-thought access.
+
 The sky is a starfield (not the floor). The floor is a grid whose cell is the default claim chamber footprint (1.4). Path chambers sit on that grid at a stride of 3 cells so they do not overlap. Chambers rise when they spawn.
 
 The inhabited relic keeps a key spotlight in both over-the-shoulder and overhead
@@ -37,6 +43,11 @@ precedence: provenance becomes the lens, behavioral intervention the intervened
 claim, activation correlation the scanner, neural intervention the key,
 recurrence the crucible, and checkpoint emergence the stratigraphic core.
 Fork and return portals use the compass and counterfactual gate.
+
+Pressing `e` opens one archaeological record with a strict boundary: a
+server-authored **why this path** section shows the story graph's recorded
+supports, judgments, analogies, qualifications, descendants, and rejected
+roads; separate strata below show what evidence has actually tested.
 
 Regenerate the runtime assets from a source folder of matching `.glb`/`.png`
 pairs with:

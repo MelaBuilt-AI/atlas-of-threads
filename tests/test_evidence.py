@@ -11,6 +11,7 @@ from thought_archaeology.models import SCHEMA_VERSION, ThoughtGraph, Turn
 from thought_archaeology.schema import ValidationError, validate_schema
 from thought_archaeology.store import Store, StoreError
 
+from tests.helpers import FIXTURES
 from tests.test_schema import _minimal_graph_dict
 from tests.test_cli import run
 
@@ -138,6 +139,43 @@ def test_inhabit_names_missing_evidence_as_absence(tmp_path):
     assert view.to_dict()["read"]["evidence_layers"] == []
     assert "absence is not evidence" in view.to_dict()["read"]["evidence_empty_line"]
     assert "absence is not evidence" in format_inhabit(view)
+
+
+def test_inhabit_authors_why_this_path_from_graph_relations(tmp_path):
+    root = tmp_path / "data"
+    code, out, err = run(["init", "--title", "story"], store=root)
+    assert code == 0, err
+    session_id = out.strip()
+    code, out, err = run(
+        [
+            "compile",
+            "--session", session_id,
+            "--mode", "posthoc",
+            "--transcript", str(FIXTURES / "transcripts" / "simple-freeform.jsonl"),
+            "--from-graph", str(FIXTURES / "graphs" / "simple.gold.json"),
+        ],
+        store=root,
+    )
+    assert code == 0, err
+    graph = Store(root).load_graph(out.strip())
+    claim = next(node for node in graph.nodes if node.kind == "claim")
+
+    story = inhabit(Store(root), claim.id, graph_id=graph.id).to_dict()["read"][
+        "story_path"
+    ]
+    groups = {group["heading_line"]: group for group in story["groups"]}
+    assert set(groups) == {"stands on", "shaped by", "held within", "chosen over"}
+    assert groups["stands on"]["items"][0]["text"] == (
+        "A chat log has no named parts or causal tests."
+    )
+    assert groups["shaped by"]["items"][0]["kind_line"] == (
+        "judgment call · accepted"
+    )
+    assert {item["text"] for item in groups["chosen over"]["items"]} == {
+        "A dashboard of neurons.",
+        "Wait for weight access before building.",
+    }
+    assert "not neural causation" in story["intro_line"]
 
 
 def test_inhabit_resolves_parent_chain_across_graph_nodes(tmp_path):

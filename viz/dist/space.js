@@ -74,6 +74,8 @@
   const elRelicGrid = document.getElementById("relic-grid");
   const elRelicClose = document.getElementById("relic-close");
   const elEvidenceDescent = document.getElementById("evidence-descent");
+  const elStoryIntro = document.getElementById("story-intro");
+  const elStoryGroups = document.getElementById("story-groups");
   const elEvidenceIntro = document.getElementById("evidence-intro");
   const elEvidenceStrata = document.getElementById("evidence-strata");
   const elEvidenceClose = document.getElementById("evidence-close");
@@ -131,6 +133,11 @@
   let mappedRelicKey = "narrated-claim";
   let layoutGeneration = 0;
   let standingMesh = null;
+  const knownHeads = new Map();
+  let liveArrivals = [];
+  let arrivalsDirty = false;
+  let companionPolling = false;
+  let companionReady = false;
 
   const root = new THREE.Group();
   scene.add(root);
@@ -554,6 +561,7 @@
     const rejected = payload.rejected_siblings || [];
     const vetoes = payload.vetoes || [];
     const forks = payload.fork_children || [];
+    const arrivals = liveArrivals.filter((arrival) => arrival.graphId !== payload.graph_id);
     const pathNodes = [
       ...shaped.map((n) => ({ node: n, ghost: false, via: "made" })),
       ...rejected.map((n) => ({ node: n, ghost: true, via: "not taken" })),
@@ -600,6 +608,28 @@
         walk: () => inhabit(f.id, f.spawn_node_id),
       });
       markRise(ring, 0.18 + i * 0.08);
+    });
+
+    arrivals.forEach((arrival, i) => {
+      const x = CHOICE_ROW + Math.floor(i / 5) * CHOICE_ROW_GAP;
+      const z = (i % 5 - (Math.min(arrivals.length, 5) - 1) / 2) * CHOICE_STRIDE;
+      const ring = portalRing({
+        x,
+        z,
+        color: 0x5c8a7b,
+        emissive: 0x183c38,
+        portal: { graphId: arrival.graphId, nodeId: arrival.nodeId },
+        relicKey: "thought-graph-reliquary",
+      });
+      root.add(ring);
+      portals.push(ring);
+      addChoice(ring, {
+        via: "new thought",
+        kind: arrival.kind,
+        text: `${arrival.title} — ${arrival.text}`,
+        walk: () => inhabit(arrival.graphId, arrival.nodeId),
+      });
+      markRise(ring, 0.24 + i * 0.08);
     });
 
     const parent = payload.parent;
@@ -670,7 +700,9 @@
     if (focusIndex >= 0 && choices[focusIndex]) {
       const c = choices[focusIndex].choice;
       const kind = (c.kind || "").replace(/_/g, " ");
-      elHere.textContent = `path ${focusIndex + 1}/${choices.length} · ${c.via} · ${kind} — ${c.text}`;
+      elHere.textContent = c.via === "new thought"
+        ? `new thought nearby · ${kind} — ${c.text}`
+        : `path ${focusIndex + 1}/${choices.length} · ${c.via} · ${kind} — ${c.text}`;
       bits.push("spotlit preview · enter inhabits and makes this the key light · esc clears");
     } else {
       if (read.look_line) bits.push(read.look_line);
@@ -683,9 +715,19 @@
             : `form: ${shownRelic.name} · r opens relic index`
         );
       }
-      if (choices.length) bits.push(`${choices.length} paths in front`);
+      const pathCount =
+        (payload.shaped || []).length +
+        (payload.rejected_siblings || []).length +
+        (payload.vetoes || []).length +
+        (payload.fork_children || []).length;
+      if (pathCount) bits.push(`${pathCount} paths in front`);
       if ((payload.fork_children || []).length) bits.push("bronze ring: continuation");
       if (payload.parent && payload.parent.graph_id) bits.push("violet ring: back to the cut");
+      if (liveArrivals.length) {
+        bits.push(
+          `${liveArrivals.length} new ${liveArrivals.length === 1 ? "thought" : "thoughts"} nearby`
+        );
+      }
       if (trail.length) bits.push("b retraces your walk");
     }
     if (overhead) bits.push("drag to pan · c behind · shift+c home");
@@ -715,6 +757,7 @@
         trail.pop();
       }
     }
+    liveArrivals = liveArrivals.filter((arrival) => arrival.graphId !== payload.graph_id);
     view = payload;
     if (origin !== "hash") hashTo(payload.graph_id, payload.node.id);
     layout(payload);
@@ -722,12 +765,16 @@
 
   async function boot() {
     try {
+      const boot = await api("/api/sessions");
+      for (const session of boot.sessions || []) {
+        knownHeads.set(session.id, session.head_graph_id || null);
+      }
+      companionReady = true;
       const fromHash = parseHash();
       if (fromHash) {
         await inhabit(fromHash.graphId, fromHash.nodeId, "boot");
         return;
       }
-      const boot = await api("/api/sessions");
       const spawn = (boot.sessions || []).map((s) => s.spawn).find(Boolean);
       if (!spawn) {
         elEmpty.classList.add("visible");
@@ -737,6 +784,60 @@
     } catch (err) {
       elEmpty.classList.add("visible");
       elEmpty.querySelector("p").textContent = String(err.message || err);
+    }
+  }
+
+  function showWaitingArrivals() {
+    if (
+      !arrivalsDirty ||
+      !view ||
+      composing ||
+      focusIndex >= 0 ||
+      !elRelicIndex.hidden ||
+      !elEvidenceDescent.hidden
+    ) return;
+    arrivalsDirty = false;
+    layout(view);
+  }
+
+  async function pollLiveCompanion() {
+    if (!companionReady || companionPolling) return;
+    companionPolling = true;
+    try {
+      const state = await api("/api/sessions");
+      let added = false;
+      for (const session of state.sessions || []) {
+        const head = session.head_graph_id || null;
+        const changed = !knownHeads.has(session.id) || knownHeads.get(session.id) !== head;
+        knownHeads.set(session.id, head);
+        if (!changed || !head || !session.spawn) continue;
+        if (view && head === view.graph_id) continue;
+        if (
+          view &&
+          (view.fork_children || []).some((child) => child.id === head)
+        ) continue;
+        if (liveArrivals.some((arrival) => arrival.graphId === head)) continue;
+        liveArrivals = liveArrivals.filter(
+          (arrival) => arrival.sessionId !== session.id
+        );
+        liveArrivals.push({
+          sessionId: session.id,
+          graphId: head,
+          nodeId: session.spawn.node_id,
+          kind: session.spawn.node.kind,
+          text: session.spawn.node.text,
+          title: session.title || "untitled thought",
+        });
+        added = true;
+      }
+      if (added) {
+        arrivalsDirty = true;
+        showWaitingArrivals();
+      }
+    } catch (_error) {
+      // The chamber remains usable if its local companion poll misses a beat.
+    } finally {
+      companionPolling = false;
     }
   }
 
@@ -820,6 +921,7 @@
     composing = null;
     elComposer.hidden = true;
     elComposerInput.blur();
+    showWaitingArrivals();
   }
 
   async function commitGesture() {
@@ -904,6 +1006,7 @@
     if (focusIndex < 0) return;
     focusIndex = -1;
     showFocus();
+    showWaitingArrivals();
   }
 
   function renderRelicIndex() {
@@ -945,13 +1048,42 @@
   function closeRelicIndex() {
     elRelicIndex.hidden = true;
     canvas.focus();
+    showWaitingArrivals();
   }
 
   elRelicClose.addEventListener("click", closeRelicIndex);
 
   function renderEvidenceDescent() {
     const read = (view && view.read) || {};
+    const story = read.story_path || {};
     const layers = read.evidence_layers || [];
+    elStoryIntro.textContent = story.intro_line || story.empty_line || "";
+    elStoryGroups.replaceChildren();
+    for (const group of story.groups || []) {
+      const section = document.createElement("section");
+      section.className = "story-group";
+      const heading = document.createElement("div");
+      heading.className = "story-heading";
+      heading.textContent = group.heading_line;
+      const description = document.createElement("p");
+      description.className = "story-description";
+      description.textContent = group.description_line;
+      const items = document.createElement("div");
+      items.className = "story-items";
+      for (const entry of group.items || []) {
+        const item = document.createElement("article");
+        item.className = "story-item";
+        const kind = document.createElement("div");
+        kind.className = "story-kind";
+        kind.textContent = entry.kind_line;
+        const text = document.createElement("p");
+        text.textContent = entry.text;
+        item.append(kind, text);
+        items.append(item);
+      }
+      section.append(heading, description, items);
+      elStoryGroups.append(section);
+    }
     elEvidenceIntro.textContent = read.evidence_line || read.evidence_empty_line || "";
     elEvidenceStrata.replaceChildren();
     for (const layer of layers) {
@@ -1005,6 +1137,7 @@
   function closeEvidenceDescent() {
     elEvidenceDescent.hidden = true;
     canvas.focus();
+    showWaitingArrivals();
   }
 
   elEvidenceClose.addEventListener("click", closeEvidenceDescent);
@@ -1195,5 +1328,6 @@
   sky = makeSky(skyMap);
   scene.add(sky);
   boot();
+  window.setInterval(pollLiveCompanion, 2500);
   tick();
 })();

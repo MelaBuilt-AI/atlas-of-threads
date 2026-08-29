@@ -9,7 +9,12 @@ from urllib.request import Request, urlopen
 import pytest
 
 from thought_archaeology.inhabit import inhabit
-from thought_archaeology.serve import ServeError, make_server, viz_dist_path
+from thought_archaeology.serve import (
+    ServeError,
+    bootstrap_payload,
+    make_server,
+    viz_dist_path,
+)
 from thought_archaeology.store import Store
 
 from tests.helpers import FIXTURES
@@ -250,6 +255,7 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert 'id="topbar"' in body
     assert 'id="relic-index"' in body
     assert 'id="evidence-descent"' in body
+    assert 'id="story-path"' in body
     assert "relic-loader.js" in body
     js = _get(httpd_url + "/space.js")[1]
     assert "/api/fork" in js
@@ -273,6 +279,7 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert "EVIDENCE_RELIC" in js
     assert "openRelicIndex" in js
     assert "openEvidenceDescent" in js
+    assert "read.story_path" in js
     assert "assets/previews" in js
     assert "selectionSpot" in js
     assert "standingMesh" in js
@@ -299,11 +306,32 @@ def test_evidence_descent_is_a_static_server_authored_read_surface():
     html = (dist / "index.html").read_text(encoding="utf-8")
     js = (dist / "space.js").read_text(encoding="utf-8")
     assert 'id="evidence-descent"' in html
+    assert 'id="story-path"' in html
     assert "read.evidence_layers" in js
+    assert "read.story_path" in js
+    assert "group.heading_line" in js
+    assert "entry.text" in js
     assert "layer.heading_line" in js
     assert "layer.summary" in js
     assert "supports this thought" not in js
     assert "contradicts this thought" not in js
+
+
+def test_live_companion_uses_finalized_store_heads_as_optional_doorways(tmp_path: Path):
+    store_path = tmp_path / "data"
+    session_id, graph_id = _compile_simple(store_path)
+    payload = bootstrap_payload(Store(store_path))
+    session = next(item for item in payload["sessions"] if item["id"] == session_id)
+    assert session["head_graph_id"] == graph_id
+    assert session["spawn"]["graph_id"] == graph_id
+
+    js = (viz_dist_path() / "space.js").read_text(encoding="utf-8")
+    assert "knownHeads" in js
+    assert "pollLiveCompanion" in js
+    assert 'api("/api/sessions")' in js
+    assert 'via: "new thought"' in js
+    assert 'relicKey: "thought-graph-reliquary"' in js
+    assert "setInterval(pollLiveCompanion" in js
 
 
 def test_inhabit_climate_none_without_fingerprint(httpd_url: str):

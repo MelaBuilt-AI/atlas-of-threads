@@ -250,6 +250,17 @@ including lineage and concrete artifact references; browser code displays those
 lines but does not infer causality.
 When none are attached, the CLI says that absence is not evidence.
 
+The same descent keeps story and evidence visibly separate. Its **why this
+path** section reads only relations already recorded in the graph—supporting
+premises, shaping judgments, analogies, qualifications, descendants, and
+rejected roads. It does not invent reasons or relabel story structure as causal
+evidence.
+
+While Inhabit Space remains open, it polls the local store for finalized graph
+heads. A later `ta compile` rises as an optional teal doorway beside the current
+chamber; the user is never teleported. This is a turn-level companion for
+completed answers, not token-level hidden-thought streaming.
+
 `ta evidence context --graph G --node N --turn T` attaches verified context
 provenance only when `T` is in the graph turn's parent lineage. The binding
 stores the turn id and canonical SHA-256 and remains `inconclusive`: preceding
