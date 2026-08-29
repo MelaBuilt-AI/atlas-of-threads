@@ -134,7 +134,7 @@
   scene.add(new THREE.AmbientLight(0x3a342c, 0.55));
   const keyTarget = new THREE.Object3D();
   scene.add(keyTarget);
-  const key = new THREE.SpotLight(0xc8f26a, 2.5, 32, Math.PI / 5, 0.62, 1.5);
+  const key = new THREE.SpotLight(0xc8f26a, 950, 32, Math.PI / 5, 0.62, 1.5);
   key.position.set(3, 5.8, 3.5);
   key.target = keyTarget;
   key.castShadow = true;
@@ -1058,11 +1058,13 @@
   }
 
   function updateNavigationLights(t) {
+    // Three r160 uses physical light units. At this chamber's 6–9 unit throw,
+    // single-digit candela values disappear after inverse-distance falloff.
     if (standingMesh) {
       aimSpot(key, keyTarget, standingMesh, 3, overhead ? 7 : 5.8, 3.5);
       key.intensity = overhead
-        ? 2.35
-        : 2.5 + Math.sin(t * 1.3) * 0.16;
+        ? 1250
+        : 950 + Math.sin(t * 1.3) * 35;
     } else key.intensity = 0;
 
     const focused = focusIndex >= 0 && choices[focusIndex]
@@ -1070,7 +1072,7 @@
       : null;
     if (focused) {
       aimSpot(selectionSpot, selectionTarget, focused, -2.5, overhead ? 7.5 : 5.2, 2.8);
-      selectionSpot.intensity = overhead ? 3.4 : 3.05;
+      selectionSpot.intensity = overhead ? 1500 : 1200;
     } else selectionSpot.intensity = 0;
   }
 
