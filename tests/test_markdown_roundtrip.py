@@ -101,7 +101,7 @@ def test_dual_archaeology_only_with_fingerprint():
             "session_ids": [graph.session_id],
             "min_sessions": 2,
             "merge_threshold": 0.8,
-            "model_taste": [
+            "model_judgments": [
                 {
                     "canonical": "Invent the medium first.",
                     "normalized": "invent the medium first",
@@ -208,7 +208,7 @@ def test_cli_canvas_with_fingerprint(tmp_path: Path):
     assert code == 0, err
     body = out_md.read_text(encoding="utf-8")
     assert "## Dual archaeology" in body
-    assert "taste ·" in body
+    assert "judgment ·" in body
 
 
 def test_gold_parse_is_schema_valid():

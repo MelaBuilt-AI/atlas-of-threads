@@ -14,7 +14,7 @@
     },
     {
       "local_id": "n3",
-      "kind": "taste_call",
+      "kind": "judgment_call",
       "text": "Invent the medium first.",
       "status": "accepted"
     },
@@ -46,7 +46,7 @@
     {
       "from": "n3",
       "to": "n1",
-      "kind": "taste_of"
+      "kind": "shapes"
     },
     {
       "from": "n4",

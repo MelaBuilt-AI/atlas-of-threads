@@ -7,10 +7,12 @@ KIND_SECTIONS: tuple[tuple[str, str], ...] = (
     ("Claims", "claim"),
     ("Premises", "premise"),
     ("Analogies", "analogy"),
-    ("Taste-calls", "taste_call"),
+    ("Judgment calls", "judgment_call"),
     ("Uncertainties", "uncertainty"),
     ("Negative space", "rejected_alternative"),
 )
+
+LEGACY_KINDS = {"judgment_call": "taste_call"}
 
 RELATED = """\
 ## Related
@@ -28,7 +30,7 @@ SOURCES = """\
 
 
 def canvas_title(graph: ThoughtGraph) -> str:
-    for kind in ("taste_call", "claim"):
+    for kind in ("judgment_call", "claim"):
         for node in graph.nodes:
             if node.kind == kind:
                 text = " ".join(node.text.split())
@@ -107,7 +109,8 @@ def _bullet(node: ThoughtNode) -> str:
 
 
 def _kind_section(title: str, kind: str, graph: ThoughtGraph) -> str:
-    nodes = [n for n in graph.nodes if n.kind == kind]
+    accepted = {kind, LEGACY_KINDS.get(kind)}
+    nodes = [n for n in graph.nodes if n.kind in accepted]
     parts = [f"## {title}", ""]
     if kind == "rejected_alternative":
         parts.append(
@@ -157,16 +160,16 @@ def _forks_section(graph: ThoughtGraph) -> str:
 
 def _fingerprint_section(fp: Fingerprint) -> str:
     lines = ["## Dual archaeology", ""]
-    for cluster in fp.model_taste:
-        lines.append(f"- taste · `{cluster.recurrence}` — {cluster.canonical}")
+    for cluster in fp.model_judgments:
+        lines.append(f"- judgment · `{cluster.recurrence}` — {cluster.canonical}")
     for cluster in fp.human_vetoes:
         lines.append(f"- veto · `{cluster.recurrence}` — {cluster.canonical}")
     for row in fp.divergence:
         lines.append(
             f"- divergence · jaccard {row.jaccard} — "
-            f"{row.taste_canonical} ↔ {row.veto_canonical}"
+            f"{row.judgment_canonical} ↔ {row.veto_canonical}"
         )
-    if not (fp.model_taste or fp.human_vetoes or fp.divergence):
+    if not (fp.model_judgments or fp.human_vetoes or fp.divergence):
         lines.append("- (none)")
     lines.append("")
     return "\n".join(lines)

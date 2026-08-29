@@ -17,6 +17,6 @@ The sky is a starfield (not the floor). The floor is a grid whose cell is the de
 
 Writes go through `/api/fork` and `/api/veto`. Do not compute the omit-set in `space.js`.
 
-Fingerprint is **climate**: fog and light at the standing node (recurring taste, human no, divergence). Not a chart of clusters. Python scores; JS paints.
+Fingerprint is **climate**: fog and light at the standing node (recurring judgment, human no, divergence). Not a chart of clusters. Python scores; JS paints.
 
 Dev with Node is optional — edit `viz/dist/space.js` directly.

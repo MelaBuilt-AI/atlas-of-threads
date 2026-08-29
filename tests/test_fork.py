@@ -41,14 +41,14 @@ N6_SURVIVING_EDGES = (
     ("n3", "n4", "supports"),
     ("n7", "n4", "analogizes"),
     ("n8", "n5", "analogizes"),
-    ("n5", "n18", "taste_of"),
-    ("n17", "n5", "taste_of"),
+    ("n5", "n18", "shapes"),
+    ("n17", "n5", "shapes"),
     ("n11", "n4", "rejects"),
     ("n12", "n5", "rejects"),
     ("n13", "n4", "rejects"),
 )
 N6_DROPPED_EDGES = (
-    ("n6", "n9", "taste_of"),
+    ("n6", "n9", "shapes"),
     ("n9", "n10", "supports"),
     ("n15", "n6", "rejects"),
     ("n14", "n10", "rejects"),
@@ -256,7 +256,7 @@ def test_veto_copies_all_null_discarded(tmp_path: Path):
     g0_bytes = g0_path.read_bytes()
     ids = local_map(g0, gold)
     n6 = ids["n6"]
-    reason = "this taste-call is the wrong cut"
+    reason = "this judgment call is the wrong cut"
     code, out, err = run(
         ["veto", n6, "--session", sid, "--reason", reason],
         store=store_path,

@@ -71,7 +71,7 @@ def test_origin_gold_compile(fixtures_dir: Path, origin_gold: dict):
     # DAG: no n18 supports n5
     by_text = {n.text: n for n in graph.nodes}
     n18 = by_text[origin_gold["nodes"][17]["text"]]
-    n5 = next(n for n in graph.nodes if n.kind == "taste_call" and "neurons" in n.text)
+    n5 = next(n for n in graph.nodes if n.kind == "judgment_call" and "neurons" in n.text)
     for e in graph.edges:
         if e.source_id == n18.id and e.target_id == n5.id:
             raise AssertionError("n18 supports n5 must not exist")

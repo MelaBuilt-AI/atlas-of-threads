@@ -50,7 +50,7 @@ def bootstrap_payload(store: Store) -> dict:
                 graph = None
             if graph is not None and graph.nodes:
                 spawn_node = next(
-                    (n for n in graph.nodes if n.kind == "taste_call"),
+                    (n for n in graph.nodes if n.kind in {"judgment_call", "taste_call"}),
                     None,
                 ) or next(
                     (n for n in graph.nodes if n.kind == "claim"),

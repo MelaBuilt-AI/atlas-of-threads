@@ -3,7 +3,7 @@
 Inspectable AI thought-graphs: inhabit, fork, and keep the negative space.
 
 Depth 1 compiles any chat-model answer into a thought-graph of claims, premises,
-analogies, taste-calls, uncertainties, and rejected alternatives. The graph is
+analogies, judgment calls, uncertainties, and rejected alternatives. The graph is
 the **story** of the answer, stored as objects — not a circuit trace.
 
 License: MIT.
@@ -89,13 +89,13 @@ ta prompt fork
 ta inhabit NODE --session SESSION_ID
 ta fork NODE --session SESSION_ID --reason "accept chain except this cut"
 ta fork NODE --session SESSION_ID --from-graph /tmp/ta-fork.json
-ta veto NODE --session SESSION_ID --reason "this taste-call is the wrong cut"
+ta veto NODE --session SESSION_ID --reason "this judgment call is the wrong cut"
 ```
 
 `ta fork` without `--from-graph` or a provider writes a new graph with
 `(fork pending regeneration)` as prose. `--from-graph` is the TUI path for a
 regenerated emit (raw JSON or a `thought-graph` fence). G0 bytes never change.
-The omit-set is the fork target plus causal descendants: outgoing `taste_of` /
+The omit-set is the fork target plus causal descendants: outgoing `shapes` /
 `supports`, incoming `depends_on` — never outgoing `depends_on`.
 
 ## CLI
@@ -128,7 +128,7 @@ ta canvas GRAPH [--out PATH] [--fingerprint PATH]
 ta export-wiki GRAPH --out PATH [--fingerprint PATH]
 ta probe plan --graph G --kind drop_premise|invert_constraint|resample|steer_later --node N
 ta probe diff GRAPH_A GRAPH_B [--spec PATH]
-ta probe run --spec PATH
+ta probe run --spec PATH --provider-cmd CMD
 ta serve [--port 7462] [--bind 127.0.0.1]
 ```
 
@@ -139,7 +139,7 @@ directory already exists → `$XDG_DATA_HOME/thought-archaeology` or
 `~/.local/share/thought-archaeology` (created on `ta init`).
 
 Exit codes: `0` ok, `1` validation / `--strict` policy failure, `2` usage,
-`3` I/O, `4` not-implemented (Depth 2/3 runners).
+`3` I/O, `4` not-implemented (unsupported probe kinds and Depth 3).
 
 `ta serve` is a localhost server (default `127.0.0.1:7462`). It serves
 Inhabit Space: you stand at a thought-node. Walking a chamber fetches
@@ -153,7 +153,7 @@ only with `--fingerprint PATH`. Neither command writes `wiki/index.md` or
 `wiki/log.md`. Re-import is `ta compile --from-graph` of JSON, not parse→store.
 
 `ta fingerprint` is offline dual archaeology: normalize + Jaccard 0.8
-clustering of model taste-calls and human vetoes. Default `min_sessions=2`.
+clustering of model judgment calls and human vetoes. Default `min_sessions=2`.
 A single session is all `emerging`. No ML. Writes
 `data/fingerprints/{id}.json` (write-once). `--out PATH` copies the JSON;
 `--out -` prints it. Inhabit Space uses the latest fingerprint as **climate**
@@ -164,7 +164,10 @@ A single session is all `emerging`. No ML. Writes
 by kind + Jaccard ≥ 0.8, and writes a `GraphDiff`. If `--spec` is a
 `drop_premise` whose target vanished while the conclusion stayed, stderr
 prints `story falsified under intervention; not a weight-level proof`.
-`ta probe run` does not call a model: it exits 4 (`not implemented`).
+`ta probe run` executes `drop_premise` through the shell provider. It omits the
+premise and its causal descendants through the existing fork path, calls the
+provider once, stores the regenerated child graph, writes a `GraphDiff`, and
+prints both ids. Other probe kinds still exit 4.
 
 `ta sensor attach NODE` is a Depth-3 stub: it binds nothing, prints that
 open weights or a vendor interpretability API are required, and exits 4.
@@ -174,7 +177,7 @@ refused. `raw_feature_count` is an integer; the CLI never prints raw
 feature id lists. No vendor client ships in v1.
 
 Policy warnings (stderr, exit 0 unless `--strict`): zero `rejected_alternative`
-nodes, more than 40 nodes, no `claim`, `supports`/`depends_on`/`taste_of` cycles.
+nodes, more than 40 nodes, no `claim`, `supports`/`depends_on`/`shapes` cycles.
 
 ## Tests
 

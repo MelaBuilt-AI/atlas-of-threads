@@ -9,7 +9,7 @@
     "id": { "type": "string", "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$" },
     "kind": {
       "type": "string",
-      "enum": ["claim", "premise", "analogy", "taste_call", "uncertainty", "rejected_alternative"]
+      "enum": ["claim", "premise", "analogy", "judgment_call", "taste_call", "uncertainty", "rejected_alternative"]
     },
     "text": { "type": "string", "minLength": 1, "maxLength": 4000 },
     "status": {

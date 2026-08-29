@@ -17,7 +17,7 @@ The product is the medium, not the microscope. A chat log has no named parts or 
     },
     {
       "local_id": "n3",
-      "kind": "taste_call",
+      "kind": "judgment_call",
       "text": "Invent the medium first.",
       "status": "accepted"
     },
@@ -49,7 +49,7 @@ The product is the medium, not the microscope. A chat log has no named parts or 
     {
       "from": "n3",
       "to": "n1",
-      "kind": "taste_of"
+      "kind": "shapes"
     },
     {
       "from": "n4",

@@ -29,12 +29,12 @@ Depth-1 **story** graph (not a circuit trace). Session `01M14CANVASAAAAAAAAAAA00
 flowchart TD
   n01M14CANVASAAAAAAAAAAA00A1["claim: The product is the medium, not the micro…"]
   n01M14CANVASAAAAAAAAAAA00A2["premise: A chat log has no named parts or causal …"]
-  n01M14CANVASAAAAAAAAAAA00A3["taste_call: Invent the medium first."]
+  n01M14CANVASAAAAAAAAAAA00A3["judgment_call: Invent the medium first."]
   n01M14CANVASAAAAAAAAAAA00A4["rejected: A dashboard of neurons."]
   n01M14CANVASAAAAAAAAAAA00A5["rejected: Wait for weight access before building."]
   n01M14CANVASAAAAAAAAAAA00A6["uncertainty: Depth 3 needs open weights or a vendor A…"]
   n01M14CANVASAAAAAAAAAAA00A2 -->|supports| n01M14CANVASAAAAAAAAAAA00A1
-  n01M14CANVASAAAAAAAAAAA00A3 -->|taste_of| n01M14CANVASAAAAAAAAAAA00A1
+  n01M14CANVASAAAAAAAAAAA00A3 -->|shapes| n01M14CANVASAAAAAAAAAAA00A1
   n01M14CANVASAAAAAAAAAAA00A4 -->|rejects| n01M14CANVASAAAAAAAAAAA00A1
   n01M14CANVASAAAAAAAAAAA00A5 -->|rejects| n01M14CANVASAAAAAAAAAAA00A1
   n01M14CANVASAAAAAAAAAAA00A6 -->|qualifies| n01M14CANVASAAAAAAAAAAA00A1
@@ -50,7 +50,7 @@ flowchart TD
 
 ## Analogies
 
-## Taste-calls
+## Judgment calls
 
 - `01M14CANVASAAAAAAAAAAA00A3` · accepted · model — Invent the medium first.
 
@@ -70,7 +70,7 @@ Rejected alternatives are first-class. They stay even when the surviving chain m
 | from | kind | to |
 |---|---|---|
 | `01M14CANVASAAAAAAAAAAA00A2` | supports | `01M14CANVASAAAAAAAAAAA00A1` |
-| `01M14CANVASAAAAAAAAAAA00A3` | taste_of | `01M14CANVASAAAAAAAAAAA00A1` |
+| `01M14CANVASAAAAAAAAAAA00A3` | shapes | `01M14CANVASAAAAAAAAAAA00A1` |
 | `01M14CANVASAAAAAAAAAAA00A4` | rejects | `01M14CANVASAAAAAAAAAAA00A1` |
 | `01M14CANVASAAAAAAAAAAA00A5` | rejects | `01M14CANVASAAAAAAAAAAA00A1` |
 | `01M14CANVASAAAAAAAAAAA00A6` | qualifies | `01M14CANVASAAAAAAAAAAA00A1` |

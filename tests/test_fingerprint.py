@@ -92,7 +92,7 @@ def test_cluster_is_single_pass_not_global_recluster():
     def node(text: str) -> ThoughtNode:
         return ThoughtNode(
             id=new_ulid(),
-            kind="taste_call",
+            kind="judgment_call",
             text=text,
             status="accepted",
             agent="model",
@@ -146,7 +146,7 @@ def test_two_session_fingerprint_cli(tmp_path: Path):
     assert fp.merge_threshold == MERGE_THRESHOLD
     assert set(fp.session_ids) == {sid_a, sid_b}
 
-    by_canon = {c.canonical: c for c in fp.model_taste}
+    by_canon = {c.canonical: c for c in fp.model_judgments}
     shared = by_canon[SHARED]
     assert shared.count == 2
     assert shared.recurrence == "recurring"
@@ -174,7 +174,7 @@ def test_two_session_fingerprint_cli(tmp_path: Path):
     div = [
         d
         for d in fp.divergence
-        if d.taste_canonical == SHARED and d.veto_canonical == SHARED
+        if d.judgment_canonical == SHARED and d.veto_canonical == SHARED
     ]
     assert len(div) == 1
     assert div[0].jaccard == pytest.approx(1.0)
@@ -196,7 +196,7 @@ def test_single_session_all_emerging(tmp_path: Path):
     assert code == 0, err
     st = Store(store)
     fp = Fingerprint.from_dict(st.load_fingerprint(out.strip()))
-    assert all(c.recurrence == "emerging" for c in fp.model_taste)
+    assert all(c.recurrence == "emerging" for c in fp.model_judgments)
     assert fp.human_vetoes == ()
 
 
@@ -211,7 +211,7 @@ def test_min_sessions_1_marks_recurring(tmp_path: Path):
     st = Store(store)
     fp = Fingerprint.from_dict(st.load_fingerprint(out.strip()))
     assert fp.min_sessions == 1
-    assert all(c.recurrence == "recurring" for c in fp.model_taste)
+    assert all(c.recurrence == "recurring" for c in fp.model_judgments)
 
 
 def test_fingerprint_all_sessions_in_store(tmp_path: Path):
@@ -282,11 +282,11 @@ def test_climate_is_atmosphere_not_a_cluster_list(tmp_path: Path):
     assert fought["label"] == "you fight this cut"
     assert fought["canonical"] == SHARED
     assert "clusters" not in fought
-    assert "model_taste" not in fought
+    assert "model_judgments" not in fought
 
     habit = climate_at(by_text[PARA_A], fp)
     assert habit["kind"] == "recurring"
-    assert habit["label"] == "the model's recurring taste"
+    assert habit["label"] == "the model's recurring judgment"
 
     thin = climate_at(by_text[MISS_A], fp)
     assert thin["kind"] == "emerging"
@@ -302,4 +302,4 @@ def test_climate_is_atmosphere_not_a_cluster_list(tmp_path: Path):
     assert view.climate["kind"] == "divergence"
     text = view.to_dict()
     assert text["climate"]["kind"] == "divergence"
-    assert "model_taste" not in text
+    assert "model_judgments" not in text

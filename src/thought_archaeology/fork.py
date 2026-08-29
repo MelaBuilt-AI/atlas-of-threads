@@ -23,10 +23,10 @@ from thought_archaeology.schema import policy_warnings
 PENDING_PROSE = "(fork pending regeneration)"
 
 # Causal walk from X (what X shaped / who depends on X):
-#   outgoing taste_of and supports (X → target)
+#   outgoing shapes and supports (X → target)
 #   incoming depends_on (source of source --depends_on→ X)
 # Do not follow outgoing depends_on.
-CAUSAL_OUTGOING = frozenset({"taste_of", "supports"})
+CAUSAL_OUTGOING = frozenset({"shapes", "taste_of", "supports"})
 
 
 class ForkError(Exception):

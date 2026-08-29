@@ -98,14 +98,14 @@ def simple_canvas_graph(*, fork: ForkRef | None = None) -> ThoughtGraph:
     nodes = (
         node("c1", "claim", "The product is the medium, not the microscope.", "accepted"),
         node("p1", "premise", "A chat log has no named parts or causal tests.", "accepted"),
-        node("t1", "taste_call", "Invent the medium first.", "accepted"),
+        node("t1", "judgment_call", "Invent the medium first.", "accepted"),
         node("r1", "rejected_alternative", "A dashboard of neurons.", "rejected"),
         node("r2", "rejected_alternative", "Wait for weight access before building.", "rejected"),
         node("u1", "uncertainty", "Depth 3 needs open weights or a vendor API.", "uncertain"),
     )
     edges = (
         ThoughtEdge("01M14CANVASAAAAAAAAAAA00E1", ids["p1"], ids["c1"], "supports", now),
-        ThoughtEdge("01M14CANVASAAAAAAAAAAA00E2", ids["t1"], ids["c1"], "taste_of", now),
+        ThoughtEdge("01M14CANVASAAAAAAAAAAA00E2", ids["t1"], ids["c1"], "shapes", now),
         ThoughtEdge("01M14CANVASAAAAAAAAAAA00E3", ids["r1"], ids["c1"], "rejects", now),
         ThoughtEdge("01M14CANVASAAAAAAAAAAA00E4", ids["r2"], ids["c1"], "rejects", now),
         ThoughtEdge("01M14CANVASAAAAAAAAAAA00E5", ids["u1"], ids["c1"], "qualifies", now),

@@ -19,7 +19,8 @@ HEADING_TO_KIND = {
     "Claims": "claim",
     "Premises": "premise",
     "Analogies": "analogy",
-    "Taste-calls": "taste_call",
+    "Judgment calls": "judgment_call",
+    "Taste-calls": "judgment_call",
     "Uncertainties": "uncertainty",
     "Negative space": "rejected_alternative",
 }

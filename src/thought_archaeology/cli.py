@@ -11,7 +11,7 @@ from pathlib import Path
 from thought_archaeology.compile_common import CompileError
 from thought_archaeology.compile_posthoc import compile_posthoc
 from thought_archaeology.compile_structured import compile_structured
-from thought_archaeology.edits import commit, plan_fork, plan_veto
+from thought_archaeology.edits import append_op_turn, commit, plan_fork, plan_veto
 from thought_archaeology.fingerprint import DEFAULT_MIN_SESSIONS, Fingerprint, fingerprint
 from thought_archaeology.fork import (
     ForkError,
@@ -40,7 +40,6 @@ from thought_archaeology.depth2 import (
     diff_graphs,
     make_plan,
 )
-from thought_archaeology.providers.none import NoneProvider
 from thought_archaeology.depth3 import (
     DisplayRefused,
     NullSensor,
@@ -185,9 +184,10 @@ def _parser() -> argparse.ArgumentParser:
     p_run = probe_sub.add_parser(
         "run",
         parents=[sub_globals],
-        help="run a probe (not implemented; exits 4)",
+        help="run a drop-premise probe through the shell provider",
     )
     p_run.add_argument("--spec", required=True, metavar="PATH")
+    p_run.add_argument("--provider-cmd", required=True, metavar="CMD")
     p_diff = probe_sub.add_parser(
         "diff",
         parents=[sub_globals],
@@ -540,8 +540,9 @@ def cmd_compile(args: argparse.Namespace) -> int:
 
 def _node_line(node, indent: str = "    ") -> str:
     text = " ".join(node.text.split())
+    kind = "judgment_call" if node.kind == "taste_call" else node.kind
     return (
-        f"{indent}{node.kind:<20} {node.id} {node.status:<9} {text}"
+        f"{indent}{kind:<20} {node.id} {node.status:<9} {text}"
     )
 
 
@@ -598,7 +599,8 @@ def cmd_show(args: argparse.Namespace) -> int:
                 for n in graphs[head_graph_id].nodes:
                     if args.node and n.id != args.node:
                         continue
-                    print(f"node {n.id} {n.kind}")
+                    kind = "judgment_call" if n.kind == "taste_call" else n.kind
+                    print(f"node {n.id} {kind}")
             return EXIT_OK
         label = session.origin or session.title
         print(
@@ -624,7 +626,8 @@ def cmd_show(args: argparse.Namespace) -> int:
         for n in graph.nodes:
             if args.node and n.id != args.node:
                 continue
-            print(f"node {n.id} {n.kind}")
+            kind = "judgment_call" if n.kind == "taste_call" else n.kind
+            print(f"node {n.id} {kind}")
         return EXIT_OK
     print(f"graph {graph.id}  session={graph.session_id}  (story graph, not a circuit trace)")
     for line in _graph_nodes_tree(graph, args.node):
@@ -829,13 +832,41 @@ def _cmd_probe_run(args: argparse.Namespace) -> int:
     spec = _load_probe_spec(args.spec)
     store = _store(args)
     graph = store.load_graph(spec.target_graph_id)
-    ProbeHarness().plan(graph, spec)
+    harness = ProbeHarness()
+    harness.plan(graph, spec)
+    provider = build_provider("shell", provider_cmd=args.provider_cmd)
     try:
-        ProbeHarness().run(graph, spec, NoneProvider())
+        child = harness.run(graph, spec, provider)
     except NotImplementedError as exc:
         print(exc, file=sys.stderr)
         return EXIT_NOT_IMPLEMENTED
-    raise RuntimeError("ProbeHarness.run must raise NotImplementedError")
+    validate_graph(child)
+    graph_path = store.write_graph(child)
+    append_op_turn(
+        store,
+        session_id=child.session_id,
+        turn_id=child.turn_id,
+        now=child.created_at,
+        role="assistant",
+        prose=child.prose,
+        graph_id=child.id,
+        fork_of_node_id=spec.target_node_id,
+        provider="shell",
+    )
+    diff = diff_graphs(graph, child, spec=spec)
+    diff_path = store.write_graph_diff(graph.session_id, diff.to_dict())
+    store.log(
+        "probe_run",
+        session_id=graph.session_id,
+        graph_id=child.id,
+        path=str(graph_path),
+        warnings=[diff.notes] if diff.notes else [],
+    )
+    if diff.notes:
+        print(diff.notes, file=sys.stderr)
+    print(f"graph {child.id}")
+    print(f"diff {diff.id}")
+    return EXIT_OK
 
 
 def _cmd_probe_diff(args: argparse.Namespace) -> int:

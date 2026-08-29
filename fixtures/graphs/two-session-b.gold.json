@@ -8,19 +8,19 @@
     },
     {
       "local_id": "t_shared",
-      "kind": "taste_call",
+      "kind": "judgment_call",
       "text": "Invent the medium first.",
       "status": "accepted"
     },
     {
       "local_id": "t_para",
-      "kind": "taste_call",
+      "kind": "judgment_call",
       "text": "Make thought an object you can inhabit, fork, and break.",
       "status": "accepted"
     },
     {
       "local_id": "t_miss",
-      "kind": "taste_call",
+      "kind": "judgment_call",
       "text": "Prefer short names for the HTTP API.",
       "status": "accepted"
     },
@@ -47,9 +47,9 @@
     }
   ],
   "edges": [
-    { "from": "t_shared", "to": "c1", "kind": "taste_of" },
-    { "from": "t_para", "to": "c1", "kind": "taste_of" },
-    { "from": "t_miss", "to": "c1", "kind": "taste_of" },
+    { "from": "t_shared", "to": "c1", "kind": "shapes" },
+    { "from": "t_para", "to": "c1", "kind": "shapes" },
+    { "from": "t_miss", "to": "c1", "kind": "shapes" },
     { "from": "v1", "to": "t_shared", "kind": "vetoes" },
     { "from": "h1", "to": "c1", "kind": "rejects" },
     { "from": "r1", "to": "c1", "kind": "rejects" }

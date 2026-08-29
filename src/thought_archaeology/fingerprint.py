@@ -97,8 +97,8 @@ def _unique_nodes(
     return out
 
 
-def _is_model_taste(_graph: ThoughtGraph, node: ThoughtNode) -> bool:
-    return node.kind == "taste_call" and node.agent == "model"
+def _is_model_judgment(_graph: ThoughtGraph, node: ThoughtNode) -> bool:
+    return node.kind in {"judgment_call", "taste_call"} and node.agent == "model"
 
 
 def _is_human_veto(graph: ThoughtGraph, node: ThoughtNode) -> bool:
@@ -118,7 +118,7 @@ def _recurrence(
 
 
 @dataclass(frozen=True)
-class TasteCluster:
+class JudgmentCluster:
     canonical: str
     normalized: str
     count: int
@@ -137,7 +137,7 @@ class TasteCluster:
         }
 
     @classmethod
-    def from_dict(cls, d: dict) -> TasteCluster:
+    def from_dict(cls, d: dict) -> JudgmentCluster:
         return cls(
             canonical=d["canonical"],
             normalized=d["normalized"],
@@ -150,13 +150,13 @@ class TasteCluster:
 
 @dataclass(frozen=True)
 class Divergence:
-    taste_canonical: str
+    judgment_canonical: str
     veto_canonical: str
     jaccard: float
 
     def to_dict(self) -> dict:
         return {
-            "taste_canonical": self.taste_canonical,
+            "judgment_canonical": self.judgment_canonical,
             "veto_canonical": self.veto_canonical,
             "jaccard": self.jaccard,
         }
@@ -164,7 +164,7 @@ class Divergence:
     @classmethod
     def from_dict(cls, d: dict) -> Divergence:
         return cls(
-            taste_canonical=d["taste_canonical"],
+            judgment_canonical=d.get("judgment_canonical", d.get("taste_canonical")),
             veto_canonical=d["veto_canonical"],
             jaccard=float(d["jaccard"]),
         )
@@ -172,13 +172,13 @@ class Divergence:
 
 def _emit_clusters(
     raw: list[_Cluster], *, total_sessions: int, min_sessions: int
-) -> tuple[TasteCluster, ...]:
-    out: list[TasteCluster] = []
+) -> tuple[JudgmentCluster, ...]:
+    out: list[JudgmentCluster] = []
     for cluster in raw:
         sessions = sorted({g.session_id for g, _n in cluster.members})
         node_ids = sorted({n.id for _g, n in cluster.members})
         out.append(
-            TasteCluster(
+            JudgmentCluster(
                 canonical=cluster.canonical,
                 normalized=normalize(cluster.canonical),
                 count=len(cluster.members),
@@ -195,17 +195,17 @@ def _emit_clusters(
 
 
 def _divergence(
-    tastes: tuple[TasteCluster, ...], vetoes: tuple[TasteCluster, ...]
+    judgments: tuple[JudgmentCluster, ...], vetoes: tuple[JudgmentCluster, ...]
 ) -> tuple[Divergence, ...]:
     rows: list[Divergence] = []
-    for taste in tastes:
-        tt = token_set(taste.canonical)
+    for judgment in judgments:
+        tokens = token_set(judgment.canonical)
         for veto in vetoes:
-            score = jaccard(tt, token_set(veto.canonical))
+            score = jaccard(tokens, token_set(veto.canonical))
             if score >= DIVERGENCE_THRESHOLD:
                 rows.append(
                     Divergence(
-                        taste_canonical=taste.canonical,
+                        judgment_canonical=judgment.canonical,
                         veto_canonical=veto.canonical,
                         jaccard=round(score, 6),
                     )
@@ -221,8 +221,8 @@ class Fingerprint:
     session_ids: tuple[str, ...]
     min_sessions: int
     merge_threshold: float
-    model_taste: tuple[TasteCluster, ...]
-    human_vetoes: tuple[TasteCluster, ...]
+    model_judgments: tuple[JudgmentCluster, ...]
+    human_vetoes: tuple[JudgmentCluster, ...]
     divergence: tuple[Divergence, ...]
 
     def to_dict(self) -> dict:
@@ -233,7 +233,7 @@ class Fingerprint:
             "session_ids": list(self.session_ids),
             "min_sessions": self.min_sessions,
             "merge_threshold": self.merge_threshold,
-            "model_taste": [c.to_dict() for c in self.model_taste],
+            "model_judgments": [c.to_dict() for c in self.model_judgments],
             "human_vetoes": [c.to_dict() for c in self.human_vetoes],
             "divergence": [d.to_dict() for d in self.divergence],
         }
@@ -247,9 +247,12 @@ class Fingerprint:
             session_ids=tuple(d.get("session_ids") or ()),
             min_sessions=int(d["min_sessions"]),
             merge_threshold=float(d["merge_threshold"]),
-            model_taste=tuple(TasteCluster.from_dict(c) for c in d.get("model_taste") or ()),
+            model_judgments=tuple(
+                JudgmentCluster.from_dict(c)
+                for c in d.get("model_judgments", d.get("model_taste")) or ()
+            ),
             human_vetoes=tuple(
-                TasteCluster.from_dict(c) for c in d.get("human_vetoes") or ()
+                JudgmentCluster.from_dict(c) for c in d.get("human_vetoes") or ()
             ),
             divergence=tuple(Divergence.from_dict(x) for x in d.get("divergence") or ()),
         )
@@ -260,17 +263,17 @@ CLIMATE_KINDS = ("divergence", "veto", "recurring", "emerging", "calm")
 CLIMATE_LABELS = {
     "divergence": "you fight this cut",
     "veto": "a human no lives here",
-    "recurring": "the model's recurring taste",
-    "emerging": "emerging taste",
+    "recurring": "the model's recurring judgment",
+    "emerging": "emerging judgment",
     "calm": "still air",
 }
 
 
 def _best_cluster(
-    node: ThoughtNode, clusters: tuple[TasteCluster, ...], *, threshold: float
-) -> tuple[float, TasteCluster] | None:
+    node: ThoughtNode, clusters: tuple[JudgmentCluster, ...], *, threshold: float
+) -> tuple[float, JudgmentCluster] | None:
     toks = token_set(node.text)
-    best: tuple[float, TasteCluster] | None = None
+    best: tuple[float, JudgmentCluster] | None = None
     for cluster in clusters:
         if node.id in cluster.node_ids:
             score = 1.0
@@ -289,38 +292,38 @@ def climate_at(node: ThoughtNode, fp: Fingerprint | None) -> dict | None:
     """Atmosphere at a standing node. Not a dashboard of clusters."""
     if fp is None:
         return None
-    taste = _best_cluster(node, fp.model_taste, threshold=MERGE_THRESHOLD)
+    judgment = _best_cluster(node, fp.model_judgments, threshold=MERGE_THRESHOLD)
     veto = _best_cluster(node, fp.human_vetoes, threshold=MERGE_THRESHOLD)
     kind = "calm"
     canonical = None
     score = 0.0
     recurrence = None
-    if taste is not None:
-        t_score, t_cluster = taste
+    if judgment is not None:
+        judgment_score, judgment_cluster = judgment
         fought = any(
-            d.taste_canonical == t_cluster.canonical for d in fp.divergence
+            d.judgment_canonical == judgment_cluster.canonical for d in fp.divergence
         )
         if fought:
             kind = "divergence"
-        elif t_cluster.recurrence == "recurring":
+        elif judgment_cluster.recurrence == "recurring":
             kind = "recurring"
         else:
             kind = "emerging"
-        canonical = t_cluster.canonical
-        score = t_score
-        recurrence = t_cluster.recurrence
+        canonical = judgment_cluster.canonical
+        score = judgment_score
+        recurrence = judgment_cluster.recurrence
     if veto is not None:
         v_score, v_cluster = veto
-        if taste is not None and any(
-            d.taste_canonical == taste[1].canonical
+        if judgment is not None and any(
+            d.judgment_canonical == judgment[1].canonical
             and d.veto_canonical == v_cluster.canonical
             for d in fp.divergence
         ):
             kind = "divergence"
-            canonical = taste[1].canonical
-            score = taste[0]
-            recurrence = taste[1].recurrence
-        elif taste is None or kind in ("calm", "emerging"):
+            canonical = judgment[1].canonical
+            score = judgment[0]
+            recurrence = judgment[1].recurrence
+        elif judgment is None or kind in ("calm", "emerging"):
             kind = "veto"
             canonical = v_cluster.canonical
             score = v_score
@@ -346,8 +349,8 @@ def fingerprint(
     graph_list = list(graphs)
     sessions = tuple(session_ids)
     total = len(sessions)
-    tastes = _emit_clusters(
-        cluster_nodes(_unique_nodes(graph_list, _is_model_taste)),
+    judgments = _emit_clusters(
+        cluster_nodes(_unique_nodes(graph_list, _is_model_judgment)),
         total_sessions=total,
         min_sessions=min_sessions,
     )
@@ -363,7 +366,7 @@ def fingerprint(
         session_ids=sessions,
         min_sessions=min_sessions,
         merge_threshold=MERGE_THRESHOLD,
-        model_taste=tastes,
+        model_judgments=judgments,
         human_vetoes=vetoes,
-        divergence=_divergence(tastes, vetoes),
+        divergence=_divergence(judgments, vetoes),
     )

@@ -7,8 +7,10 @@ from typing import Any, Literal
 
 from thought_archaeology.fingerprint import MERGE_THRESHOLD, jaccard, normalize, token_set
 from thought_archaeology.ids import new_ulid, now_iso
-from thought_archaeology.models import SCHEMA_VERSION, ThoughtGraph, ThoughtNode
+from thought_archaeology.fork import detect_regen_compile_mode, fork_from, fork_regen_prompt
+from thought_archaeology.models import SCHEMA_VERSION, ModelInfo, ThoughtGraph, ThoughtNode
 from thought_archaeology.providers.base import Provider
+from thought_archaeology.schema import read_prompt
 
 ProbeKind = Literal["drop_premise", "invert_constraint", "resample", "steer_later"]
 PROBE_KINDS: tuple[ProbeKind, ...] = (
@@ -271,7 +273,38 @@ class ProbeHarness:
     def run(
         self, graph: ThoughtGraph, spec: ProbeSpec, provider: Provider
     ) -> ThoughtGraph:
-        raise NotImplementedError(NULL_PROBE_MESSAGE)
+        self.plan(graph, spec)
+        if spec.kind != "drop_premise":
+            raise NotImplementedError(NULL_PROBE_MESSAGE)
+        target = _node_in(graph, spec.target_node_id)
+        if target is None:  # plan already checked; keeps the type concrete
+            raise ProbeError(f"node {spec.target_node_id} not in graph {graph.id}")
+        now = now_iso()
+        response = provider.complete(
+            fork_regen_prompt(
+                graph,
+                target,
+                reason="test the story without this premise",
+                now=now,
+            ),
+            system=read_prompt("fork"),
+        )
+        model = ModelInfo(
+            provider=provider.name,  # type: ignore[arg-type]
+            name=graph.model.name or "unknown",
+            compile_mode=detect_regen_compile_mode(response),
+        )
+        child, _warnings = fork_from(
+            graph,
+            target,
+            session_id=graph.session_id,
+            turn_id=new_ulid(),
+            now=now,
+            model=model,
+            reason="probe: drop premise",
+            regen_text=response,
+        )
+        return child
 
     def diff(self, a: ThoughtGraph, b: ThoughtGraph) -> GraphDiff:
         return diff_graphs(a, b)

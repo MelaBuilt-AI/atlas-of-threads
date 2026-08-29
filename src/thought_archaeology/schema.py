@@ -32,7 +32,7 @@ SCHEMA_NAMES = (
     "graph-diff.schema.json",
 )
 
-DAG_EDGE_KINDS = frozenset({"supports", "depends_on", "taste_of"})
+DAG_EDGE_KINDS = frozenset({"supports", "depends_on", "shapes", "taste_of"})
 
 
 class ValidationError(Exception):
@@ -150,7 +150,7 @@ def policy_warnings(graph: ThoughtGraph) -> list[str]:
     if "claim" not in kinds:
         warnings.append("policy: graph has no claim node")
     if _has_dag_cycle(graph):
-        warnings.append("policy: supports/depends_on/taste_of cycle detected")
+        warnings.append("policy: supports/depends_on/shapes cycle detected")
     return warnings
 
 

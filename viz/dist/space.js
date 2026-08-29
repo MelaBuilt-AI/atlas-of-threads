@@ -4,7 +4,7 @@
     claim: 0xe8d5a3,
     premise: 0x8fa9c4,
     analogy: 0xd4a0b0,
-    taste_call: 0xf0a35e,
+    judgment_call: 0xf0a35e,
     uncertainty: 0x5c8a7b,
     rejected_alternative: 0x8a7396,
   };

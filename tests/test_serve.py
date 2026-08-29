@@ -126,7 +126,7 @@ def test_fork_from_space_keeps_g0(httpd_url: str, tmp_path: Path):
     sid = sessions["sessions"][0]["id"]
     gid = spawn["graph_id"]
     graph = st.load_graph(gid)
-    target = next(n for n in graph.nodes if n.kind == "taste_call")
+    target = next(n for n in graph.nodes if n.kind == "judgment_call")
     before = (store_path / "sessions" / sid / "graphs" / f"{gid}.json").read_bytes()
     code, body = _post(
         httpd_url + "/api/fork",
@@ -178,7 +178,7 @@ def test_veto_from_space_requires_reason_then_follows(httpd_url: str, tmp_path: 
             "node": nid,
             "graph": gid,
             "session": sid,
-            "reason": "this taste-call is the wrong cut",
+            "reason": "this judgment call is the wrong cut",
         },
     )
     assert code == 200, body
@@ -209,7 +209,7 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert "/api/veto" in js
     assert "omit_set" not in js
     assert "applyClimate" in js
-    assert "model_taste" not in js
+    assert "model_judgments" not in js
     assert "ArrowUp" in js
     assert "CELL" in js
     assert "starTexture" in js

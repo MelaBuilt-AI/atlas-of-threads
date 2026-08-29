@@ -11,9 +11,12 @@
     "session_ids",
     "min_sessions",
     "merge_threshold",
-    "model_taste",
     "human_vetoes",
     "divergence"
+  ],
+  "anyOf": [
+    { "required": ["model_judgments"] },
+    { "required": ["model_taste"] }
   ],
   "properties": {
     "schema_version": { "const": "1.0.0" },
@@ -28,6 +31,10 @@
     },
     "min_sessions": { "type": "integer", "minimum": 1 },
     "merge_threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+    "model_judgments": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/cluster" }
+    },
     "model_taste": {
       "type": "array",
       "items": { "$ref": "#/$defs/cluster" }
@@ -41,8 +48,13 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["taste_canonical", "veto_canonical", "jaccard"],
+        "required": ["veto_canonical", "jaccard"],
+        "anyOf": [
+          { "required": ["judgment_canonical"] },
+          { "required": ["taste_canonical"] }
+        ],
         "properties": {
+          "judgment_canonical": { "type": "string", "minLength": 1 },
           "taste_canonical": { "type": "string", "minLength": 1 },
           "veto_canonical": { "type": "string", "minLength": 1 },
           "jaccard": { "type": "number", "minimum": 0, "maximum": 1 }

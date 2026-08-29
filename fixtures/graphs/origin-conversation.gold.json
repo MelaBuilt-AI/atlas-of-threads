@@ -26,13 +26,13 @@
     },
     {
       "local_id": "n5",
-      "kind": "taste_call",
+      "kind": "judgment_call",
       "text": "\"Show me the neurons\" is the wrong port. Make thought an object you can inhabit, fork, and break on purpose.",
       "status": "accepted"
     },
     {
       "local_id": "n6",
-      "kind": "taste_call",
+      "kind": "judgment_call",
       "text": "Invent the medium first. Internals plug in later as a deeper sensor on the same objects. Git did not wait for cycle-accurate CPU traces.",
       "status": "accepted"
     },
@@ -98,7 +98,7 @@
     },
     {
       "local_id": "n17",
-      "kind": "taste_call",
+      "kind": "judgment_call",
       "text": "Rejected alternatives (negative space) are first-class and always stored.",
       "status": "accepted"
     },
@@ -138,17 +138,17 @@
     {
       "from": "n6",
       "to": "n9",
-      "kind": "taste_of"
+      "kind": "shapes"
     },
     {
       "from": "n5",
       "to": "n18",
-      "kind": "taste_of"
+      "kind": "shapes"
     },
     {
       "from": "n17",
       "to": "n5",
-      "kind": "taste_of"
+      "kind": "shapes"
     },
     {
       "from": "n11",

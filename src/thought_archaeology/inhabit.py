@@ -18,6 +18,7 @@ def _spawn_id(graph: ThoughtGraph) -> str | None:
 KIND_SENSE = {
     "claim": "a conclusion this answer is standing on",
     "premise": "a supporting belief",
+    "judgment_call": "a judgment the premises did not force",
     "taste_call": "a judgment the premises did not force",
     "analogy": "a mapping used to think",
     "uncertainty": "a scoped unknown",
@@ -34,7 +35,8 @@ def _count_phrase(n: int, singular: str, plural: str) -> str:
 def chamber_read(view: InhabitView) -> dict:
     """How the chamber speaks. Schema kinds stay; the human hears sense."""
     node = view.node
-    sense = KIND_SENSE.get(node.kind, node.kind.replace("_", " "))
+    display_kind = "judgment_call" if node.kind == "taste_call" else node.kind
+    sense = KIND_SENSE.get(node.kind, display_kind.replace("_", " "))
     if node.status == "vetoed":
         sense = "a human no"
     shaped_n = len(view.shaped)
@@ -57,9 +59,9 @@ def chamber_read(view: InhabitView) -> dict:
     climate = view.climate
     kind = (climate or {}).get("kind")
     climate_line = {
-        "divergence": "climate: you have fought this taste before",
-        "recurring": "climate: the model reaches for this taste again and again",
-        "emerging": "climate: this taste has only shown up in this sitting",
+        "divergence": "climate: you have challenged this judgment before",
+        "recurring": "climate: the model reaches for this judgment again and again",
+        "emerging": "climate: this judgment has only shown up in this sitting",
         "veto": "climate: a human no already lives on this thought",
         "calm": "climate: still air — this thought is not a habit yet",
     }.get(kind) if climate else None
@@ -73,7 +75,7 @@ def chamber_read(view: InhabitView) -> dict:
     if view.graph.parent_graph_id and view.graph.fork is not None:
         here.append("violet ring: walk back to the cut")
     return {
-        "kind_line": f"{node.kind.replace('_', ' ')} — {sense}",
+        "kind_line": f"{display_kind.replace('_', ' ')} — {sense}",
         "here_line": " · ".join(here),
         "fork_line": fork_line,
         "veto_line": veto_line,
@@ -274,13 +276,15 @@ def inhabit(
 
 def _node_line(node: ThoughtNode, indent: str = "    ") -> str:
     text = " ".join(node.text.split())
-    return f"{indent}{node.kind:<20} {node.id} {node.status:<9} {text}"
+    kind = "judgment_call" if node.kind == "taste_call" else node.kind
+    return f"{indent}{kind:<20} {node.id} {node.status:<9} {text}"
 
 
 def format_inhabit(view: InhabitView) -> str:
     n = view.node
+    kind = "judgment_call" if n.kind == "taste_call" else n.kind
     lines = [
-        f"node {n.id}  {n.kind}  {n.status}  {n.agent}",
+        f"node {n.id}  {kind}  {n.status}  {n.agent}",
         f"  {' '.join(n.text.split())}",
         (
             f"graph {view.graph.id}  session={view.graph.session_id}  "

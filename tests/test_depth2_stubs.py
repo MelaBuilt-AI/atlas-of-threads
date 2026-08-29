@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import replace
 from pathlib import Path
 
@@ -163,9 +164,9 @@ def test_plan_validates_target(tmp_path: Path):
         make_plan(graph, kind="drop_premise", node_id=new_ulid())
 
 
-def test_run_raises_not_implemented(tmp_path: Path):
+def test_non_drop_probe_remains_not_implemented(tmp_path: Path):
     _, _, graph = _compile_simple(tmp_path / "data")
-    spec = make_plan(graph, kind="drop_premise", node_id=_by_kind(graph, "premise").id)
+    spec = make_plan(graph, kind="resample", node_id=_by_kind(graph, "premise").id)
     with pytest.raises(NotImplementedError, match=NULL_PROBE_MESSAGE):
         ProbeHarness().run(graph, spec, NoneProvider())
 
@@ -305,7 +306,7 @@ def test_cli_probe_plan_missing_node(tmp_path: Path):
     assert "not in graph" in err
 
 
-def test_cli_probe_run_exits_4(tmp_path: Path):
+def test_cli_probe_run_stores_child_and_diff(tmp_path: Path):
     store = tmp_path / "data"
     _, gid, graph = _compile_simple(store)
     spec_path = tmp_path / "spec.json"
@@ -325,17 +326,41 @@ def test_cli_probe_run_exits_4(tmp_path: Path):
         store=store,
     )
     assert code == 0, err
-    code, out, err = run(["probe", "run", "--spec", str(spec_path)], store=store)
-    assert code == 4
-    assert NULL_PROBE_MESSAGE in err
-    assert out == ""
+    provider = Path(__file__).with_name("fake_probe_provider.py")
+    code, out, err = run(
+        [
+            "probe",
+            "run",
+            "--spec",
+            str(spec_path),
+            "--provider-cmd",
+            f"{sys.executable} {provider}",
+        ],
+        store=store,
+    )
+    assert code == 0, err
+    lines = out.splitlines()
+    child_id = lines[0].removeprefix("graph ")
+    diff_id = lines[1].removeprefix("diff ")
+    st = Store(store)
+    child = st.load_graph(child_id)
+    assert child.parent_graph_id == gid
+    assert _by_kind(graph, "premise").id not in {n.id for n in child.nodes}
+    assert (st.diffs_dir(child.session_id) / f"{diff_id}.json").is_file()
 
 
 def test_cli_probe_run_missing_spec_is_io(tmp_path: Path):
     store = tmp_path / "data"
     run(["init", "--title", "t"], store=store)
     code, _, err = run(
-        ["probe", "run", "--spec", str(tmp_path / "nope.json")],
+        [
+            "probe",
+            "run",
+            "--spec",
+            str(tmp_path / "nope.json"),
+            "--provider-cmd",
+            "unused",
+        ],
         store=store,
     )
     assert code == 3
