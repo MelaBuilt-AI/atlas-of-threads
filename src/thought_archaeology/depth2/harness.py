@@ -1,20 +1,25 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from types import MappingProxyType
 from typing import Any, Literal
 
 from thought_archaeology.fingerprint import MERGE_THRESHOLD, jaccard, normalize, token_set
+from thought_archaeology.evidence import EvidenceBinding
 from thought_archaeology.ids import new_ulid, now_iso
+from thought_archaeology.compile_structured import compile_structured
 from thought_archaeology.fork import detect_regen_compile_mode, fork_from, fork_regen_prompt
-from thought_archaeology.models import SCHEMA_VERSION, ModelInfo, ThoughtGraph, ThoughtNode
+from thought_archaeology.models import SCHEMA_VERSION, ModelInfo, ThoughtGraph, ThoughtNode, Turn
 from thought_archaeology.providers.base import Provider
 from thought_archaeology.schema import read_prompt
 
-ProbeKind = Literal["drop_premise", "invert_constraint", "resample", "steer_later"]
+ProbeKind = Literal[
+    "drop_premise", "edit_context", "invert_constraint", "resample", "steer_later"
+]
 PROBE_KINDS: tuple[ProbeKind, ...] = (
     "drop_premise",
+    "edit_context",
     "invert_constraint",
     "resample",
     "steer_later",
@@ -160,6 +165,63 @@ def _conclusions_of(graph: ThoughtGraph, premise_id: str) -> list[ThoughtNode]:
     return [n for n in graph.nodes if n.kind == "claim"]
 
 
+def evidence_from_probe(
+    a: ThoughtGraph,
+    b: ThoughtGraph,
+    spec: ProbeSpec,
+    diff: GraphDiff,
+    *,
+    parent_evidence_id: str | None = None,
+    created_at: str | None = None,
+) -> tuple[EvidenceBinding, ...]:
+    """Bind a behavioral intervention result to each tested conclusion."""
+    if spec.kind not in {"drop_premise", "edit_context"}:
+        return ()
+    stable = set(diff.stable_node_ids)
+    bindings: list[EvidenceBinding] = []
+    conclusions = (
+        _conclusions_of(a, spec.target_node_id)
+        if spec.kind == "drop_premise"
+        else [node for node in a.nodes if node.id == spec.target_node_id]
+    )
+    for conclusion in conclusions:
+        survived = _node_stable_in_b(conclusion, b, stable_ids=stable)
+        if survived:
+            result = "supports"
+            summary = (
+                "The conclusion survived dropping its stated premise; this supports "
+                "the conclusion's robustness but not the claimed dependency."
+                if spec.kind == "drop_premise"
+                else "The thought survived the controlled context edit; this supports behavioral robustness, not neural causation."
+            )
+        else:
+            result = "contradicts"
+            summary = (
+                "The accepted conclusion did not survive dropping its stated premise."
+                if spec.kind == "drop_premise"
+                else "The accepted thought did not survive the controlled context edit."
+            )
+        bindings.append(
+            EvidenceBinding(
+                schema_version=SCHEMA_VERSION,
+                id=new_ulid(),
+                graph_id=a.id,
+                node_id=conclusion.id,
+                kind="behavioral_intervention",
+                result=result,
+                summary=summary,
+                artifact_refs=(
+                    f"probe:{spec.id}",
+                    f"diff:{diff.id}",
+                    f"graph:{b.id}",
+                ),
+                created_at=created_at or now_iso(),
+                parent_evidence_id=parent_evidence_id,
+            )
+        )
+    return tuple(bindings)
+
+
 def _node_stable_in_b(
     node: ThoughtNode, b: ThoughtGraph, *, stable_ids: set[str]
 ) -> bool:
@@ -303,6 +365,52 @@ class ProbeHarness:
             model=model,
             reason="probe: drop premise",
             regen_text=response,
+        )
+        return child
+
+    def run_context(
+        self,
+        graph: ThoughtGraph,
+        spec: ProbeSpec,
+        provider: Provider,
+        turns: tuple[Turn, ...],
+    ) -> ThoughtGraph:
+        self.plan(graph, spec)
+        if spec.kind != "edit_context":
+            raise NotImplementedError(NULL_PROBE_MESSAGE)
+        turn_id = str(spec.params.get("turn_id") or "")
+        old = str(spec.params.get("old") or "")
+        new = str(spec.params.get("new") or "")
+        target = next((turn for turn in turns if turn.id == turn_id), None)
+        if target is None:
+            raise ProbeError(f"context turn {turn_id} not in graph lineage")
+        if not old or target.prose.count(old) != 1:
+            raise ProbeError("context edit old text must occur exactly once")
+        edited = replace(target, prose=target.prose.replace(old, new, 1))
+        rows = [
+            {"role": turn.role, "text": (edited.prose if turn.id == turn_id else turn.prose)}
+            for turn in turns
+        ]
+        prompt = (
+            "Re-answer the edited conversation from scratch. The edit is the only "
+            "counterfactual. Do not defend the previous answer.\n\n"
+            f"Thought under test: {next(n.text for n in graph.nodes if n.id == spec.target_node_id)}\n\n"
+            "Edited conversation:\n"
+            f"{json.dumps(rows, indent=2, ensure_ascii=False)}"
+        )
+        response = provider.complete(prompt, system=read_prompt("structured"))
+        now = now_iso()
+        child, _warnings = compile_structured(
+            response,
+            session_id=graph.session_id,
+            turn_id=new_ulid(),
+            model=ModelInfo(
+                provider=provider.name,  # type: ignore[arg-type]
+                name=graph.model.name or "unknown",
+                compile_mode="structured_emit",
+            ),
+            now=now,
+            parent_graph_id=graph.id,
         )
         return child
 

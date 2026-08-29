@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from thought_archaeology.evidence import EvidenceBinding
 from thought_archaeology.fingerprint import Fingerprint, climate_at
 from thought_archaeology.fork import ForkError, omit_set
 from thought_archaeology.models import ThoughtGraph, ThoughtNode
@@ -65,6 +66,30 @@ def chamber_read(view: InhabitView) -> dict:
         "veto": "climate: a human no already lives on this thought",
         "calm": "climate: still air — this thought is not a habit yet",
     }.get(kind) if climate else None
+    evidence_line = None
+    if view.evidence:
+        words = {
+            "story_report": "the story says so",
+            "context_provenance": "an earlier artifact points here",
+            "behavioral_intervention": "an intervention tested this",
+            "activation_correlation": "internal activity moved with this",
+            "neural_intervention": "a neural intervention tested this",
+            "recurring_circuit": "a recurring mechanism points here",
+            "training_influence": "bounded training evidence points here",
+            "training_provenance": "published training provenance reaches here",
+            "checkpoint_emergence": "a checkpoint trajectory reaches here",
+        }
+        latest = view.evidence[-1]
+        result = {
+            "supports": "supports",
+            "contradicts": "contradicts",
+            "inconclusive": "does not settle",
+        }[latest.result]
+        evidence_line = (
+            f"evidence: {words[latest.kind]} — {result} this thought "
+            f"({len(view.evidence)} "
+            f"{'binding' if len(view.evidence) == 1 else 'bindings'})"
+        )
     here = ["you are here"]
     if shaped_n:
         here.append("ahead: what this thought made")
@@ -80,6 +105,7 @@ def chamber_read(view: InhabitView) -> dict:
         "fork_line": fork_line,
         "veto_line": veto_line,
         "climate_line": climate_line,
+        "evidence_line": evidence_line,
         "look_line": "left/right preview a path · enter walk it · up deeper · down or b retrace",
     }
 
@@ -103,6 +129,7 @@ class InhabitView:
     vetoes: tuple[ThoughtNode, ...]
     fork_children: tuple[ThoughtGraph, ...]
     climate: dict | None = None
+    evidence: tuple[EvidenceBinding, ...] = ()
 
     def to_dict(self) -> dict:
         fork = self.graph.fork
@@ -125,6 +152,7 @@ class InhabitView:
             "rejected_siblings": [node_payload(n) for n in self.rejected_siblings],
             "vetoes": [node_payload(n) for n in self.vetoes],
             "climate": self.climate,
+            "evidence": [binding.to_dict() for binding in self.evidence],
             "read": chamber_read(self),
             "fork_children": [
                 {
@@ -263,6 +291,14 @@ def inhabit(
     children.sort(key=lambda g: (g.created_at, g.id))
     raw_fp = store.latest_fingerprint()
     fp = Fingerprint.from_dict(raw_fp) if raw_fp else None
+    evidence_by_id: dict[str, EvidenceBinding] = {}
+    local_evidence = store.iter_evidence(
+        graph.session_id, graph_id=graph.id, node_id=node.id
+    )
+    for leaf in local_evidence:
+        for raw in store.evidence_chain(graph.session_id, leaf["id"]):
+            evidence_by_id.setdefault(raw["id"], EvidenceBinding.from_dict(raw))
+    evidence = tuple(evidence_by_id.values())
     return InhabitView(
         graph=graph,
         node=node,
@@ -271,6 +307,7 @@ def inhabit(
         vetoes=tuple(veto_by_id.values()),
         fork_children=tuple(children),
         climate=climate_at(node, fp),
+        evidence=evidence,
     )
 
 
@@ -296,6 +333,8 @@ def format_inhabit(view: InhabitView) -> str:
     lines.append(spoken["here_line"])
     if spoken["climate_line"]:
         lines.append(spoken["climate_line"])
+    if spoken["evidence_line"]:
+        lines.append(spoken["evidence_line"])
     lines.append(spoken["fork_line"])
     lines.extend(["", "shaped"])
     if view.shaped:
@@ -327,5 +366,23 @@ def format_inhabit(view: InhabitView) -> str:
             )
     else:
         lines.append("    (none)")
+    lines.extend(["", "evidence beneath this thought"])
+    if view.evidence:
+        for binding in view.evidence:
+            kind = binding.kind.replace("_", " ")
+            lines.append(
+                f"    {kind:<24} {binding.result:<12} {binding.id}"
+            )
+            if binding.graph_id != view.graph.id or binding.node_id != view.node.id:
+                lines.append(
+                    f"      at graph {binding.graph_id} node {binding.node_id}"
+                )
+            lines.append(f"      {binding.summary}")
+            if binding.parent_evidence_id:
+                lines.append(f"      follows {binding.parent_evidence_id}")
+            for artifact in binding.artifact_refs:
+                lines.append(f"      artifact {artifact}")
+    else:
+        lines.append("    (none attached; absence is not evidence)")
     lines.append("")
     return "\n".join(lines)

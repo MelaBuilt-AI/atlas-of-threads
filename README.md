@@ -123,6 +123,18 @@ ta fork NODE --session ID [--graph G] [--reason TEXT]
 ta veto NODE --session ID [--graph G] --reason TEXT
 ta sensor attach NODE [--graph G] [--session S]
 ta sensor attach --from-attribution PATH
+ta sensor import-circuit-tracer NODE --graph G --from-graph PATH \
+  --source-uri URI --producer-revision REV
+ta sensor record-intervention NODE --graph G --from-result PATH \
+  [--neuronpedia-request PATH --manifest PATH] \
+  --source-uri URI --parent-evidence ID
+ta sensor import-activation NODE --graph G --request PATH \
+  --from-response PATH --graph-position N --target TEXT
+ta sensor synthesize-recurrence --neural-evidence ID \
+  --neural-evidence ID --neural-evidence ID
+ta provenance checkpoint --graph G --node N --measurements PATH \
+  --checkpoint-map PATH --model-card PATH --model-card-uri URI \
+  --training-docs PATH --training-docs-uri URI --corpus NAME
 ta fingerprint [--session ID ...] [--min-sessions N] [--out PATH]
 ta canvas GRAPH [--out PATH] [--fingerprint PATH]
 ta export-wiki GRAPH --out PATH [--fingerprint PATH]
@@ -167,14 +179,79 @@ prints `story falsified under intervention; not a weight-level proof`.
 `ta probe run` executes `drop_premise` through the shell provider. It omits the
 premise and its causal descendants through the existing fork path, calls the
 provider once, stores the regenerated child graph, writes a `GraphDiff`, and
-prints both ids. Other probe kinds still exit 4.
+appends behavioral evidence for each tested conclusion. Pass
+`--parent-evidence ID` to continue a validated same-session evidence chain.
+The command prints graph, diff, then evidence ids. Other probe kinds still
+exit 4. `edit_context` is also functional: plan it with an ancestral `--turn`
+and one exact `--old`/`--new` span, then run it through the same provider.
+It regenerates the conversation from scratch and tests the named thought.
 
-`ta sensor attach NODE` is a Depth-3 stub: it binds nothing, prints that
-open weights or a vendor interpretability API are required, and exits 4.
+`ta sensor attach NODE` remains the no-provider Depth-3 stub and exits 4.
 Collapsed attributions (≤12 supernodes bound to a thought-node) can be
-displayed from JSON with `--from-attribution`. Uncollapsed dumps are
-refused. `raw_feature_count` is an integer; the CLI never prints raw
-feature id lists. No vendor client ships in v1.
+displayed from JSON with `--from-attribution`. Supplying matching `NODE` and
+`--graph` stores a provenance-bearing measured attribution and automatically
+adds an inconclusive `activation_correlation` evidence binding.
+`ta sensor import-circuit-tracer` reads plain or gzip-compressed official
+circuit-tracer graph JSON, preserves and hashes the exact source bytes, and collapses its raw
+nodes by recorded structural type. It deliberately does not invent semantic
+feature labels. Uncollapsed displays are refused; feature ids stay JSON-only.
+
+`ta sensor record-intervention` is the causal gate. Its parent must be the
+matching node's `activation_correlation`; its attribution, model, prompt,
+target, and edited `(layer, feature, position)` must all match. The raw result
+must contain a baseline observation, an intervened observation, the exact
+activation value written, the runner revision and device, plus a preregistered
+direction and minimum absolute change. The command preserves the raw bytes,
+recomputes the delta and verdict itself, then appends `neural_intervention`
+evidence. A claimed verdict inside the input is ignored. This establishes only
+a local causal effect under the recorded intervention conditions.
+For Neuronpedia graph steering, `--neuronpedia-request` and `--manifest`
+add a stricter path: the manifest must bind the exact request SHA-256 before
+the run; the importer derives the baseline/intervened target-token outcome
+from the untouched API response and preserves all three byte streams.
+
+`ta sensor import-activation` binds a naturally observed feature value to its
+own thought and preserves the exact Neuronpedia request/response. It records
+the model/layer/feature/position identity but assigns no semantic meaning.
+`ta sensor synthesize-recurrence` requires at least three distinct prompts,
+the exact same model/layer/feature, a measured activation parent in every
+context, and a neural intervention child in every context. It keeps supporting,
+contradicting, and inconclusive counts. Only unanimous support or unanimous
+contradiction receives that aggregate verdict; mixed outcomes stay
+inconclusive. The resulting claim is recurrence of a local mechanism under the
+tested conditions, not a universal concept label.
+
+`ta provenance checkpoint` records a bounded target-token trajectory across
+exact model checkpoints. It preserves the model card, training documentation,
+measurement rows, and checkpoint-to-commit/weight-hash map by SHA-256, then
+computes the rank and probability change itself. This is
+`checkpoint_emergence`: evidence that behavior changed over training. The
+schema explicitly records that exact training-record membership was not
+tested, example influence was not measured, and weights were not attributed.
+It must never be relabeled `training_influence` from this evidence alone.
+
+## Evidence layers
+
+Thought objects remain the human-readable coordinate system. Append-only
+`EvidenceBinding` sidecars state what kind of evidence connects a node to a
+concrete artifact: story report, context provenance, behavioral intervention,
+activation correlation, neural intervention, recurring circuit, checkpoint
+emergence, or bounded training influence. Each binding says whether the artifact supports,
+contradicts, or is inconclusive; it never treats prose as neural ground truth.
+
+The long-term design and scientific limits live in
+`~/Documents/Wiki/futurelayers.md` on the origin machine.
+
+`ta inhabit NODE --graph GRAPH` reads bindings beneath the standing node and
+resolves their parent chain across earlier graphs and nodes. The
+Inhabit Space receives the same typed bindings and a server-authored evidence
+sentence; browser code displays that sentence but does not infer causality.
+When none are attached, the CLI says that absence is not evidence.
+
+`ta evidence context --graph G --node N --turn T` attaches verified context
+provenance only when `T` is in the graph turn's parent lineage. The binding
+stores the turn id and canonical SHA-256 and remains `inconclusive`: preceding
+an answer is not proof of causing it.
 
 Policy warnings (stderr, exit 0 unless `--strict`): zero `rejected_alternative`
 nodes, more than 40 nodes, no `claim`, `supports`/`depends_on`/`shapes` cycles.

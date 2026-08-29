@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import time
 from collections.abc import Iterator
@@ -220,6 +221,29 @@ class Store:
                 continue
             yield Turn.from_dict(json.loads(line))
 
+    def load_turn(self, session_id: str, turn_id: str) -> Turn:
+        for turn in self.iter_turns(session_id):
+            if turn.id == turn_id:
+                return turn
+        raise StoreError(f"turn not found: {turn_id}")
+
+    def turn_lineage(self, session_id: str, turn_id: str) -> tuple[Turn, ...]:
+        """Return parent-linked turns from the root through `turn_id`."""
+        turns = {turn.id: turn for turn in self.iter_turns(session_id)}
+        newest_first: list[Turn] = []
+        seen: set[str] = set()
+        current_id: str | None = turn_id
+        while current_id is not None:
+            if current_id in seen:
+                raise StoreError(f"turn parent cycle at {current_id}")
+            seen.add(current_id)
+            current = turns.get(current_id)
+            if current is None:
+                raise StoreError(f"turn not found: {current_id}")
+            newest_first.append(current)
+            current_id = current.parent_turn_id
+        return tuple(reversed(newest_first))
+
     def iter_graphs(self, session_id: str | None = None) -> Iterator[ThoughtGraph]:
         self._require()
         if session_id is not None:
@@ -240,6 +264,37 @@ class Store:
     @property
     def fingerprints_dir(self) -> Path:
         return self.root / "fingerprints"
+
+    @property
+    def recurring_circuits_dir(self) -> Path:
+        return self.root / "recurring-circuits"
+
+    def write_recurring_circuit(self, data: dict) -> Path:
+        self._require()
+        validate_schema("recurring-circuit.schema.json", data)
+        _mkdir(self.recurring_circuits_dir)
+        path = self.recurring_circuits_dir / f"{data['id']}.json"
+        if path.exists():
+            raise StoreError(f"recurring circuit {data['id']} already exists (write-once)")
+        _write_json(path, data)
+        return path
+
+    def load_recurring_circuit(self, circuit_id: str) -> dict:
+        self._require()
+        path = self.recurring_circuits_dir / f"{circuit_id}.json"
+        if not path.is_file():
+            raise StoreError(f"recurring circuit not found: {circuit_id}")
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        validate_schema("recurring-circuit.schema.json", raw)
+        return raw
+
+    def find_evidence(self, evidence_id: str) -> tuple[str, dict]:
+        self._require()
+        for session_id in self.iter_session_ids():
+            path = self.evidence_dir(session_id) / f"{evidence_id}.json"
+            if path.is_file():
+                return session_id, self.load_evidence(session_id, evidence_id)
+        raise StoreError(f"evidence not found: {evidence_id}")
 
     def iter_session_ids(self) -> Iterator[str]:
         self._require()
@@ -281,6 +336,130 @@ class Store:
     def diffs_dir(self, session_id: str) -> Path:
         return self.session_dir(session_id) / "diffs"
 
+    def evidence_dir(self, session_id: str) -> Path:
+        return self.session_dir(session_id) / "evidence"
+
+    def attributions_dir(self, session_id: str) -> Path:
+        return self.session_dir(session_id) / "attributions"
+
+    def neural_interventions_dir(self, session_id: str) -> Path:
+        return self.session_dir(session_id) / "neural-interventions"
+
+    def training_provenance_dir(self, session_id: str) -> Path:
+        return self.session_dir(session_id) / "training-provenance"
+
+    def sensor_sources_dir(self, session_id: str) -> Path:
+        return self.session_dir(session_id) / "sensor-sources"
+
+    def write_sensor_source(self, session_id: str, digest: str, source: bytes) -> Path:
+        """Preserve exact sensor-source bytes once, addressed by SHA-256."""
+        self._require()
+        if not self.session_exists(session_id):
+            raise StoreError(f"session not found: {session_id}")
+        actual = hashlib.sha256(source).hexdigest()
+        if actual != digest:
+            raise StoreError(f"sensor source SHA-256 mismatch: {actual} != {digest}")
+        _mkdir(self.sensor_sources_dir(session_id))
+        path = self.sensor_sources_dir(session_id) / f"{digest}.bin"
+        if path.exists():
+            if path.read_bytes() != source:
+                raise StoreError(f"sensor source {digest} already exists with other bytes")
+            return path
+        path.write_bytes(source)
+        _chmod_file(path)
+        return path
+
+    def write_attribution(self, session_id: str, data: dict) -> Path:
+        """Write-once measured attribution bound to a node in this session."""
+        self._require()
+        if not self.session_exists(session_id):
+            raise StoreError(f"session not found: {session_id}")
+        graph = self.load_graph(data.get("graph_id", ""))
+        if graph.session_id != session_id:
+            raise StoreError(f"graph {graph.id} is not in session {session_id}")
+        nodes = {node.id: node for node in graph.nodes}
+        node = nodes.get(data.get("node_id"))
+        if node is None:
+            raise StoreError(f"node {data.get('node_id')} not in graph {graph.id}")
+        validate_schema("attribution.schema.json", data)
+        provenance = data.get("provenance")
+        if provenance is None or provenance.get("artifact_kind") != "measured_attribution":
+            raise StoreError("stored attribution requires measured_attribution provenance")
+        span = data["span"]
+        if span["end"] > len(node.text) or span["start"] > span["end"]:
+            raise StoreError(f"attribution span is outside node {node.id}")
+        _mkdir(self.attributions_dir(session_id))
+        path = self.attributions_dir(session_id) / f"{data['id']}.json"
+        if path.exists():
+            raise StoreError(f"attribution {data['id']} already exists (write-once)")
+        _write_json(path, data)
+        return path
+
+    def load_attribution(self, session_id: str, attribution_id: str) -> dict:
+        self._require()
+        path = self.attributions_dir(session_id) / f"{attribution_id}.json"
+        if not path.is_file():
+            raise StoreError(f"attribution not found: {attribution_id}")
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        validate_schema("attribution.schema.json", raw)
+        return raw
+
+    def write_neural_intervention(self, session_id: str, data: dict) -> Path:
+        """Write-once checked result of an actual activation edit."""
+        self._require()
+        if not self.session_exists(session_id):
+            raise StoreError(f"session not found: {session_id}")
+        graph = self.load_graph(data.get("graph_id", ""))
+        if graph.session_id != session_id:
+            raise StoreError(f"graph {graph.id} is not in session {session_id}")
+        if data.get("node_id") not in {node.id for node in graph.nodes}:
+            raise StoreError(f"node {data.get('node_id')} not in graph {graph.id}")
+        attribution = self.load_attribution(session_id, data.get("attribution_id", ""))
+        if (attribution["graph_id"], attribution["node_id"]) != (
+            data.get("graph_id"), data.get("node_id")
+        ):
+            raise StoreError("intervention attribution is bound to another thought")
+        validate_schema("neural-intervention.schema.json", data)
+        _mkdir(self.neural_interventions_dir(session_id))
+        path = self.neural_interventions_dir(session_id) / f"{data['id']}.json"
+        if path.exists():
+            raise StoreError(f"neural intervention {data['id']} already exists (write-once)")
+        _write_json(path, data)
+        return path
+
+    def load_neural_intervention(self, session_id: str, intervention_id: str) -> dict:
+        self._require()
+        path = self.neural_interventions_dir(session_id) / f"{intervention_id}.json"
+        if not path.is_file():
+            raise StoreError(f"neural intervention not found: {intervention_id}")
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        validate_schema("neural-intervention.schema.json", raw)
+        return raw
+
+    def write_training_provenance(self, session_id: str, data: dict) -> Path:
+        self._require()
+        graph = self.load_graph(data.get("graph_id", ""))
+        if graph.session_id != session_id:
+            raise StoreError(f"graph {graph.id} is not in session {session_id}")
+        if data.get("node_id") not in {node.id for node in graph.nodes}:
+            raise StoreError(f"node {data.get('node_id')} not in graph {graph.id}")
+        validate_schema("training-provenance.schema.json", data)
+        _mkdir(self.training_provenance_dir(session_id))
+        path = self.training_provenance_dir(session_id) / f"{data['id']}.json"
+        if path.exists():
+            raise StoreError(f"training provenance {data['id']} already exists (write-once)")
+        _write_json(path, data)
+        return path
+
+    def load_training_provenance(self, session_id: str, provenance_id: str) -> dict:
+        self._require()
+        path = self.training_provenance_dir(session_id) / f"{provenance_id}.json"
+        if not path.is_file():
+            raise StoreError(f"training provenance not found: {provenance_id}")
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        validate_schema("training-provenance.schema.json", raw)
+        return raw
+
     def write_probe(self, session_id: str, data: dict) -> Path:
         """Write-once ProbeSpec JSON next to the session's graphs/."""
         self._require()
@@ -307,6 +486,75 @@ class Store:
             raise StoreError(f"graph-diff {did} already exists (write-once)")
         _write_json(path, data)
         return path
+
+    def write_evidence(self, session_id: str, data: dict) -> Path:
+        """Write-once evidence binding attached to a node in this session."""
+        self._require()
+        if not self.session_exists(session_id):
+            raise StoreError(f"session not found: {session_id}")
+        graph = self.load_graph(data.get("graph_id", ""))
+        if graph.session_id != session_id:
+            raise StoreError(f"graph {graph.id} is not in session {session_id}")
+        if data.get("node_id") not in {node.id for node in graph.nodes}:
+            raise StoreError(f"node {data.get('node_id')} not in graph {graph.id}")
+        validate_schema("evidence-binding.schema.json", data)
+        parent_id = data.get("parent_evidence_id")
+        if parent_id is not None:
+            parent = self.evidence_dir(session_id) / f"{parent_id}.json"
+            if not parent.is_file():
+                raise StoreError(f"parent evidence not found: {parent_id}")
+        _mkdir(self.evidence_dir(session_id))
+        evidence_id = data["id"]
+        path = self.evidence_dir(session_id) / f"{evidence_id}.json"
+        if path.exists():
+            raise StoreError(f"evidence {evidence_id} already exists (write-once)")
+        _write_json(path, data)
+        return path
+
+    def load_evidence(self, session_id: str, evidence_id: str) -> dict:
+        self._require()
+        path = self.evidence_dir(session_id) / f"{evidence_id}.json"
+        if not path.is_file():
+            raise StoreError(f"evidence not found: {evidence_id}")
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        validate_schema("evidence-binding.schema.json", raw)
+        return raw
+
+    def iter_evidence(
+        self,
+        session_id: str,
+        *,
+        graph_id: str | None = None,
+        node_id: str | None = None,
+    ) -> Iterator[dict]:
+        """Read evidence bindings in append order, optionally scoped to a stand."""
+        self._require()
+        directory = self.evidence_dir(session_id)
+        if not directory.is_dir():
+            return
+            yield  # pragma: no cover
+        for path in sorted(directory.glob("*.json")):
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            validate_schema("evidence-binding.schema.json", raw)
+            if graph_id is not None and raw["graph_id"] != graph_id:
+                continue
+            if node_id is not None and raw["node_id"] != node_id:
+                continue
+            yield raw
+
+    def evidence_chain(self, session_id: str, evidence_id: str) -> tuple[dict, ...]:
+        """Return one parent chain from oldest binding to the requested leaf."""
+        newest_first: list[dict] = []
+        seen: set[str] = set()
+        current_id: str | None = evidence_id
+        while current_id is not None:
+            if current_id in seen:
+                raise StoreError(f"evidence parent cycle at {current_id}")
+            seen.add(current_id)
+            current = self.load_evidence(session_id, current_id)
+            newest_first.append(current)
+            current_id = current.get("parent_evidence_id")
+        return tuple(reversed(newest_first))
 
     def iter_fingerprint_ids(self) -> Iterator[str]:
         self._require()

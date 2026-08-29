@@ -26,6 +26,7 @@ from thought_archaeology.models import (
     ThoughtEdge,
     ThoughtGraph,
     ThoughtNode,
+    Turn,
 )
 from thought_archaeology.providers.none import NoneProvider
 from thought_archaeology.schema import SCHEMA_DIR, ValidationError, validate_schema
@@ -342,11 +343,139 @@ def test_cli_probe_run_stores_child_and_diff(tmp_path: Path):
     lines = out.splitlines()
     child_id = lines[0].removeprefix("graph ")
     diff_id = lines[1].removeprefix("diff ")
+    evidence_id = lines[2].removeprefix("evidence ")
     st = Store(store)
     child = st.load_graph(child_id)
     assert child.parent_graph_id == gid
     assert _by_kind(graph, "premise").id not in {n.id for n in child.nodes}
     assert (st.diffs_dir(child.session_id) / f"{diff_id}.json").is_file()
+    evidence = st.load_evidence(child.session_id, evidence_id)
+    assert evidence["kind"] == "behavioral_intervention"
+    assert evidence["node_id"] == _by_kind(graph, "claim").id
+    assert evidence["artifact_refs"] == [
+        f"probe:{json.loads(spec_path.read_text())['id']}",
+        f"diff:{diff_id}",
+        f"graph:{child_id}",
+    ]
+
+
+def test_cli_probe_run_continues_parent_evidence(tmp_path: Path):
+    from thought_archaeology.evidence import EvidenceBinding
+
+    store = tmp_path / "data"
+    sid, gid, graph = _compile_simple(store)
+    st = Store(store)
+    claim = _by_kind(graph, "claim")
+    parent = EvidenceBinding(
+        SCHEMA_VERSION,
+        new_ulid(),
+        gid,
+        claim.id,
+        "story_report",
+        "supports",
+        "The original story asserts this conclusion.",
+        (f"graph:{gid}",),
+        now_iso(),
+    )
+    st.write_evidence(sid, parent.to_dict())
+    spec_path = tmp_path / "spec.json"
+    code, _, err = run(
+        [
+            "probe", "plan", "--graph", gid, "--kind", "drop_premise",
+            "--node", _by_kind(graph, "premise").id, "--out", str(spec_path),
+        ],
+        store=store,
+    )
+    assert code == 0, err
+    provider = Path(__file__).with_name("fake_probe_provider.py")
+    code, out, err = run(
+        [
+            "probe", "run", "--spec", str(spec_path),
+            "--provider-cmd", f"{sys.executable} {provider}",
+            "--parent-evidence", parent.id,
+        ],
+        store=store,
+    )
+    assert code == 0, err
+    evidence_id = out.splitlines()[2].removeprefix("evidence ")
+    assert st.load_evidence(sid, evidence_id)["parent_evidence_id"] == parent.id
+
+
+def test_cli_probe_run_rejects_missing_parent_before_provider(tmp_path: Path):
+    store = tmp_path / "data"
+    _, gid, graph = _compile_simple(store)
+    spec_path = tmp_path / "spec.json"
+    code, _, err = run(
+        [
+            "probe", "plan", "--graph", gid, "--kind", "drop_premise",
+            "--node", _by_kind(graph, "premise").id, "--out", str(spec_path),
+        ],
+        store=store,
+    )
+    assert code == 0, err
+    code, _, err = run(
+        [
+            "probe", "run", "--spec", str(spec_path),
+            "--provider-cmd", "must-not-run",
+            "--parent-evidence", new_ulid(),
+        ],
+        store=store,
+    )
+    assert code == 3
+    assert "evidence not found" in err
+
+
+def test_cli_context_edit_regenerates_and_records_behavioral_evidence(tmp_path: Path):
+    store = tmp_path / "data"
+    sid, gid, graph = _compile_simple(store)
+    st = Store(store)
+    first_turn = st.load_turn(sid, graph.turn_id)
+    context = Turn(
+        SCHEMA_VERSION, new_ulid(), sid, 1, "user", now_iso(),
+        "Please make the medium practical.", None, first_turn.id, None, None,
+    )
+    graph = replace(
+        graph,
+        id=new_ulid(),
+        turn_id=new_ulid(),
+        parent_graph_id=gid,
+    )
+    st.append_turn(context)
+    st.write_graph(graph)
+    st.append_turn(
+        Turn(
+            SCHEMA_VERSION, graph.turn_id, sid, 2, "assistant", now_iso(),
+            graph.prose, graph.id, context.id, None, "file",
+        )
+    )
+    gid = graph.id
+    old = context.prose.split()[0]
+    spec_path = tmp_path / "context-spec.json"
+    code, _, err = run(
+        [
+            "probe", "plan", "--graph", gid, "--kind", "edit_context",
+            "--node", _by_kind(graph, "claim").id, "--turn", context.id,
+            "--old", old, "--new", "Changed", "--out", str(spec_path),
+        ],
+        store=store,
+    )
+    assert code == 0, err
+    provider = Path(__file__).with_name("fake_context_provider.py")
+    code, out, err = run(
+        [
+            "probe", "run", "--spec", str(spec_path),
+            "--provider-cmd", f"{sys.executable} {provider}",
+        ],
+        store=store,
+    )
+    assert code == 0, err
+    graph_id, diff_id, evidence_id = [line.split()[1] for line in out.splitlines()]
+    child = st.load_graph(graph_id)
+    assert child.parent_graph_id == gid
+    assert st.load_evidence(sid, evidence_id)["kind"] == "behavioral_intervention"
+    assert (st.diffs_dir(sid) / f"{diff_id}.json").is_file()
+    child_turn = st.load_turn(sid, child.turn_id)
+    assert child_turn.parent_turn_id == graph.turn_id
 
 
 def test_cli_probe_run_missing_spec_is_io(tmp_path: Path):

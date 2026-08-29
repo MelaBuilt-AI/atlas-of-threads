@@ -30,6 +30,10 @@ SCHEMA_NAMES = (
     "fingerprint.schema.json",
     "probe.schema.json",
     "graph-diff.schema.json",
+    "evidence-binding.schema.json",
+    "neural-intervention.schema.json",
+    "recurring-circuit.schema.json",
+    "training-provenance.schema.json",
 )
 
 DAG_EDGE_KINDS = frozenset({"supports", "depends_on", "shapes", "taste_of"})

@@ -475,7 +475,7 @@
     const read = payload.read || {};
     elKind.textContent = read.kind_line || `${n.kind} · ${n.status}`;
     elText.textContent = n.text;
-    const hereBits = [read.here_line, read.climate_line].filter(Boolean);
+    const hereBits = [read.here_line, read.climate_line, read.evidence_line].filter(Boolean);
     elHere.textContent = hereBits.join(" · ");
     const bits = [];
     if (focusIndex >= 0 && choices[focusIndex]) {

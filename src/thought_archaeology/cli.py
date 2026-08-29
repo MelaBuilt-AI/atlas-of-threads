@@ -12,6 +12,7 @@ from thought_archaeology.compile_common import CompileError
 from thought_archaeology.compile_posthoc import compile_posthoc
 from thought_archaeology.compile_structured import compile_structured
 from thought_archaeology.edits import append_op_turn, commit, plan_fork, plan_veto
+from thought_archaeology.evidence import context_provenance_binding
 from thought_archaeology.fingerprint import DEFAULT_MIN_SESSIONS, Fingerprint, fingerprint
 from thought_archaeology.fork import (
     ForkError,
@@ -20,7 +21,7 @@ from thought_archaeology.fork import (
 )
 from thought_archaeology.ids import is_ulid, new_ulid, now_iso
 from thought_archaeology.inhabit import format_inhabit, inhabit, resolve_standing
-from thought_archaeology.models import SCHEMA_VERSION, ModelInfo, ThoughtGraph, Turn
+from thought_archaeology.models import SCHEMA_VERSION, ModelInfo, Span, ThoughtGraph, Turn
 from thought_archaeology.render_md import render_md
 from thought_archaeology.serve import DEFAULT_BIND, DEFAULT_PORT, ServeError, serve_forever
 from thought_archaeology.providers import ProviderError, build_provider
@@ -38,6 +39,7 @@ from thought_archaeology.depth2 import (
     ProbeHarness,
     ProbeSpec,
     diff_graphs,
+    evidence_from_probe,
     make_plan,
 )
 from thought_archaeology.depth3 import (
@@ -181,6 +183,9 @@ def _parser() -> argparse.ArgumentParser:
     p_plan.add_argument("--kind", required=True, choices=list(PROBE_KINDS))
     p_plan.add_argument("--node", required=True, metavar="N")
     p_plan.add_argument("--out", default=None, metavar="PATH")
+    p_plan.add_argument("--turn", default=None, metavar="T")
+    p_plan.add_argument("--old", default=None, metavar="TEXT")
+    p_plan.add_argument("--new", default=None, metavar="TEXT")
     p_run = probe_sub.add_parser(
         "run",
         parents=[sub_globals],
@@ -188,6 +193,12 @@ def _parser() -> argparse.ArgumentParser:
     )
     p_run.add_argument("--spec", required=True, metavar="PATH")
     p_run.add_argument("--provider-cmd", required=True, metavar="CMD")
+    p_run.add_argument(
+        "--parent-evidence",
+        default=None,
+        metavar="ID",
+        help="continue an existing same-session evidence chain",
+    )
     p_diff = probe_sub.add_parser(
         "diff",
         parents=[sub_globals],
@@ -216,8 +227,98 @@ def _parser() -> argparse.ArgumentParser:
         "--from-attribution",
         default=None,
         metavar="PATH",
-        help="display a stored attribution JSON (refuses uncollapsed dumps)",
+        help="display, or with --graph/--node store, a collapsed attribution JSON",
     )
+    p_attach.add_argument(
+        "--parent-evidence", default=None, metavar="ID",
+        help="continue an existing same-session evidence chain",
+    )
+    p_import = sensor_sub.add_parser(
+        "import-circuit-tracer",
+        parents=[sub_globals],
+        help="collapse and bind an official circuit-tracer graph",
+    )
+    p_import.add_argument("node")
+    p_import.add_argument("--graph", required=True, metavar="G")
+    p_import.add_argument("--session", default=None, metavar="S")
+    p_import.add_argument("--from-graph", required=True, metavar="PATH")
+    p_import.add_argument("--source-uri", required=True)
+    p_import.add_argument("--producer-revision", required=True)
+    p_import.add_argument("--parent-evidence", default=None, metavar="ID")
+    p_activation = sensor_sub.add_parser(
+        "import-activation",
+        parents=[sub_globals],
+        help="bind a measured Neuronpedia feature activation to a thought",
+    )
+    p_activation.add_argument("node")
+    p_activation.add_argument("--graph", required=True, metavar="G")
+    p_activation.add_argument("--session", default=None, metavar="S")
+    p_activation.add_argument("--request", required=True, metavar="PATH")
+    p_activation.add_argument("--from-response", required=True, metavar="PATH")
+    p_activation.add_argument("--graph-position", required=True, type=int)
+    p_activation.add_argument("--target", required=True)
+    p_activation.add_argument("--attribution-id", default=None, metavar="ID")
+    p_activation.add_argument("--parent-evidence", default=None, metavar="ID")
+    p_record = sensor_sub.add_parser(
+        "record-intervention",
+        parents=[sub_globals],
+        help="verify and bind observed baseline/intervened neural measurements",
+    )
+    p_record.add_argument("node")
+    p_record.add_argument("--graph", required=True, metavar="G")
+    p_record.add_argument("--session", default=None, metavar="S")
+    p_record.add_argument("--from-result", required=True, metavar="PATH")
+    p_record.add_argument("--neuronpedia-request", default=None, metavar="PATH")
+    p_record.add_argument("--manifest", default=None, metavar="PATH")
+    p_record.add_argument("--source-uri", required=True)
+    p_record.add_argument("--parent-evidence", required=True, metavar="ID")
+    p_recur = sensor_sub.add_parser(
+        "synthesize-recurrence",
+        parents=[sub_globals],
+        help="qualify an exact feature as recurring across independent contexts",
+    )
+    p_recur.add_argument(
+        "--neural-evidence", action="append", required=True, metavar="ID",
+        help="neural_intervention evidence id; repeat for each context",
+    )
+    p_recur.add_argument("--minimum-contexts", type=int, default=3)
+
+    p_evidence = sub.add_parser(
+        "evidence",
+        parents=[sub_globals],
+        help="bind typed evidence beneath a thought-node",
+    )
+    evidence_sub = p_evidence.add_subparsers(dest="evidence_cmd", required=True)
+    p_context = evidence_sub.add_parser(
+        "context",
+        parents=[sub_globals],
+        help="bind an actual preceding stored turn as context provenance",
+    )
+    p_context.add_argument("--graph", required=True, metavar="G")
+    p_context.add_argument("--node", required=True, metavar="N")
+
+    p_provenance = sub.add_parser(
+        "provenance", parents=[sub_globals],
+        help="bind bounded training/checkpoint provenance without genealogy claims",
+    )
+    provenance_sub = p_provenance.add_subparsers(dest="provenance_cmd", required=True)
+    p_checkpoint = provenance_sub.add_parser(
+        "checkpoint", parents=[sub_globals],
+        help="record an observed behavior trajectory across exact model checkpoints",
+    )
+    p_checkpoint.add_argument("--graph", required=True, metavar="G")
+    p_checkpoint.add_argument("--node", required=True, metavar="N")
+    p_checkpoint.add_argument("--session", default=None, metavar="S")
+    p_checkpoint.add_argument("--measurements", required=True, metavar="PATH")
+    p_checkpoint.add_argument("--checkpoint-map", required=True, metavar="PATH")
+    p_checkpoint.add_argument("--model-card", required=True, metavar="PATH")
+    p_checkpoint.add_argument("--model-card-uri", required=True)
+    p_checkpoint.add_argument("--training-docs", required=True, metavar="PATH")
+    p_checkpoint.add_argument("--training-docs-uri", required=True)
+    p_checkpoint.add_argument("--corpus", required=True)
+    p_checkpoint.add_argument("--parent-evidence", default=None, metavar="ID")
+    p_context.add_argument("--turn", required=True, metavar="T")
+    p_context.add_argument("--parent-evidence", default=None, metavar="ID")
 
     p_fp = sub.add_parser(
         "fingerprint",
@@ -809,10 +910,58 @@ def cmd_probe(args: argparse.Namespace) -> int:
     raise UsageError("unknown probe command")
 
 
+def cmd_evidence(args: argparse.Namespace) -> int:
+    if args.evidence_cmd != "context":
+        raise UsageError("unknown evidence command")
+    store = _store(args)
+    graph = store.load_graph(args.graph)
+    node = next((n for n in graph.nodes if n.id == args.node), None)
+    if node is None:
+        raise StoreError(f"node {args.node} not in graph {graph.id}")
+    context_turn = store.load_turn(graph.session_id, args.turn)
+    lineage = store.turn_lineage(graph.session_id, graph.turn_id)
+    context_ids = {turn.id for turn in lineage[:-1]}
+    if context_turn.id not in context_ids:
+        raise StoreError(
+            f"turn {context_turn.id} is not preceding context in graph {graph.id} lineage"
+        )
+    if args.parent_evidence:
+        store.load_evidence(graph.session_id, args.parent_evidence)
+    binding = context_provenance_binding(
+        graph,
+        node,
+        context_turn,
+        parent_evidence_id=args.parent_evidence,
+    )
+    path = store.write_evidence(graph.session_id, binding.to_dict())
+    store.log(
+        "evidence_context",
+        session_id=graph.session_id,
+        graph_id=graph.id,
+        path=str(path),
+        warnings=["context provenance is chronological, not causal"],
+    )
+    print(binding.id)
+    return EXIT_OK
+
+
 def _cmd_probe_plan(args: argparse.Namespace) -> int:
     store = _store(args)
     graph = store.load_graph(args.graph)
-    spec = make_plan(graph, kind=args.kind, node_id=args.node)
+    params: dict[str, str] = {}
+    if args.kind == "edit_context":
+        if not args.turn or args.old is None or args.new is None:
+            raise UsageError("edit_context requires --turn, --old, and --new")
+        lineage = store.turn_lineage(graph.session_id, graph.turn_id)
+        context = next((turn for turn in lineage[:-1] if turn.id == args.turn), None)
+        if context is None:
+            raise StoreError(
+                f"turn {args.turn} is not preceding context in graph {graph.id} lineage"
+            )
+        if not args.old or context.prose.count(args.old) != 1:
+            raise UsageError("--old must occur exactly once in the context turn")
+        params = {"turn_id": args.turn, "old": args.old, "new": args.new}
+    spec = make_plan(graph, kind=args.kind, node_id=args.node, params=params)
     validate_schema("probe.schema.json", spec.to_dict())
     path = store.write_probe(graph.session_id, spec.to_dict())
     store.log(
@@ -832,11 +981,17 @@ def _cmd_probe_run(args: argparse.Namespace) -> int:
     spec = _load_probe_spec(args.spec)
     store = _store(args)
     graph = store.load_graph(spec.target_graph_id)
+    if args.parent_evidence:
+        store.load_evidence(graph.session_id, args.parent_evidence)
     harness = ProbeHarness()
     harness.plan(graph, spec)
     provider = build_provider("shell", provider_cmd=args.provider_cmd)
     try:
-        child = harness.run(graph, spec, provider)
+        if spec.kind == "edit_context":
+            lineage = store.turn_lineage(graph.session_id, graph.turn_id)
+            child = harness.run_context(graph, spec, provider, lineage[:-1])
+        else:
+            child = harness.run(graph, spec, provider)
     except NotImplementedError as exc:
         print(exc, file=sys.stderr)
         return EXIT_NOT_IMPLEMENTED
@@ -852,9 +1007,20 @@ def _cmd_probe_run(args: argparse.Namespace) -> int:
         graph_id=child.id,
         fork_of_node_id=spec.target_node_id,
         provider="shell",
+        parent_turn_id=graph.turn_id if spec.kind == "edit_context" else None,
     )
     diff = diff_graphs(graph, child, spec=spec)
     diff_path = store.write_graph_diff(graph.session_id, diff.to_dict())
+    evidence = evidence_from_probe(
+        graph,
+        child,
+        spec,
+        diff,
+        parent_evidence_id=args.parent_evidence,
+        created_at=child.created_at,
+    )
+    for binding in evidence:
+        store.write_evidence(graph.session_id, binding.to_dict())
     store.log(
         "probe_run",
         session_id=graph.session_id,
@@ -866,6 +1032,8 @@ def _cmd_probe_run(args: argparse.Namespace) -> int:
         print(diff.notes, file=sys.stderr)
     print(f"graph {child.id}")
     print(f"diff {diff.id}")
+    for binding in evidence:
+        print(f"evidence {binding.id}")
     return EXIT_OK
 
 
@@ -892,11 +1060,347 @@ def _cmd_probe_diff(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _persist_attribution(args: argparse.Namespace, attr) -> None:
+    if attr.provenance is None:
+        raise UsageError("storing an attribution requires provenance")
+    store = _store(args)
+    graph = store.load_graph(args.graph)
+    if graph.session_id != (args.session or graph.session_id):
+        raise UsageError(f"graph {graph.id} is not in session {args.session}")
+    if args.parent_evidence is not None:
+        store.load_evidence(graph.session_id, args.parent_evidence)
+    path = store.write_attribution(graph.session_id, attr.to_dict())
+    from thought_archaeology.evidence import EvidenceBinding
+
+    binding = EvidenceBinding(
+        schema_version=SCHEMA_VERSION,
+        id=new_ulid(),
+        graph_id=attr.graph_id,
+        node_id=attr.node_id,
+        kind="activation_correlation",
+        result="inconclusive",
+        summary=(
+            "Measured attribution features were associated with this output span; "
+            "correlation does not establish that the thought-object caused, or was "
+            "caused by, those features."
+        ),
+        artifact_refs=(
+            f"attribution:{attr.id}",
+            attr.provenance.source_uri,
+            f"sha256:{attr.provenance.source_sha256}",
+        ),
+        created_at=now_iso(),
+        parent_evidence_id=args.parent_evidence,
+    )
+    store.write_evidence(graph.session_id, binding.to_dict())
+    store.log(
+        "sensor_attach",
+        session_id=graph.session_id,
+        graph_id=graph.id,
+        node_id=attr.node_id,
+        attribution_id=attr.id,
+        evidence_id=binding.id,
+        path=str(path),
+        warnings=["activation correlation is not neural causation"],
+    )
+    print(f"stored attribution {attr.id}  evidence {binding.id}")
+
+
 def cmd_sensor(args: argparse.Namespace) -> int:
+    if args.sensor_cmd == "synthesize-recurrence":
+        from thought_archaeology.evidence import EvidenceBinding
+
+        if args.minimum_contexts < 3:
+            raise UsageError("recurring circuits require --minimum-contexts >= 3")
+        store = _store(args)
+        records = []
+        identities = set()
+        prompts = set()
+        for evidence_id in args.neural_evidence:
+            session_id, evidence = store.find_evidence(evidence_id)
+            if evidence["kind"] != "neural_intervention":
+                raise UsageError(f"evidence {evidence_id} is not neural_intervention")
+            intervention_ref = next(
+                (ref for ref in evidence["artifact_refs"] if ref.startswith("neural-intervention:")),
+                None,
+            )
+            if intervention_ref is None:
+                raise UsageError(f"evidence {evidence_id} lacks neural-intervention artifact")
+            intervention_id = intervention_ref.split(":", 1)[1]
+            intervention = store.load_neural_intervention(session_id, intervention_id)
+            attribution = store.load_attribution(session_id, intervention["attribution_id"])
+            parent_id = evidence.get("parent_evidence_id")
+            if parent_id is None:
+                raise UsageError(f"evidence {evidence_id} has no activation parent")
+            parent = store.load_evidence(session_id, parent_id)
+            if parent["kind"] != "activation_correlation":
+                raise UsageError(f"evidence {evidence_id} parent is not activation_correlation")
+            identity = (
+                intervention["execution"]["model"],
+                intervention["edit"]["layer"],
+                intervention["edit"]["feature_index"],
+            )
+            feature_prefix = f"{identity[1]}_{identity[2]}_"
+            feature_ids = {
+                feature_id
+                for supernode in attribution["supernodes"]
+                for feature_id in supernode.get("feature_ids", [])
+            }
+            if not any(feature_id.startswith(feature_prefix) for feature_id in feature_ids):
+                raise UsageError(f"context {evidence_id} attribution lacks exact feature")
+            identities.add(identity)
+            prompts.add(intervention["prompt"])
+            records.append({
+                "session_id": session_id,
+                "graph_id": evidence["graph_id"],
+                "node_id": evidence["node_id"],
+                "prompt": intervention["prompt"],
+                "target": intervention["target"],
+                "attribution_id": intervention["attribution_id"],
+                "activation_evidence_id": parent_id,
+                "intervention_id": intervention_id,
+                "neural_evidence_id": evidence_id,
+                "result": evidence["result"],
+            })
+        if len(identities) != 1:
+            raise UsageError("recurrence requires one exact model/layer/feature identity")
+        if len(prompts) < args.minimum_contexts:
+            raise UsageError(
+                f"recurrence requires {args.minimum_contexts} distinct prompts; got {len(prompts)}"
+            )
+        if len(records) != len({record["neural_evidence_id"] for record in records}):
+            raise UsageError("duplicate neural evidence does not establish recurrence")
+        counts = {
+            result: sum(record["result"] == result for record in records)
+            for result in ("supports", "contradicts", "inconclusive")
+        }
+        if counts["supports"] == len(records):
+            result = "supports"
+        elif counts["contradicts"] == len(records):
+            result = "contradicts"
+        else:
+            result = "inconclusive"
+        model, layer, feature_index = next(iter(identities))
+        circuit = {
+            "schema_version": SCHEMA_VERSION,
+            "id": new_ulid(),
+            "model": model,
+            "identity_rule": "exact_model_layer_feature",
+            "feature": {"layer": layer, "feature_index": feature_index},
+            "minimum_contexts": args.minimum_contexts,
+            "contexts": records,
+            "supporting_count": counts["supports"],
+            "contradicting_count": counts["contradicts"],
+            "inconclusive_count": counts["inconclusive"],
+            "result": result,
+            "created_at": now_iso(),
+        }
+        path = store.write_recurring_circuit(circuit)
+        binding_ids = []
+        for record in records:
+            binding = EvidenceBinding(
+                schema_version=SCHEMA_VERSION, id=new_ulid(),
+                graph_id=record["graph_id"], node_id=record["node_id"],
+                kind="recurring_circuit", result=result,
+                summary=(
+                    f"Exact feature {layer}:{feature_index} was naturally observed and "
+                    f"causally tested across {len(records)} distinct prompts; "
+                    f"{counts['supports']} supported, {counts['contradicts']} contradicted, "
+                    f"and {counts['inconclusive']} were inconclusive."
+                ),
+                artifact_refs=(
+                    f"recurring-circuit:{circuit['id']}",
+                    *(f"neural-evidence:{item['neural_evidence_id']}" for item in records),
+                ),
+                created_at=now_iso(),
+                parent_evidence_id=record["neural_evidence_id"],
+            )
+            store.write_evidence(record["session_id"], binding.to_dict())
+            binding_ids.append(binding.id)
+        store.log(
+            "sensor_recurring_circuit", circuit_id=circuit["id"], path=str(path),
+            evidence_ids=binding_ids,
+            warnings=["recurrence is exact-feature local evidence, not semantic identity"],
+        )
+        print(
+            f"stored recurring circuit {circuit['id']}  result {result}  evidence "
+            + " ".join(binding_ids)
+        )
+        return EXIT_OK
+    if args.sensor_cmd == "import-activation":
+        from thought_archaeology.depth3 import import_neuronpedia_activation
+
+        store = _store(args)
+        graph = store.load_graph(args.graph)
+        node = next((node for node in graph.nodes if node.id == args.node), None)
+        if node is None:
+            raise StoreError(f"node {args.node} not in graph {graph.id}")
+        if node.text != args.target:
+            raise UsageError("activation target must equal the bound thought text")
+        attr = import_neuronpedia_activation(
+            Path(args.request), Path(args.from_response),
+            graph_id=graph.id, node_id=node.id, graph_position=args.graph_position,
+            target=args.target, attribution_id=args.attribution_id,
+        )
+        store.write_sensor_source(
+            graph.session_id, attr.provenance.source_sha256,
+            Path(args.from_response).read_bytes(),
+        )
+        store.write_sensor_source(
+            graph.session_id, attr.provenance.request_sha256,
+            Path(args.request).read_bytes(),
+        )
+        sys.stdout.write(format_attribution(attr))
+        _persist_attribution(args, attr)
+        return EXIT_OK
+    if args.sensor_cmd == "record-intervention":
+        from thought_archaeology.depth3 import (
+            import_intervention_result,
+            import_neuronpedia_result,
+        )
+        from thought_archaeology.evidence import EvidenceBinding
+
+        store = _store(args)
+        graph = store.load_graph(args.graph)
+        if args.session is not None and graph.session_id != args.session:
+            raise UsageError(f"graph {graph.id} is not in session {args.session}")
+        node = next((node for node in graph.nodes if node.id == args.node), None)
+        if node is None:
+            raise StoreError(f"node {args.node} not in graph {graph.id}")
+        parent = store.load_evidence(graph.session_id, args.parent_evidence)
+        if parent["kind"] != "activation_correlation":
+            raise UsageError("neural intervention parent must be activation_correlation evidence")
+        if (parent["graph_id"], parent["node_id"]) != (graph.id, node.id):
+            raise UsageError("neural intervention parent is bound to another thought")
+        if (args.neuronpedia_request is None) != (args.manifest is None):
+            raise UsageError("Neuronpedia recording requires both --neuronpedia-request and --manifest")
+        if args.neuronpedia_request is not None:
+            artifact = import_neuronpedia_result(
+                Path(args.neuronpedia_request), Path(args.from_result), Path(args.manifest),
+                graph_id=graph.id, node_id=node.id, source_uri=args.source_uri,
+            )
+        else:
+            artifact = import_intervention_result(
+                Path(args.from_result), graph_id=graph.id, node_id=node.id,
+                source_uri=args.source_uri,
+            )
+        if f"attribution:{artifact.attribution_id}" not in parent["artifact_refs"]:
+            raise UsageError("intervention attribution is not the parent's attribution")
+        attribution = store.load_attribution(graph.session_id, artifact.attribution_id)
+        provenance = attribution["provenance"]
+        if artifact.execution["model"] != provenance["model"]:
+            raise UsageError("intervention model does not match attribution model")
+        attribution_prompt = str(provenance.get("prompt") or "")
+        normalized_attribution_prompt = (
+            attribution_prompt.removeprefix("<bos>")
+        )
+        if artifact.prompt != normalized_attribution_prompt:
+            raise UsageError("intervention prompt does not match attribution prompt")
+        provenance_target = str(provenance.get("target") or "")
+        if artifact.target.strip() not in provenance_target:
+            raise UsageError("intervention target does not match attribution target")
+        edit_node_id = (
+            f"{artifact.edit['layer']}_{artifact.edit['feature_index']}_"
+            f"{artifact.edit['position']}"
+        )
+        attributed_features = {
+            feature_id
+            for supernode in attribution["supernodes"]
+            for feature_id in supernode.get("feature_ids", [])
+        }
+        if edit_node_id not in attributed_features:
+            raise UsageError(
+                f"intervened feature {edit_node_id} is absent from the attribution"
+            )
+        raw_source = Path(args.from_result).read_bytes()
+        store.write_sensor_source(
+            graph.session_id, artifact.execution["source_sha256"], raw_source
+        )
+        for arg_name, digest_name in (
+            ("neuronpedia_request", "request_sha256"),
+            ("manifest", "manifest_sha256"),
+        ):
+            source_path = getattr(args, arg_name)
+            digest = artifact.execution.get(digest_name)
+            if source_path is not None and digest is not None:
+                store.write_sensor_source(
+                    graph.session_id, digest, Path(source_path).read_bytes()
+                )
+        path = store.write_neural_intervention(graph.session_id, artifact.to_dict())
+        binding = EvidenceBinding(
+            schema_version=SCHEMA_VERSION,
+            id=new_ulid(),
+            graph_id=graph.id,
+            node_id=node.id,
+            kind="neural_intervention",
+            result=artifact.result,
+            summary=(
+                f"Feature {artifact.edit['feature_index']} at layer "
+                f"{artifact.edit['layer']}, position {artifact.edit['position']} received "
+                f"a measured {artifact.edit['operation']} intervention; "
+                f"{artifact.hypothesis['metric']} changed by {artifact.observed_delta:+.6g}."
+            ),
+            artifact_refs=(
+                f"neural-intervention:{artifact.id}",
+                f"attribution:{artifact.attribution_id}",
+                artifact.execution["source_uri"],
+                f"sha256:{artifact.execution['source_sha256']}",
+                *(
+                    [f"request-sha256:{artifact.execution['request_sha256']}"]
+                    if artifact.execution.get("request_sha256") else []
+                ),
+                *(
+                    [f"manifest-sha256:{artifact.execution['manifest_sha256']}"]
+                    if artifact.execution.get("manifest_sha256") else []
+                ),
+            ),
+            created_at=now_iso(),
+            parent_evidence_id=args.parent_evidence,
+        )
+        store.write_evidence(graph.session_id, binding.to_dict())
+        store.log(
+            "sensor_neural_intervention",
+            session_id=graph.session_id,
+            graph_id=graph.id,
+            node_id=node.id,
+            intervention_id=artifact.id,
+            evidence_id=binding.id,
+            path=str(path),
+            warnings=["local causal effect under recorded intervention conditions"],
+        )
+        print(
+            f"stored neural intervention {artifact.id}  evidence {binding.id}  "
+            f"result {binding.result}"
+        )
+        return EXIT_OK
+    if args.sensor_cmd == "import-circuit-tracer":
+        from thought_archaeology.depth3 import import_circuit_tracer_graph
+
+        store = _store(args)
+        graph = store.load_graph(args.graph)
+        node = next((node for node in graph.nodes if node.id == args.node), None)
+        if node is None:
+            raise StoreError(f"node {args.node} not in graph {graph.id}")
+        attr = import_circuit_tracer_graph(
+            Path(args.from_graph),
+            graph_id=graph.id,
+            node_id=node.id,
+            span=Span(0, len(node.text), "char"),
+            source_uri=args.source_uri,
+            producer_revision=args.producer_revision,
+        )
+        store.write_sensor_source(
+            graph.session_id,
+            attr.provenance.source_sha256,
+            Path(args.from_graph).read_bytes(),
+        )
+        sys.stdout.write(format_attribution(attr))
+        _persist_attribution(args, attr)
+        return EXIT_OK
     if args.sensor_cmd != "attach":
         raise UsageError("unknown sensor command")
-    # Display of a stored attribution is bookkeeping (no vendor). Attach to a
-    # live node always goes through NullSensor in v1 and exits 4.
+    # A supplied attribution can be viewed without a store. With an explicit
+    # graph and node it becomes a write-once activation-correlation binding.
     if args.from_attribution:
         raw = json.loads(_read_path(args.from_attribution))
         from thought_archaeology.depth3 import Attribution
@@ -907,6 +1411,12 @@ def cmd_sensor(args: argparse.Namespace) -> int:
         except DisplayRefused as exc:
             print(exc, file=sys.stderr)
             return EXIT_VALIDATION
+        if args.graph is not None or args.node is not None:
+            if args.graph is None or args.node is None:
+                raise UsageError("storing an attribution requires NODE and --graph")
+            if attr.graph_id != args.graph or attr.node_id != args.node:
+                raise UsageError("attribution graph_id/node_id do not match NODE and --graph")
+            _persist_attribution(args, attr)
         return EXIT_OK
 
     if not args.node:
@@ -969,6 +1479,77 @@ def cmd_fingerprint(args: argparse.Namespace) -> int:
     )
     if str(args.out) != "-":
         print(fp.id)
+    return EXIT_OK
+
+
+def cmd_provenance(args: argparse.Namespace) -> int:
+    if args.provenance_cmd != "checkpoint":
+        raise UsageError("unknown provenance command")
+    from thought_archaeology.evidence import EvidenceBinding
+    from thought_archaeology.training import build_checkpoint_emergence
+
+    store = _store(args)
+    graph = store.load_graph(args.graph)
+    if args.session is not None and graph.session_id != args.session:
+        raise UsageError(f"graph {graph.id} is not in session {args.session}")
+    node = next((node for node in graph.nodes if node.id == args.node), None)
+    if node is None:
+        raise StoreError(f"node {args.node} not in graph {graph.id}")
+    if args.parent_evidence is not None:
+        store.load_evidence(graph.session_id, args.parent_evidence)
+    paths = {
+        "measurements": Path(args.measurements),
+        "checkpoint_map": Path(args.checkpoint_map),
+        "model_card": Path(args.model_card),
+        "training_docs": Path(args.training_docs),
+    }
+    artifact = build_checkpoint_emergence(
+        paths["measurements"], paths["checkpoint_map"], paths["model_card"],
+        paths["training_docs"], graph_id=graph.id, node_id=node.id,
+        corpus_name=args.corpus, model_card_uri=args.model_card_uri,
+        training_docs_uri=args.training_docs_uri,
+    )
+    if node.text != (
+        f"Across {artifact['model']} training, target {artifact['target']!r} improved "
+        f"from rank {artifact['observed']['initial_rank']:,} to "
+        f"{artifact['observed']['final_rank']:,}, but final generation did not emit it."
+    ):
+        raise UsageError("thought text must exactly state the bounded checkpoint observation")
+    source_paths = {
+        "model_card": paths["model_card"],
+        "training_documentation": paths["training_docs"],
+        "checkpoint_measurements": paths["measurements"],
+        "checkpoint_map": paths["checkpoint_map"],
+    }
+    for source in artifact["sources"]:
+        path = source_paths[source["role"]]
+        store.write_sensor_source(graph.session_id, source["sha256"], path.read_bytes())
+    path = store.write_training_provenance(graph.session_id, artifact)
+    binding = EvidenceBinding(
+        schema_version=SCHEMA_VERSION, id=new_ulid(), graph_id=graph.id,
+        node_id=node.id, kind="checkpoint_emergence", result=artifact["result"],
+        summary=(
+            f"Across {len(artifact['measurements'])} exact checkpoints, target "
+            f"{artifact['target']!r} moved from rank "
+            f"{artifact['observed']['initial_rank']:,} to "
+            f"{artifact['observed']['final_rank']:,}. Final generation still did not "
+            "emit the target; record membership, example influence, and weight "
+            "attribution were not measured."
+        ),
+        artifact_refs=(
+            f"training-provenance:{artifact['id']}",
+            *(f"{source['role']}-sha256:{source['sha256']}" for source in artifact["sources"]),
+        ),
+        created_at=now_iso(), parent_evidence_id=args.parent_evidence,
+    )
+    store.write_evidence(graph.session_id, binding.to_dict())
+    store.log(
+        "provenance_checkpoint", session_id=graph.session_id, graph_id=graph.id,
+        node_id=node.id, provenance_id=artifact["id"], evidence_id=binding.id,
+        path=str(path),
+        warnings=["checkpoint emergence is not training-example or weight attribution"],
+    )
+    print(f"stored checkpoint provenance {artifact['id']}  evidence {binding.id}")
     return EXIT_OK
 
 
@@ -1057,6 +1638,8 @@ def main(argv: list[str] | None = None) -> int:
         "fork": cmd_fork,
         "veto": cmd_veto,
         "sensor": cmd_sensor,
+        "evidence": cmd_evidence,
+        "provenance": cmd_provenance,
         "probe": cmd_probe,
         "fingerprint": cmd_fingerprint,
         "canvas": cmd_canvas,

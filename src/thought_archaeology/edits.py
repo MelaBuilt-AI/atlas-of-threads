@@ -36,11 +36,12 @@ def append_op_turn(
     graph_id: str,
     fork_of_node_id: str,
     provider: str | None,
+    parent_turn_id: str | None = None,
 ) -> None:
     existing = list(store.iter_turns(session_id))
     seq = len(existing)
     session = store.load_session(session_id)
-    parent_id = session.head_turn_id
+    parent_id = parent_turn_id if parent_turn_id is not None else session.head_turn_id
     if parent_id is None and existing:
         parent_id = existing[-1].id
     turn = Turn(

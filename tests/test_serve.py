@@ -103,6 +103,7 @@ def test_inhabit_json_matches_cli(httpd_url: str, tmp_path: Path):
     assert payload["node"]["id"] == view.node.id
     assert payload["caption"] == "story graph, not a circuit trace"
     assert "read" in payload
+    assert payload["evidence"] == []
     assert "does not erase" in payload["read"]["fork_line"]
     assert "human no" in payload["read"]["veto_line"]
     assert {n["text"] for n in payload["shaped"]} == {n.text for n in view.shaped}
@@ -111,6 +112,42 @@ def test_inhabit_json_matches_cli(httpd_url: str, tmp_path: Path):
     }
     assert "feature_ids" not in body
     assert "hidden_reasoning" not in body
+
+
+def test_inhabit_json_carries_evidence_without_javascript_inference(
+    httpd_url: str, tmp_path: Path
+):
+    from thought_archaeology.evidence import EvidenceBinding
+    from thought_archaeology.ids import new_ulid, now_iso
+    from thought_archaeology.models import SCHEMA_VERSION
+
+    store_path = tmp_path / "data"
+    store = Store(store_path)
+    sessions = json.loads(_get(httpd_url + "/api/sessions")[1])
+    spawn = sessions["sessions"][0]["spawn"]
+    graph = store.load_graph(spawn["graph_id"])
+    binding = EvidenceBinding(
+        SCHEMA_VERSION,
+        new_ulid(),
+        graph.id,
+        spawn["node_id"],
+        "behavioral_intervention",
+        "inconclusive",
+        "The intervention did not settle this thought.",
+        ("probe:test",),
+        now_iso(),
+    )
+    store.write_evidence(graph.session_id, binding.to_dict())
+    code, body, _ = _get(
+        httpd_url + f"/api/inhabit/{spawn['node_id']}?graph={graph.id}"
+    )
+    assert code == 200
+    payload = json.loads(body)
+    assert payload["evidence"] == [binding.to_dict()]
+    assert "does not settle" in payload["read"]["evidence_line"]
+    js = (viz_dist_path() / "space.js").read_text(encoding="utf-8")
+    assert "read.evidence_line" in js
+    assert "behavioral_intervention" not in js
 
 
 def test_unknown_post_rejected(httpd_url: str):

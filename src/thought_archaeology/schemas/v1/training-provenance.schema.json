@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mela.ai/schemas/thought-archaeology/v1/training-provenance.schema.json",
+  "title": "TrainingProvenance",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "level", "graph_id", "node_id", "model", "training_corpus", "prompt", "target", "measurements", "observed", "boundaries", "sources", "result", "created_at"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "id": {"type": "string", "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$"},
+    "level": {"const": "checkpoint_emergence"},
+    "graph_id": {"type": "string", "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$"},
+    "node_id": {"type": "string", "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$"},
+    "model": {"type": "string", "minLength": 1},
+    "training_corpus": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "relationship"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "relationship": {"const": "declared_by_model_publisher"}
+      }
+    },
+    "prompt": {"type": "string", "minLength": 1},
+    "target": {"type": "string", "minLength": 1},
+    "measurements": {
+      "type": "array", "minItems": 2,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["revision", "commit", "training_tokens", "weight_sha256", "target_probability", "target_rank", "generation"],
+        "properties": {
+          "revision": {"type": "string", "minLength": 1},
+          "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+          "training_tokens": {"type": "integer", "minimum": 0},
+          "weight_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "target_probability": {"type": "number", "minimum": 0, "maximum": 1},
+          "target_rank": {"type": "integer", "minimum": 1},
+          "generation": {"type": "string"}
+        }
+      }
+    },
+    "observed": {
+      "type": "object", "additionalProperties": false,
+      "required": ["initial_rank", "final_rank", "rank_improvement", "initial_probability", "final_probability", "target_generated_at_final"],
+      "properties": {
+        "initial_rank": {"type": "integer", "minimum": 1},
+        "final_rank": {"type": "integer", "minimum": 1},
+        "rank_improvement": {"type": "integer"},
+        "initial_probability": {"type": "number", "minimum": 0, "maximum": 1},
+        "final_probability": {"type": "number", "minimum": 0, "maximum": 1},
+        "target_generated_at_final": {"type": "boolean"}
+      }
+    },
+    "boundaries": {
+      "type": "object", "additionalProperties": false,
+      "required": ["record_membership", "example_influence", "weight_attribution", "analysis_mode"],
+      "properties": {
+        "record_membership": {"const": "not_tested"},
+        "example_influence": {"const": "not_measured"},
+        "weight_attribution": {"const": "not_measured"},
+        "analysis_mode": {"enum": ["exploratory", "preregistered"]}
+      }
+    },
+    "sources": {
+      "type": "array", "minItems": 3,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["role", "uri", "sha256"],
+        "properties": {
+          "role": {"enum": ["model_card", "training_documentation", "checkpoint_measurements", "checkpoint_map"]},
+          "uri": {"type": "string", "minLength": 1},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "result": {"enum": ["supports", "contradicts", "inconclusive"]},
+    "created_at": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"}
+  }
+}

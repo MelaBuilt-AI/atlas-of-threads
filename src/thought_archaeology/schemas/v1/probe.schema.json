@@ -18,7 +18,7 @@
     "id": { "type": "string", "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$" },
     "kind": {
       "type": "string",
-      "enum": ["drop_premise", "invert_constraint", "resample", "steer_later"]
+      "enum": ["drop_premise", "edit_context", "invert_constraint", "resample", "steer_later"]
     },
     "target_node_id": {
       "type": "string",

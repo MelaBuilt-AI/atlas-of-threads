@@ -9,6 +9,7 @@ from thought_archaeology.depth2.harness import (
     ProbeKind,
     ProbeSpec,
     diff_graphs,
+    evidence_from_probe,
     make_plan,
 )
 
@@ -23,5 +24,6 @@ __all__ = [
     "ProbeKind",
     "ProbeSpec",
     "diff_graphs",
+    "evidence_from_probe",
     "make_plan",
 ]
