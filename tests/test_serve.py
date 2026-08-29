@@ -241,6 +241,7 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert "overhead" in body
     assert "shift+c home" in body
     assert "human no" in body
+    assert 'id="topbar"' in body
     js = _get(httpd_url + "/space.js")[1]
     assert "/api/fork" in js
     assert "/api/veto" in js
@@ -258,6 +259,10 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert "overheadLook" in js
     assert "overSun" in js
     assert "shiftKey" in js
+    assert "--plate-height" in js
+    css = _get(httpd_url + "/theme.css")[1]
+    assert "calc(2.25rem + var(--plate-height" in css
+    assert "grid-template-columns: max-content minmax(0, 1fr)" in css
     assert "cycleChoice" in js
     assert "inhabit(view.graph_id, cycle[" not in js
 

@@ -14,6 +14,7 @@
   const elText = document.getElementById("text");
   const elHere = document.getElementById("here");
   const elMeta = document.getElementById("meta");
+  const elPlate = document.getElementById("plate");
   const elEmpty = document.getElementById("empty");
   const elHelp = document.getElementById("help");
   const elComposer = document.getElementById("composer");
@@ -109,6 +110,9 @@
     renderer.setSize(w, h, false);
     camera.aspect = w / Math.max(h, 1);
     camera.updateProjectionMatrix();
+    document.documentElement.style.setProperty(
+      "--plate-height", `${Math.ceil(elPlate.getBoundingClientRect().height)}px`
+    );
   }
   window.addEventListener("resize", resize);
   resize();
@@ -492,6 +496,7 @@
     }
     if (overhead) bits.push("drag to pan · c behind · shift+c home");
     elMeta.textContent = bits.join("  ·  ");
+    requestAnimationFrame(resize);
     applyClimate(payload.climate);
   }
 
