@@ -125,6 +125,16 @@ ta continuation ready NODE --graph G [--prompt TEXT]
 ta continuation pending [--format table|json]
 ta continuation cancel REQUEST
 ta continuation complete REQUEST --graph G --harness NAME
+
+ta harness configure
+ta harness register NAME --adapter PATH [--arg VALUE ...] [--default]
+ta harness use NAME
+ta harness list [--format table|json]
+ta harness status [--format table|json]
+ta harness doctor [NAME] [--timeout SECONDS]
+ta harness remove NAME
+ta harness run [--harness NAME] [--request ID] [--timeout SECONDS]
+ta harness watch [--harness NAME] [--interval SECONDS] [--timeout SECONDS]
 ta sensor attach NODE [--graph G] [--session S]
 ta sensor attach --from-attribution PATH
 ta sensor import-circuit-tracer NODE --graph G --from-graph PATH \
@@ -307,11 +317,47 @@ ta continuation complete REQUEST_ID --graph NEW_GRAPH_ID --harness my-runner
 ```
 
 The equivalent local endpoints are `GET /api/continuations`,
-`POST /api/continuation`, and `POST /api/continuation/cancel`. Thought
-Archaeology owns the durable boundary and the
-graph; the harness owns credentials, model invocation, prompt assembly, and
-the decision to compile a finalized response. No vendor SDK or callback URL is
-required by the core.
+`POST /api/continuation`, and `POST /api/continuation/cancel`.
+
+The reference worker makes that neutral boundary usable without placing a
+vendor client in the core. Register one executable adapter, verify its protocol
+handshake, then run it once or keep it watching:
+
+```bash
+ta harness register my-ai --adapter /absolute/path/to/my-ta-adapter --default
+ta harness doctor
+ta harness status
+ta harness run       # process the oldest pending request once
+ta harness watch     # foreground worker; Ctrl+C stops it
+```
+
+`ta harness configure` is the interactive form. The registry lives at
+`$TA_HARNESS_CONFIG`, or otherwise
+`$XDG_CONFIG_HOME/thought-archaeology/harnesses.json` (falling back to
+`~/.config/thought-archaeology/harnesses.json`). It stores only a resolved
+executable argv and registration metadata with mode `0600`; never put API keys
+in adapter arguments. Credentials and model settings stay in the adapter's
+normal environment, keychain, or own configuration. TA invokes argv directly
+with `shell=False`, and merely opening Inhabit Space never starts an adapter.
+
+Adapters implement protocol version `1` over JSON stdin/stdout. `describe`
+advertises the `continue` capability. `continue` receives the immutable request,
+session, public graph, and server-authored standing view; `hidden_reasoning` is
+removed. It returns a model name plus final prose containing one fenced
+`thought-graph` block. The worker validates and compiles that response, appends
+any exact user prompt as a turn, links the response to the source graph, writes
+the existing completion receipt, and advances the session head. If the request
+is canceled while the model is responding, the result is discarded before any
+graph is written.
+
+Run one watcher per store in this first implementation. The initial staged
+adapter targets are Grok, Codex, Claude Code, OpenCode, and Prime Agent; they
+will be installed and exercised locally one at a time against the same
+contract. See [`docs/HARNESS_ADAPTERS.md`](docs/HARNESS_ADAPTERS.md).
+
+Thought Archaeology owns the durable boundary and graph compilation; the
+harness owns credentials, model invocation, and provider-specific prompt
+assembly. No vendor SDK or callback URL is required by the core.
 
 Restart `ta serve` after updating project code. Static HTML/JavaScript reload on
 refresh, but an existing Python process cannot emit newly added read fields; the

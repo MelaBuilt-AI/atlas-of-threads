@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shlex
 import sys
 import time
 from datetime import datetime, timezone
@@ -25,6 +26,13 @@ from thought_archaeology.fork import (
     fork_regen_prompt,
 )
 from thought_archaeology.ids import is_ulid, new_ulid, now_iso
+from thought_archaeology.harness import (
+    HarnessError,
+    HarnessRegistry,
+    describe_harness,
+    process_continuation,
+    watch_continuations,
+)
 from thought_archaeology.inhabit import format_inhabit, inhabit, resolve_standing
 from thought_archaeology.models import SCHEMA_VERSION, ModelInfo, Span, ThoughtGraph, Turn
 from thought_archaeology.render_md import render_md
@@ -201,6 +209,62 @@ def _parser() -> argparse.ArgumentParser:
     p_complete.add_argument("request")
     p_complete.add_argument("--graph", required=True, metavar="G")
     p_complete.add_argument("--harness", required=True, metavar="NAME")
+
+    p_harness = sub.add_parser(
+        "harness",
+        parents=[sub_globals],
+        help="configure and run provider-neutral continuation adapters",
+    )
+    harness_sub = p_harness.add_subparsers(dest="harness_cmd", required=True)
+    harness_sub.add_parser(
+        "configure", parents=[sub_globals], help="interactively register an adapter"
+    )
+    p_harness_register = harness_sub.add_parser(
+        "register", parents=[sub_globals], help="register an executable adapter"
+    )
+    p_harness_register.add_argument("name")
+    p_harness_register.add_argument("--adapter", required=True, metavar="PATH")
+    p_harness_register.add_argument(
+        "--arg",
+        action="append",
+        default=[],
+        metavar="VALUE",
+        help="fixed adapter argument; repeat as needed (use --arg=VALUE for leading dashes)",
+    )
+    p_harness_register.add_argument("--default", action="store_true")
+    p_harness_use = harness_sub.add_parser(
+        "use", parents=[sub_globals], help="select the default adapter"
+    )
+    p_harness_use.add_argument("name")
+    p_harness_list = harness_sub.add_parser(
+        "list", parents=[sub_globals], help="list registered adapters"
+    )
+    p_harness_list.add_argument("--format", choices=["table", "json"], default="table")
+    p_harness_status = harness_sub.add_parser(
+        "status", parents=[sub_globals], help="show configuration and pending work"
+    )
+    p_harness_status.add_argument("--format", choices=["table", "json"], default="table")
+    p_harness_doctor = harness_sub.add_parser(
+        "doctor", parents=[sub_globals], help="verify an adapter protocol handshake"
+    )
+    p_harness_doctor.add_argument("name", nargs="?")
+    p_harness_doctor.add_argument("--timeout", type=float, default=10, metavar="SECONDS")
+    p_harness_remove = harness_sub.add_parser(
+        "remove", parents=[sub_globals], help="remove a registered adapter"
+    )
+    p_harness_remove.add_argument("name")
+    p_harness_run = harness_sub.add_parser(
+        "run", parents=[sub_globals], help="process one pending continuation"
+    )
+    p_harness_run.add_argument("--harness", default=None, metavar="NAME")
+    p_harness_run.add_argument("--request", default=None, metavar="ID")
+    p_harness_run.add_argument("--timeout", type=float, default=900, metavar="SECONDS")
+    p_harness_watch = harness_sub.add_parser(
+        "watch", parents=[sub_globals], help="process continuations until interrupted"
+    )
+    p_harness_watch.add_argument("--harness", default=None, metavar="NAME")
+    p_harness_watch.add_argument("--interval", type=float, default=2, metavar="SECONDS")
+    p_harness_watch.add_argument("--timeout", type=float, default=900, metavar="SECONDS")
 
     p_probe = sub.add_parser(
         "probe",
@@ -1710,6 +1774,124 @@ def cmd_continuation(args: argparse.Namespace) -> int:
     raise UsageError("unknown continuation command")
 
 
+def _harness_rows(registry: HarnessRegistry) -> list[dict]:
+    default = registry.default_name()
+    return [
+        {
+            "name": spec.name,
+            "default": spec.name == default,
+            "argv": list(spec.argv),
+            "registered_at": spec.registered_at,
+        }
+        for spec in registry.specs()
+    ]
+
+
+def cmd_harness(args: argparse.Namespace) -> int:
+    registry = HarnessRegistry()
+    if args.harness_cmd == "configure":
+        try:
+            name = input("harness name: ").strip()
+            adapter = input("adapter executable: ").strip()
+            fixed = input("fixed arguments (optional): ").strip()
+            answer = input("make default? [Y/n]: ").strip().lower()
+        except (EOFError, KeyboardInterrupt) as exc:
+            raise HarnessError("harness configuration canceled") from exc
+        make_default = answer not in {"n", "no"}
+        spec = registry.register(
+            name,
+            adapter,
+            args=tuple(shlex.split(fixed)),
+            make_default=make_default,
+        )
+        print(spec.name)
+        return EXIT_OK
+    if args.harness_cmd == "register":
+        spec = registry.register(
+            args.name,
+            args.adapter,
+            args=tuple(args.arg),
+            make_default=args.default,
+        )
+        print(spec.name)
+        return EXIT_OK
+    if args.harness_cmd == "use":
+        print(registry.use(args.name).name)
+        return EXIT_OK
+    if args.harness_cmd == "list":
+        rows = _harness_rows(registry)
+        if args.format == "json":
+            print(json.dumps(rows, ensure_ascii=False))
+        else:
+            print(f"{'default':<7}  {'name':<24}  adapter")
+            for row in rows:
+                marker = "*" if row["default"] else ""
+                print(f"{marker:<7}  {row['name']:<24}  {' '.join(row['argv'])}")
+        return EXIT_OK
+    if args.harness_cmd == "status":
+        rows = _harness_rows(registry)
+        store = _store(args)
+        store_ready = store.exists()
+        pending = (
+            len(list(store.iter_continuation_requests(pending=True)))
+            if store_ready
+            else 0
+        )
+        status = {
+            "config": str(registry.path),
+            "default": registry.default_name(),
+            "registered": len(rows),
+            "store": str(store.root),
+            "store_ready": store_ready,
+            "pending": pending,
+        }
+        if args.format == "json":
+            print(json.dumps(status, ensure_ascii=False))
+        else:
+            for key, value in status.items():
+                print(f"{key}: {value}")
+        return EXIT_OK
+    if args.harness_cmd == "doctor":
+        spec = registry.get(args.name)
+        result = describe_harness(spec, timeout=args.timeout)
+        print(json.dumps(result, ensure_ascii=False))
+        return EXIT_OK
+    if args.harness_cmd == "remove":
+        registry.remove(args.name)
+        print(args.name)
+        return EXIT_OK
+    if args.harness_cmd == "run":
+        spec = registry.get(args.harness)
+        describe_harness(spec, timeout=min(args.timeout, 10))
+        outcome = process_continuation(
+            _store(args),
+            spec,
+            request_id=args.request,
+            timeout=args.timeout,
+        )
+        print(json.dumps(outcome or {"status": "idle"}, ensure_ascii=False))
+        return EXIT_OK
+    if args.harness_cmd == "watch":
+        spec = registry.get(args.harness)
+        describe_harness(spec, timeout=min(args.timeout, 10))
+        print(
+            f"watching {_store(args).root} with harness {spec.name}; Ctrl+C to stop",
+            file=sys.stderr,
+        )
+        try:
+            for outcome in watch_continuations(
+                _store(args),
+                spec,
+                interval=args.interval,
+                timeout=args.timeout,
+            ):
+                print(json.dumps(outcome, ensure_ascii=False), flush=True)
+        except KeyboardInterrupt:
+            return EXIT_OK
+        return EXIT_OK
+    raise UsageError("unknown harness command")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _parser()
     try:
@@ -1731,6 +1913,7 @@ def main(argv: list[str] | None = None) -> int:
         "fork": cmd_fork,
         "veto": cmd_veto,
         "continuation": cmd_continuation,
+        "harness": cmd_harness,
         "sensor": cmd_sensor,
         "evidence": cmd_evidence,
         "provenance": cmd_provenance,
@@ -1752,6 +1935,9 @@ def main(argv: list[str] | None = None) -> int:
         print(exc, file=sys.stderr)
         return EXIT_IO
     except ProbeError as exc:
+        print(exc, file=sys.stderr)
+        return EXIT_IO
+    except HarnessError as exc:
         print(exc, file=sys.stderr)
         return EXIT_IO
     except ServeError as exc:
