@@ -68,7 +68,7 @@ def test_harness_registry_is_user_owned_and_secret_free(monkeypatch, tmp_path: P
     raw = json.loads(config.read_text(encoding="utf-8"))
     assert raw["default"] == "fake"
     assert raw["harnesses"]["fake"]["argv"] == [
-        str(Path(sys.executable).resolve()),
+        str(Path(sys.executable).absolute()),
         str(FAKE_ADAPTER),
     ]
     assert "credential" not in json.dumps(raw).lower()

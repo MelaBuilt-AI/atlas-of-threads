@@ -334,7 +334,7 @@ ta harness watch     # foreground worker; Ctrl+C stops it
 `ta harness configure` is the interactive form. The registry lives at
 `$TA_HARNESS_CONFIG`, or otherwise
 `$XDG_CONFIG_HOME/thought-archaeology/harnesses.json` (falling back to
-`~/.config/thought-archaeology/harnesses.json`). It stores only a resolved
+`~/.config/thought-archaeology/harnesses.json`). It stores only an absolute
 executable argv and registration metadata with mode `0600`; never put API keys
 in adapter arguments. Credentials and model settings stay in the adapter's
 normal environment, keychain, or own configuration. TA invokes argv directly
@@ -354,6 +354,22 @@ Run one watcher per store in this first implementation. The initial staged
 adapter targets are Grok, Codex, Claude Code, OpenCode, and Prime Agent; they
 will be installed and exercised locally one at a time against the same
 contract. See [`docs/HARNESS_ADAPTERS.md`](docs/HARNESS_ADAPTERS.md).
+
+The first thin adapter ships as `ta-harness-grok`. It uses the already
+authenticated official Grok CLI in headless single-turn mode, disables plan
+mode, subagents, web search, and the tool allowlist, and requests the existing
+structured-emission format. After installing TA and Grok:
+
+```bash
+ta harness register grok --adapter "$(command -v ta-harness-grok)" --default
+ta harness doctor grok
+ta harness run --harness grok
+```
+
+`TA_GROK_BIN` may point to a non-default Grok executable,
+`TA_GROK_MODEL` may pin a model instead of using `grok models`, and
+`TA_GROK_TIMEOUT` changes the model-call timeout in seconds. These variables
+are adapter settings, not graph data; credentials remain in Grok's own login.
 
 Thought Archaeology owns the durable boundary and graph compilation; the
 harness owns credentials, model invocation, and provider-specific prompt

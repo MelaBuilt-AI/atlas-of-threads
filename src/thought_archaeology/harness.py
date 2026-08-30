@@ -136,7 +136,10 @@ class HarnessRegistry:
             raise HarnessError(f"adapter executable not found or not executable: {adapter}")
         spec = HarnessSpec(
             name=name,
-            argv=(str(Path(executable).resolve()), *args),
+            # Keep an absolute executable path without dereferencing symlinks.
+            # A venv's python symlink must retain its venv location to activate
+            # that environment when the adapter is launched.
+            argv=(str(Path(executable).absolute()), *args),
             registered_at=now_iso(),
         )
         raw = self._load()
