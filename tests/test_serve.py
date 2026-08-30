@@ -271,7 +271,8 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert "model_judgments" not in js
     assert "ArrowUp" in js
     assert "CELL" in js
-    assert "starTexture" in js
+    assert "makeNeuralSky" in js
+    assert "updateNeuralSky" in js
     assert "markRise" in js
     assert "trail" in js
     assert "selectFocus" in js
@@ -299,6 +300,8 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert "calc(2.25rem + var(--plate-height" in css
     assert "grid-template-columns: max-content minmax(0, 1fr)" in css
     assert "cycleChoice" in js
+    assert "horizontallyOrderedChoices" in js
+    assert "position.project(camera)" in js
     assert "inhabit(view.graph_id, cycle[" not in js
 
     code, loader, _ = _get(httpd_url + "/relic-loader.js")
@@ -336,6 +339,7 @@ def test_terminal_traversal_separates_story_and_conversation_routes():
     assert 'id="threshold"' in html
     assert 'id="threshold-origin"' in html
     assert 'id="threshold-continue"' in html
+    assert 'id="threshold-ask"' in html
     assert "payload.forward" in js
     assert 'via: "story ahead"' in js
     assert "atThreshold" in js
@@ -344,6 +348,10 @@ def test_terminal_traversal_separates_story_and_conversation_routes():
     assert '"conversation return"' in js
     assert "renderThreshold" in js
     assert "walkOrigin" in js
+    assert "markContinuationReady" in js
+    assert 'elThresholdContinue.addEventListener("click", () => markContinuationReady())' in js
+    assert 'elThresholdAsk.addEventListener("click", () => openComposer("continuation"))' in js
+    assert "marking inhabitant ready" in js
     assert 'openComposer("continuation")' in js
     assert "#threshold" in css
 

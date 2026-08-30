@@ -75,6 +75,7 @@
   const elThresholdText = document.getElementById("threshold-text");
   const elThresholdOrigin = document.getElementById("threshold-origin");
   const elThresholdContinue = document.getElementById("threshold-continue");
+  const elThresholdAsk = document.getElementById("threshold-ask");
   const elRelicIndex = document.getElementById("relic-index");
   const elRelicGrid = document.getElementById("relic-grid");
   const elRelicClose = document.getElementById("relic-close");
@@ -131,7 +132,7 @@
   let composing = null;
   let busy = false;
   let risers = [];
-  let sky = null;
+  let neuralSky = null;
   let trail = [];
   let overhead = false;
   let manualRelicKey = null;
@@ -207,8 +208,8 @@
   const fill = new THREE.PointLight(0xb08d57, 0.7, 22, 2);
   fill.position.set(-4, 1.4, 3);
   scene.add(fill);
-  const starFill = new THREE.AmbientLight(0x1a2240, 0.22);
-  scene.add(starFill);
+  const neuralFill = new THREE.AmbientLight(0x1a2240, 0.22);
+  scene.add(neuralFill);
   const overSun = new THREE.DirectionalLight(0xe8f2ff, 0);
   overSun.position.set(8, 42, 10);
   scene.add(overSun);
@@ -275,55 +276,41 @@
     });
   }
 
-  function starTexture() {
+  function ambientTexture() {
     const c = document.createElement("canvas");
-    c.width = c.height = 2048;
+    c.width = c.height = 1024;
     const ctx = c.getContext("2d");
-    const g = ctx.createRadialGradient(1024, 1180, 80, 1024, 1024, 1400);
+    const g = ctx.createRadialGradient(512, 590, 40, 512, 512, 700);
     g.addColorStop(0, "#12203a");
     g.addColorStop(0.22, "#0a1428");
     g.addColorStop(0.55, "#060b18");
     g.addColorStop(1, "#02040a");
     ctx.fillStyle = g;
-    ctx.fillRect(0, 0, 2048, 2048);
-    ctx.save();
-    ctx.translate(1024, 1080);
-    ctx.rotate(-0.35);
-    const band = ctx.createLinearGradient(0, -180, 0, 180);
-    band.addColorStop(0, "rgba(80, 120, 200, 0)");
-    band.addColorStop(0.5, "rgba(90, 160, 220, 0.14)");
-    band.addColorStop(1, "rgba(80, 120, 200, 0)");
-    ctx.fillStyle = band;
-    ctx.fillRect(-1400, -160, 2800, 320);
-    ctx.restore();
-    let seed = 7;
-    function rnd() {
-      seed = (seed * 16807) % 2147483647;
-      return (seed - 1) / 2147483646;
-    }
-    for (let i = 0; i < 1800; i++) {
-      const x = rnd() * 2048;
-      const y = rnd() * 2048;
-      const r = rnd() < 0.08 ? 1.6 + rnd() * 1.4 : 0.4 + rnd() * 0.9;
-      const a = 0.35 + rnd() * 0.65;
-      const tint = rnd();
-      ctx.fillStyle =
-        tint > 0.92
-          ? `rgba(200,242,106,${a})`
-          : tint > 0.78
-            ? `rgba(170,210,255,${a})`
-            : `rgba(230,236,255,${a})`;
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    ctx.fillRect(0, 0, 1024, 1024);
     const tex = new THREE.CanvasTexture(c);
     if (THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
     tex.needsUpdate = true;
     return tex;
   }
 
-  function makeSky(texture) {
+  function neuronTexture() {
+    const c = document.createElement("canvas");
+    c.width = c.height = 64;
+    const ctx = c.getContext("2d");
+    const g = ctx.createRadialGradient(32, 32, 1, 32, 32, 31);
+    g.addColorStop(0, "rgba(240,255,214,1)");
+    g.addColorStop(0.16, "rgba(200,242,106,0.95)");
+    g.addColorStop(0.48, "rgba(92,196,182,0.45)");
+    g.addColorStop(1, "rgba(42,105,112,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 64, 64);
+    const tex = new THREE.CanvasTexture(c);
+    if (THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  function makeNeuralSky(texture) {
+    const group = new THREE.Group();
     const geo = new THREE.SphereGeometry(120, 48, 32);
     const mat = new THREE.MeshBasicMaterial({
       map: texture,
@@ -331,9 +318,104 @@
       fog: false,
       depthWrite: false,
     });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.userData.sky = true;
-    return mesh;
+    group.add(new THREE.Mesh(geo, mat));
+
+    let seed = 19;
+    function rnd() {
+      seed = (seed * 16807) % 2147483647;
+      return (seed - 1) / 2147483646;
+    }
+    const nodes = [];
+    const count = 170;
+    const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+    for (let i = 0; i < count; i++) {
+      const y = 1 - (i / (count - 1)) * 2;
+      const radius = Math.sqrt(1 - y * y);
+      const theta = goldenAngle * i;
+      const shell = 64 + rnd() * 12;
+      nodes.push(new THREE.Vector3(
+        Math.cos(theta) * radius * shell,
+        y * shell,
+        Math.sin(theta) * radius * shell
+      ));
+    }
+
+    const nodePositions = new Float32Array(nodes.length * 3);
+    nodes.forEach((node, i) => node.toArray(nodePositions, i * 3));
+    const nodeGeometry = new THREE.BufferGeometry();
+    nodeGeometry.setAttribute("position", new THREE.BufferAttribute(nodePositions, 3));
+    const glow = neuronTexture();
+    group.add(new THREE.Points(nodeGeometry, new THREE.PointsMaterial({
+      color: 0xb9f5c9,
+      map: glow,
+      size: 1.2,
+      transparent: true,
+      opacity: 0.78,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      fog: false,
+    })));
+
+    const edges = [];
+    for (let i = 0; i < nodes.length; i++) {
+      const candidates = [];
+      for (let j = i + 1; j < nodes.length; j++) {
+        candidates.push({ j, distance: nodes[i].distanceToSquared(nodes[j]) });
+      }
+      candidates.sort((a, b) => a.distance - b.distance);
+      for (const candidate of candidates.slice(0, i % 4 === 0 ? 3 : 2)) {
+        edges.push([nodes[i], nodes[candidate.j]]);
+      }
+    }
+    const linePositions = new Float32Array(edges.length * 6);
+    edges.forEach(([start, end], i) => {
+      start.toArray(linePositions, i * 6);
+      end.toArray(linePositions, i * 6 + 3);
+    });
+    const lineGeometry = new THREE.BufferGeometry();
+    lineGeometry.setAttribute("position", new THREE.BufferAttribute(linePositions, 3));
+    group.add(new THREE.LineSegments(lineGeometry, new THREE.LineBasicMaterial({
+      color: 0x438f99,
+      transparent: true,
+      opacity: 0.2,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      fog: false,
+    })));
+
+    const pulses = Array.from({ length: 54 }, (_, i) => ({
+      edge: edges[(i * 17) % edges.length],
+      phase: rnd(),
+      speed: 0.035 + rnd() * 0.065,
+    }));
+    const pulsePositions = new Float32Array(pulses.length * 3);
+    const pulseGeometry = new THREE.BufferGeometry();
+    pulseGeometry.setAttribute("position", new THREE.BufferAttribute(pulsePositions, 3));
+    group.add(new THREE.Points(pulseGeometry, new THREE.PointsMaterial({
+      color: 0xc8f26a,
+      map: glow,
+      size: 1.8,
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      fog: false,
+    })));
+    group.userData.sky = true;
+    return { group, pulses, pulsePositions, pulseGeometry };
+  }
+
+  function updateNeuralSky(t) {
+    if (!neuralSky) return;
+    neuralSky.pulses.forEach((pulse, i) => {
+      const u = (pulse.phase + t * pulse.speed) % 1;
+      const [start, end] = pulse.edge;
+      neuralSky.pulsePositions[i * 3] = THREE.MathUtils.lerp(start.x, end.x, u);
+      neuralSky.pulsePositions[i * 3 + 1] = THREE.MathUtils.lerp(start.y, end.y, u);
+      neuralSky.pulsePositions[i * 3 + 2] = THREE.MathUtils.lerp(start.z, end.z, u);
+    });
+    neuralSky.pulseGeometry.attributes.position.needsUpdate = true;
+    neuralSky.group.rotation.y = t * 0.0045;
   }
 
   function stoneMat(color, opacity) {
@@ -879,8 +961,9 @@
       payload.origin && payload.origin.id === payload.node.id
     );
     elThresholdContinue.disabled = Boolean(ready);
+    elThresholdAsk.disabled = Boolean(ready);
     elThresholdContinue.textContent = ready
-      ? "continuation requested"
+      ? "✓ continuation requested"
       : "ready for continuation · q";
   }
 
@@ -1104,32 +1187,58 @@
       elComposerLabel.textContent = "veto · a reason is required";
       return;
     }
+    if (kind === "continuation") {
+      closeComposer();
+      await markContinuationReady(text);
+      return;
+    }
     busy = true;
     try {
       const endpoint = kind === "fork"
         ? "/api/fork"
-        : kind === "veto"
-          ? "/api/veto"
-          : "/api/continuation";
+        : "/api/veto";
       const result = await post(endpoint, {
         node: view.node.id,
         graph: view.graph_id,
         session: view.session_id,
-        reason: kind !== "continuation" ? text || undefined : undefined,
-        prompt: kind === "continuation" ? text : undefined,
+        reason: text || undefined,
       });
-      if (kind === "continuation") {
-        view.continuation = result.request;
-        closeComposer();
-        plate(view);
-        renderThreshold(view);
-        return;
-      }
       closeComposer();
       const stand = result.stand;
       await inhabit(stand.graph_id, stand.node_id);
     } catch (err) {
       elComposerLabel.textContent = String(err.message || err);
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function markContinuationReady(prompt = "") {
+    if (!view || view.continuation || busy) return;
+    busy = true;
+    elThreshold.dataset.ready = "pending";
+    elThresholdKind.textContent = "marking inhabitant ready…";
+    elThresholdText.textContent = "Writing the append-only handoff for an AI harness.";
+    elThresholdContinue.disabled = true;
+    elThresholdAsk.disabled = true;
+    elThresholdContinue.textContent = "marking ready…";
+    try {
+      const result = await post("/api/continuation", {
+        node: view.node.id,
+        graph: view.graph_id,
+        session: view.session_id,
+        prompt: prompt || undefined,
+      });
+      view.continuation = result.request;
+      plate(view);
+      renderThreshold(view);
+    } catch (err) {
+      elThreshold.dataset.ready = "false";
+      elThresholdKind.textContent = "continuation was not marked";
+      elThresholdText.textContent = String(err.message || err);
+      elThresholdContinue.disabled = false;
+      elThresholdAsk.disabled = false;
+      elThresholdContinue.textContent = "try ready for continuation again · q";
     } finally {
       busy = false;
     }
@@ -1180,10 +1289,27 @@
     if (view) plate(view);
   }
 
+  function horizontallyOrderedChoices() {
+    scene.updateMatrixWorld(true);
+    camera.updateMatrixWorld(true);
+    return choices.map((choice, index) => {
+      const position = new THREE.Vector3();
+      choice.mesh.getWorldPosition(position);
+      position.project(camera);
+      return { index, x: position.x, y: position.y };
+    }).sort((a, b) => a.x - b.x || b.y - a.y || a.index - b.index);
+  }
+
   function cycleChoice(dir) {
     if (!choices.length) return;
-    if (focusIndex < 0) focusIndex = dir > 0 ? 0 : choices.length - 1;
-    else focusIndex = (focusIndex + dir + choices.length) % choices.length;
+    const ordered = horizontallyOrderedChoices();
+    if (focusIndex < 0) {
+      focusIndex = dir > 0 ? ordered[0].index : ordered[ordered.length - 1].index;
+    } else {
+      const at = ordered.findIndex((choice) => choice.index === focusIndex);
+      const next = (at + dir + ordered.length) % ordered.length;
+      focusIndex = ordered[next].index;
+    }
     showFocus();
   }
 
@@ -1334,7 +1460,8 @@
 
   elEvidenceClose.addEventListener("click", closeEvidenceDescent);
   elThresholdOrigin.addEventListener("click", walkOrigin);
-  elThresholdContinue.addEventListener("click", () => openComposer("continuation"));
+  elThresholdContinue.addEventListener("click", () => markContinuationReady());
+  elThresholdAsk.addEventListener("click", () => openComposer("continuation"));
 
   window.addEventListener("keydown", (e) => {
     if (composing) {
@@ -1418,7 +1545,7 @@
       const traversal = view && view.read && view.read.traversal;
       if (traversal && traversal.terminal && !view.continuation) {
         e.preventDefault();
-        openComposer("continuation");
+        markContinuationReady();
       }
     }
     if (e.key === "b" || e.key === "ArrowDown") {
@@ -1501,7 +1628,7 @@
       overSun.intensity = 1.15;
       overHemi.intensity = 0.5;
       fill.intensity = 0.2;
-      starFill.intensity = 0.55;
+      neuralFill.intensity = 0.55;
       scene.fog.density = 0.005;
     } else {
       camera.up.set(0, 1, 0);
@@ -1513,25 +1640,25 @@
       overSun.intensity = 0;
       overHemi.intensity = 0;
       fill.intensity = 0.7;
-      starFill.intensity = 0.22;
+      neuralFill.intensity = 0.22;
       scene.fog.density = climateFog;
     }
-    if (sky) sky.rotation.y = t * 0.0045;
+    updateNeuralSky(t);
     tickRise(t);
     updateNavigationLights(t);
     renderer.render(scene, camera);
     requestAnimationFrame(tick);
   }
 
-  const skyMap = starTexture();
+  const skyMap = ambientTexture();
   const environmentMap = skyMap.clone();
   environmentMap.mapping = THREE.EquirectangularReflectionMapping;
   environmentMap.needsUpdate = true;
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromEquirectangular(environmentMap).texture;
   pmrem.dispose();
-  sky = makeSky(skyMap);
-  scene.add(sky);
+  neuralSky = makeNeuralSky(skyMap);
+  scene.add(neuralSky.group);
   boot();
   window.setInterval(pollLiveCompanion, 2500);
   tick();

@@ -160,7 +160,11 @@ Exit codes: `0` ok, `1` validation / `--strict` policy failure, `2` usage,
 Inhabit Space: you stand at a thought-node. Walking a chamber fetches
 `/api/inhabit/{node}` — the same omit-set as `ta inhabit`. Fork (`f`) and
 veto (`v`) POST to Python; the browser does not compute the omit-set.
-No Node runtime; `viz/dist` is committed.
+Left/right selection follows the objects' projected screen positions, including
+roads to the left and conversation doors to the right. The surrounding neural
+canopy is procedural: dim connections carry visible pulses while the graph
+itself remains the authored story, not a circuit claim. No Node runtime;
+`viz/dist` is committed.
 
 `ta canvas` / `ta export-wiki` write a lossy Markdown projection (`type: overview`,
 Obsidian wikilinks). Hidden reasoning stays JSON-only. Dual archaeology appears
@@ -272,7 +276,9 @@ answers, not token-level hidden-thought streaming.
 ## Harness-neutral continuation
 
 “Ready for continuation” is an append-only handoff, not an embedded model
-client. Inhabit Space may attach an optional question and writes a
+client. At a terminal chamber, the ready button immediately writes and visibly
+activates the handoff; “ask from here” adds an optional question first. Inhabit
+Space writes a
 `ContinuationRequest` containing only its request/session/graph/node ids,
 timestamp, source, and prompt. Requests live under
 `data/continuations/requests/`; completion receipts live under
