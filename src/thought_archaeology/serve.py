@@ -385,6 +385,7 @@ class InhabitHandler(BaseHTTPRequestHandler):
             ".jpg": "image/jpeg",
             ".jpeg": "image/jpeg",
             ".glb": "model/gltf-binary",
+            ".ogg": "audio/ogg",
             ".woff2": "font/woff2",
         }
         ctype = types.get(target.suffix, "application/octet-stream")

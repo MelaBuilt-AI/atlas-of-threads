@@ -336,27 +336,57 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert ctype == "model/gltf-binary"
     assert model.startswith(b"glTF")
 
+    code, audio, ctype = _get_bytes(
+        httpd_url + "/assets/audio/neural-atmosphere-loop.ogg"
+    )
+    assert code == 200
+    assert ctype == "audio/ogg"
+    assert audio.startswith(b"OggS")
 
-def test_space_sound_field_is_procedural_and_event_bound():
+
+def test_space_sound_field_uses_cinematic_pack_and_is_event_bound():
     dist = viz_dist_path()
     html = (dist / "index.html").read_text(encoding="utf-8")
     js = (dist / "space.js").read_text(encoding="utf-8")
     sound = (dist / "sound.js").read_text(encoding="utf-8")
+    audio = dist / "assets" / "audio"
+    expected = {
+        "ai-working-loop.ogg",
+        "blue-new-path-activate.ogg",
+        "blue-new-path-enter.ogg",
+        "blue-path-complete-splash.ogg",
+        "camera-cycle-transition.ogg",
+        "green-beam-activate.ogg",
+        "green-beam-sparks-loop.ogg",
+        "neural-atmosphere-loop.ogg",
+        "object-cycle.ogg",
+        "red-return-activate.ogg",
+        "traversal-back.ogg",
+        "traversal-forward.ogg",
+    }
     assert '<script src="./sound.js"></script>' in html
     assert "AudioContext" in sound
+    assert "decodeAudioData" in sound
+    assert "window.fetch(AUDIO_ROOT + item.file)" in sound
+    assert "startLoop(\"atmosphere\"" in sound
+    assert "startLoop(\"working\"" in sound
+    assert "startLoop(\"greenSparks\"" in sound
+    assert "stopLoop(\"working\"" in sound
+    assert "stopLoop(\"greenSparks\"" in sound
+    assert "pendingCues" in sound
     assert "createOscillator" in sound
     assert "createBuffer" in sound
     assert "new Audio(" not in sound
     assert ".mp3" not in sound
     assert ".wav" not in sound
-    assert "startAmbience" in sound
     assert "audibleLevel" in sound
     assert "setVolumeFromPointer" in sound
     assert 'volume.addEventListener("keydown"' in sound
-    assert "startWorkingLayer" in sound
-    assert "startBeamLayer" in sound
     assert "arrivalSplash" in sound
     assert "cameraShift" in sound
+    assert {path.name for path in audio.glob("*.ogg")} == expected
+    for name in expected:
+        assert (audio / name).read_bytes().startswith(b"OggS")
     assert "sound.cycle" in js
     assert "sound.traverse" in js
     assert 'sound.setBeam("waiting"' in js

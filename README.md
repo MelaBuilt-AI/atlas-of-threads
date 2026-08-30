@@ -201,14 +201,18 @@ differently, but that is a behavioral/context intervention—not a weight edit o
 vendor preference-training signal. Provider-backed fork regeneration is an
 explicit CLI operation; the browser gesture itself invokes no model.
 
-The chamber's sound field is synthesized live with the Web Audio API; it ships
-no sampled music or stock effects. A moody subharmonic neural bed wakes on the
-first keyboard or pointer interaction (browser autoplay policy) and remains
-continuous. Original procedural cues distinguish object cycling, forward and
-backward traversal, red origin returns, blue path arrivals and entry, camera
-transitions, AI-working pressure, green-beam activation/crackle, blue completion
-lightning, evidence descent, cut/veto inscription, and cancellation. `s` toggles
-mute; the top-bar control also exposes persistent browser-local volume.
+The chamber's sound field uses twelve original, sample-free cinematic OGG assets
+made specifically for Thought Archaeology; it contains no stock effects or
+recognizable notification sounds. The neural atmosphere wakes on the first
+keyboard or pointer interaction (browser autoplay policy) and remains continuous.
+Distinct assets cover object cycling, forward/back traversal, red origin return,
+blue path activation and entry, camera movement, AI-working pressure, green-beam
+activation/crackle, and blue completion lightning. The three continuous layers
+crossfade through one conservative master compressor instead of stopping or
+stacking abruptly. Evidence/relic inspection, cut/veto inscription, and
+cancellation retain their small procedural gestures because this first cinematic
+pack does not include replacements for them. `s` toggles mute; the top-bar
+control exposes persistent browser-local volume and pack loading state.
 
 A future open-weight training slice may explicitly export reviewed cuts and
 human vetoes as versioned training examples, paired with accepted alternatives

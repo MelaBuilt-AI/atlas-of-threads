@@ -67,3 +67,15 @@ textures to 1K, and creates 360px PNG index cards. The chamber remains local and
 requires no CDN or Node build.
 
 Dev with Node is optional — edit `viz/dist/space.js` directly.
+
+## Sound
+
+The twelve runtime files under `dist/assets/audio/` are the browser-ready
+48 kHz OGG/Opus derivatives from the original Thought Archaeology cinematic
+sound pack. The archival 24-bit WAV masters remain outside the repository in
+the shared project vault. `dist/sound.js` prefetches the OGGs, waits for a user
+gesture before creating its `AudioContext`, queues a first interaction cue while
+decoding, and fades the atmosphere, AI-working, and green-spark loops through a
+shared compressor. Do not layer the replaced procedural beds under these files;
+their low-frequency energy is intentionally designed to combine only at the
+documented conservative gains.
