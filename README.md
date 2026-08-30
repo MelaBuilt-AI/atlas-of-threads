@@ -121,6 +121,9 @@ ta fork NODE --session ID [--graph G] [--reason TEXT]
   [--from-graph PATH] [--provider none|file|stdin|shell]
   [--provider-file PATH] [--provider-cmd CMD] [--model-name NAME]
 ta veto NODE --session ID [--graph G] --reason TEXT
+ta continuation ready NODE --graph G [--prompt TEXT]
+ta continuation pending [--format table|json]
+ta continuation complete REQUEST --graph G --harness NAME
 ta sensor attach NODE [--graph G] [--session S]
 ta sensor attach --from-attribution PATH
 ta sensor import-circuit-tracer NODE --graph G --from-graph PATH \
@@ -258,10 +261,42 @@ evidence.
 
 While Inhabit Space remains open, it polls the local store for finalized graph
 heads. A later `ta compile` rises as an optional teal doorway beside the current
-chamber; the user is never teleported. Entering the doorway marks it seen but
-keeps a quieter reciprocal recent-thought route, bounded in browser memory so
-refreshes do not erase the conversation path. This is a turn-level companion
-for completed answers, not token-level hidden-thought streaming.
+chamber; the user is never teleported. Direct story relations are walked one
+edge at a time in front, rejected roads remain to the left, and conversational
+doors appear to the right only at graph origins and path endings. Entering a
+doorway marks it seen but keeps a quieter reciprocal return route in bounded
+browser memory. A terminal chamber explicitly offers return to the graph origin
+or a continuation request. This is a turn-level companion for completed
+answers, not token-level hidden-thought streaming.
+
+## Harness-neutral continuation
+
+“Ready for continuation” is an append-only handoff, not an embedded model
+client. Inhabit Space may attach an optional question and writes a
+`ContinuationRequest` containing only its request/session/graph/node ids,
+timestamp, source, and prompt. Requests live under
+`data/continuations/requests/`; completion receipts live under
+`data/continuations/completions/`. Graphs and requests remain immutable.
+
+Any AI harness can use the filesystem, CLI JSON, or localhost API:
+
+```bash
+# poll the neutral inbox
+ta continuation pending --format json
+
+# load the referenced public thought/story context
+ta show GRAPH_ID --format json
+
+# generate through any model/provider, compile the finalized answer normally,
+# then acknowledge which graph answered the request
+ta continuation complete REQUEST_ID --graph NEW_GRAPH_ID --harness my-runner
+```
+
+The equivalent local endpoints are `GET /api/continuations` and
+`POST /api/continuation`. Thought Archaeology owns the durable boundary and the
+graph; the harness owns credentials, model invocation, prompt assembly, and
+the decision to compile a finalized response. No vendor SDK or callback URL is
+required by the core.
 
 Restart `ta serve` after updating project code. Static HTML/JavaScript reload on
 refresh, but an existing Python process cannot emit newly added read fields; the

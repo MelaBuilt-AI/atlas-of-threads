@@ -132,6 +132,64 @@ body[data-climate="emerging"] #banner { color: #c8f26a; }
 
 #composer[hidden] { display: none; }
 
+#threshold {
+  position: absolute;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  width: min(32rem, calc(50vw - 1.875rem));
+  pointer-events: auto;
+  padding: 0.85rem 0.9rem;
+  background: rgba(3, 5, 12, 0.86);
+  border-left: 1px solid rgba(92, 138, 123, 0.72);
+}
+
+#threshold[hidden] { display: none; }
+
+#threshold .kind {
+  font: 0.68rem ui-monospace, Menlo, monospace;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--phosphor);
+}
+
+#threshold p {
+  margin-top: 0.38rem;
+  color: var(--ink);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.threshold-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.7rem;
+}
+
+.threshold-actions button {
+  border: 1px solid rgba(176, 141, 87, 0.48);
+  background: rgba(18, 16, 14, 0.66);
+  color: var(--bronze-hot);
+  padding: 0.48rem 0.62rem;
+  font: 0.64rem ui-monospace, Menlo, monospace;
+  cursor: pointer;
+}
+
+.threshold-actions button:hover,
+.threshold-actions button:focus-visible {
+  border-color: var(--phosphor);
+  color: var(--phosphor);
+  outline: none;
+}
+
+#threshold[data-ready="true"] {
+  border-left-color: var(--phosphor);
+}
+
+#threshold[data-ready="true"] #threshold-continue {
+  color: var(--phosphor);
+}
+
 #relic-index,
 #evidence-descent {
   position: absolute;
@@ -460,7 +518,8 @@ body[data-climate="emerging"] #banner { color: #c8f26a; }
 }
 
 @media (max-width: 68.75rem) {
-  #composer {
+  #composer,
+  #threshold {
     left: 1.25rem;
     right: 1.25rem;
     bottom: calc(2.25rem + var(--plate-height, 9rem));
@@ -480,12 +539,14 @@ body[data-climate="emerging"] #banner { color: #c8f26a; }
 @media (max-width: 38rem) {
   #plate,
   #topbar,
-  #composer {
+  #composer,
+  #threshold {
     left: 0.75rem;
     right: 0.75rem;
   }
 
-  #composer { bottom: calc(1.75rem + var(--plate-height, 9rem)); }
+  #composer,
+  #threshold { bottom: calc(1.75rem + var(--plate-height, 9rem)); }
 
   .relic-index-head { display: block; }
   .evidence-head { display: block; }

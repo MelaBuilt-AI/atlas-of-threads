@@ -10,7 +10,7 @@
   <canvas id="c" tabindex="0"></canvas>
   <div id="topbar">
     <div id="banner">story graph · not a circuit trace</div>
-    <div id="help">← → preview a path · enter walk it · ↑ deeper · ↓ / b back · e evidence · c overhead · shift+c home · r relic index · f cut · v human no · h help</div>
+    <div id="help">← → preview a path · enter walk it · ↑ next story step · ↓ / b retrace · o graph origin · q continue from an ending · e evidence · c overhead · shift+c home · r relic index · f cut · v human no · h help</div>
   </div>
   <div id="plate">
     <div class="kind" id="kind"></div>
@@ -22,6 +22,14 @@
     <div class="kind" id="composer-label">fork</div>
     <input id="composer-input" type="text" maxlength="400" autocomplete="off" spellcheck="false" />
     <div class="hint">enter commits · esc cancels</div>
+  </div>
+  <div id="threshold" hidden aria-live="polite">
+    <div class="kind" id="threshold-kind">end of this graph path</div>
+    <p id="threshold-text"></p>
+    <div class="threshold-actions">
+      <button id="threshold-origin" type="button">return to graph origin · o</button>
+      <button id="threshold-continue" type="button">ready for continuation · q</button>
+    </div>
   </div>
   <div id="relic-index" hidden aria-label="Relic index">
     <div class="relic-index-head">

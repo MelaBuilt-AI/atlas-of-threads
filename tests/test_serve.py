@@ -10,6 +10,7 @@ import pytest
 
 from thought_archaeology.inhabit import inhabit
 from thought_archaeology.serve import (
+    InhabitHandler,
     ServeError,
     bootstrap_payload,
     make_server,
@@ -111,6 +112,11 @@ def test_inhabit_json_matches_cli(httpd_url: str, tmp_path: Path):
     view = inhabit(st, nid, graph_id=gid)
     assert payload["graph_id"] == view.graph.id
     assert payload["node"]["id"] == view.node.id
+    assert payload["origin"]["id"]
+    assert payload["forward"] == [
+        {"id": n.id, "kind": n.kind, "text": n.text, "status": n.status, "agent": n.agent}
+        for n in view.forward
+    ]
     assert payload["caption"] == "story graph, not a circuit trace"
     assert "read" in payload
     assert payload["evidence"] == []
@@ -284,6 +290,11 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert "selectionSpot" in js
     assert "standingMesh" in js
     assert "updateNavigationLights" in js
+    assert "payload.forward" in js
+    assert "conversation doors wait at thresholds" in js
+    assert 'post(endpoint' in js
+    assert '"/api/continuation"' in js
+    assert 'id="threshold"' in body
     css = _get(httpd_url + "/theme.css")[1]
     assert "calc(2.25rem + var(--plate-height" in css
     assert "grid-template-columns: max-content minmax(0, 1fr)" in css
@@ -317,6 +328,26 @@ def test_evidence_descent_is_a_static_server_authored_read_surface():
     assert "contradicts this thought" not in js
 
 
+def test_terminal_traversal_separates_story_and_conversation_routes():
+    dist = viz_dist_path()
+    html = (dist / "index.html").read_text(encoding="utf-8")
+    js = (dist / "space.js").read_text(encoding="utf-8")
+    css = (dist / "theme.css").read_text(encoding="utf-8")
+    assert 'id="threshold"' in html
+    assert 'id="threshold-origin"' in html
+    assert 'id="threshold-continue"' in html
+    assert "payload.forward" in js
+    assert 'via: "story ahead"' in js
+    assert "atThreshold" in js
+    assert 'sideSlot(i, sideNodes.length, -1)' in js
+    assert 'sideSlot(i, arrivals.length, 1)' in js
+    assert '"conversation return"' in js
+    assert "renderThreshold" in js
+    assert "walkOrigin" in js
+    assert 'openComposer("continuation")' in js
+    assert "#threshold" in css
+
+
 def test_live_companion_uses_finalized_store_heads_as_optional_doorways(tmp_path: Path):
     store_path = tmp_path / "data"
     session_id, graph_id = _compile_simple(store_path)
@@ -329,14 +360,72 @@ def test_live_companion_uses_finalized_store_heads_as_optional_doorways(tmp_path
     assert "knownHeads" in js
     assert "pollLiveCompanion" in js
     assert 'api("/api/sessions")' in js
-    assert 'arrival.seen ? "recent thought" : "new thought"' in js
-    assert '"recent thought"' in js
+    assert 'arrival.seen ? "conversation return" : "new companion thought"' in js
+    assert '"conversation return"' in js
     assert "rememberCompanion" in js
     assert "window.localStorage" in js
     assert "COMPANION_MEMORY_KEY" in js
     assert 'relicKey: "thought-graph-reliquary"' in js
     assert "setInterval(pollLiveCompanion" in js
     assert "restart ta serve, then refresh" in js
+
+
+def test_continuation_endpoint_writes_harness_neutral_request(
+    httpd_url: str, tmp_path: Path
+):
+    store_path = tmp_path / "data"
+    sessions = json.loads(_get(httpd_url + "/api/sessions")[1])
+    spawn = sessions["sessions"][0]["spawn"]
+    code, body = _post(
+        httpd_url + "/api/continuation",
+        {
+            "node": spawn["node_id"],
+            "graph": spawn["graph_id"],
+            "session": sessions["sessions"][0]["id"],
+            "prompt": "Continue from here.",
+        },
+    )
+    assert code == 200, body
+    request = json.loads(body)["request"]
+    assert request["source"] == "inhabit_space"
+    assert request["prompt"] == "Continue from here."
+    assert Store(store_path).load_continuation_request(request["id"]).to_dict() == request
+
+    code, body, _ = _get(httpd_url + "/api/continuations")
+    assert code == 200
+    assert json.loads(body)["requests"] == [request]
+    code, body, _ = _get(
+        httpd_url
+        + f"/api/inhabit/{spawn['node_id']}?graph={spawn['graph_id']}"
+    )
+    assert code == 200
+    assert json.loads(body)["continuation"] == request
+
+
+def test_continuation_handler_without_socket(tmp_path: Path):
+    store_path = tmp_path / "data"
+    session_id, graph_id = _compile_simple(store_path)
+    store = Store(store_path)
+    graph = store.load_graph(graph_id)
+    node = graph.nodes[0]
+    replies = []
+    handler = object.__new__(InhabitHandler)
+    handler.store = store
+    handler._read_json = lambda: {
+        "node": node.id,
+        "graph": graph.id,
+        "session": session_id,
+        "prompt": "Continue from this ending.",
+    }
+    handler._json = lambda code, body: replies.append((code, body))
+    handler._continuation_ready()
+    assert replies[-1][0] == 200
+    request = replies[-1][1]["request"]
+    assert request["prompt"] == "Continue from this ending."
+
+    handler.path = "/api/continuations"
+    handler.do_GET()
+    assert replies[-1] == (200, {"requests": [request]})
 
 
 def test_inhabit_climate_none_without_fingerprint(httpd_url: str):

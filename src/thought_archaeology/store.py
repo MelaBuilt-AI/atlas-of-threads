@@ -8,6 +8,7 @@ from collections.abc import Iterator
 from dataclasses import replace
 from pathlib import Path
 
+from thought_archaeology.continuation import ContinuationCompletion, ContinuationRequest
 from thought_archaeology.ids import now_iso, new_ulid
 from thought_archaeology.models import SCHEMA_VERSION, Session, ThoughtGraph, ThoughtNode, Turn
 from thought_archaeology.schema import ValidationError, validate_graph, validate_schema
@@ -268,6 +269,86 @@ class Store:
     @property
     def recurring_circuits_dir(self) -> Path:
         return self.root / "recurring-circuits"
+
+    @property
+    def continuation_requests_dir(self) -> Path:
+        return self.root / "continuations" / "requests"
+
+    @property
+    def continuation_completions_dir(self) -> Path:
+        return self.root / "continuations" / "completions"
+
+    def write_continuation_request(self, request: ContinuationRequest) -> Path:
+        self._require()
+        graph = self.load_graph(request.graph_id)
+        if graph.session_id != request.session_id:
+            raise StoreError(f"graph {graph.id} is not in session {request.session_id}")
+        if request.node_id not in {node.id for node in graph.nodes}:
+            raise StoreError(f"node {request.node_id} not in graph {graph.id}")
+        validate_schema("continuation-request.schema.json", request.to_dict())
+        _mkdir(self.continuation_requests_dir)
+        path = self.continuation_requests_dir / f"{request.id}.json"
+        if path.exists():
+            raise StoreError(f"continuation request {request.id} already exists (write-once)")
+        _write_json(path, request.to_dict())
+        return path
+
+    def load_continuation_request(self, request_id: str) -> ContinuationRequest:
+        self._require()
+        path = self.continuation_requests_dir / f"{request_id}.json"
+        if not path.is_file():
+            raise StoreError(f"continuation request not found: {request_id}")
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        validate_schema("continuation-request.schema.json", raw)
+        return ContinuationRequest.from_dict(raw)
+
+    def iter_continuation_requests(
+        self, *, pending: bool = False
+    ) -> Iterator[ContinuationRequest]:
+        self._require()
+        if not self.continuation_requests_dir.is_dir():
+            return
+            yield  # pragma: no cover
+        completed = (
+            {item.request_id for item in self.iter_continuation_completions()}
+            if pending
+            else set()
+        )
+        for path in sorted(self.continuation_requests_dir.glob("*.json")):
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            validate_schema("continuation-request.schema.json", raw)
+            request = ContinuationRequest.from_dict(raw)
+            if request.id not in completed:
+                yield request
+
+    def write_continuation_completion(self, completion: ContinuationCompletion) -> Path:
+        self._require()
+        request = self.load_continuation_request(completion.request_id)
+        if completion.graph_id == request.graph_id:
+            raise StoreError("continuation completion must point to a new graph")
+        self.load_graph(completion.graph_id)
+        validate_schema("continuation-completion.schema.json", completion.to_dict())
+        _mkdir(self.continuation_completions_dir)
+        if any(
+            item.request_id == completion.request_id
+            for item in self.iter_continuation_completions()
+        ):
+            raise StoreError(
+                f"continuation request {completion.request_id} already completed (write-once)"
+            )
+        path = self.continuation_completions_dir / f"{completion.id}.json"
+        _write_json(path, completion.to_dict())
+        return path
+
+    def iter_continuation_completions(self) -> Iterator[ContinuationCompletion]:
+        self._require()
+        if not self.continuation_completions_dir.is_dir():
+            return
+            yield  # pragma: no cover
+        for path in sorted(self.continuation_completions_dir.glob("*.json")):
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            validate_schema("continuation-completion.schema.json", raw)
+            yield ContinuationCompletion.from_dict(raw)
 
     def write_recurring_circuit(self, data: dict) -> Path:
         self._require()

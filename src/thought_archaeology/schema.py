@@ -34,6 +34,8 @@ SCHEMA_NAMES = (
     "neural-intervention.schema.json",
     "recurring-circuit.schema.json",
     "training-provenance.schema.json",
+    "continuation-request.schema.json",
+    "continuation-completion.schema.json",
 )
 
 DAG_EDGE_KINDS = frozenset({"supports", "depends_on", "shapes", "taste_of"})

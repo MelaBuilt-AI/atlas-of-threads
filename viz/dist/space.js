@@ -70,6 +70,11 @@
   const elComposer = document.getElementById("composer");
   const elComposerLabel = document.getElementById("composer-label");
   const elComposerInput = document.getElementById("composer-input");
+  const elThreshold = document.getElementById("threshold");
+  const elThresholdKind = document.getElementById("threshold-kind");
+  const elThresholdText = document.getElementById("threshold-text");
+  const elThresholdOrigin = document.getElementById("threshold-origin");
+  const elThresholdContinue = document.getElementById("threshold-continue");
   const elRelicIndex = document.getElementById("relic-index");
   const elRelicGrid = document.getElementById("relic-grid");
   const elRelicClose = document.getElementById("relic-close");
@@ -559,6 +564,16 @@
     return { x, z };
   }
 
+  function sideSlot(i, n, side) {
+    const row = Math.floor(i / 5);
+    const rowCount = Math.min(5, n - row * 5);
+    const col = i % 5;
+    return {
+      x: side * (CHOICE_ROW + row * CHOICE_ROW_GAP),
+      z: (col - (rowCount - 1) / 2) * CHOICE_STRIDE,
+    };
+  }
+
   function addChoice(mesh, choice) {
     mesh.userData.choice = choice;
     mesh.userData.focusScale = 1;
@@ -591,19 +606,28 @@
     standingMesh = here;
     markRise(here, 0);
 
-    const shaped = payload.shaped || [];
+    const forward = payload.forward || payload.shaped || [];
     const rejected = payload.rejected_siblings || [];
     const vetoes = payload.vetoes || [];
     const forks = payload.fork_children || [];
-    const arrivals = liveArrivals.filter((arrival) => arrival.graphId !== payload.graph_id);
-    const pathNodes = [
-      ...shaped.map((n) => ({ node: n, ghost: false, via: "made" })),
+    const traversal = (payload.read && payload.read.traversal) || {};
+    const atOrigin = payload.origin && payload.origin.id === payload.node.id;
+    const atThreshold = Boolean(traversal.terminal || atOrigin);
+    const arrivals = atThreshold
+      ? liveArrivals.filter((arrival) => arrival.graphId !== payload.graph_id)
+      : [];
+    const storyNodes = forward.map((node) => ({
+      node,
+      ghost: false,
+      via: "story ahead",
+    }));
+    const sideNodes = [
       ...rejected.map((n) => ({ node: n, ghost: true, via: "not taken" })),
       ...vetoes.map((n) => ({ node: n, ghost: true, via: "human no" })),
     ];
-    const pathCount = pathNodes.length + forks.length;
+    const pathCount = storyNodes.length + forks.length;
 
-    pathNodes.forEach((item, i) => {
+    storyNodes.forEach((item, i) => {
       const slot = choiceSlot(i, pathCount);
       const mesh = chamberMesh(item.node, {
         x: slot.x,
@@ -623,8 +647,28 @@
       markRise(mesh, 0.08 + i * 0.07);
     });
 
+    sideNodes.forEach((item, i) => {
+      const slot = sideSlot(i, sideNodes.length, -1);
+      const mesh = chamberMesh(item.node, {
+        x: slot.x,
+        z: slot.z,
+        scale: 0.7,
+        ghost: item.ghost,
+        evidence: [],
+      });
+      root.add(mesh);
+      targets.push(mesh);
+      addChoice(mesh, {
+        via: item.via,
+        kind: item.node.kind,
+        text: item.node.text,
+        walk: () => inhabit(payload.graph_id, item.node.id),
+      });
+      markRise(mesh, 0.12 + i * 0.07);
+    });
+
     forks.forEach((f, i) => {
-      const slot = choiceSlot(pathNodes.length + i, pathCount);
+      const slot = choiceSlot(storyNodes.length + i, pathCount);
       const ring = portalRing({
         x: slot.x,
         z: slot.z,
@@ -632,6 +676,8 @@
         emissive: 0x5a3c18,
         portal: { graphId: f.id, nodeId: f.spawn_node_id },
         relicKey: "fork-compass",
+        labelKind: "story fork",
+        labelText: f.reason || "continuation without this chamber",
       });
       root.add(ring);
       portals.push(ring);
@@ -645,20 +691,21 @@
     });
 
     arrivals.forEach((arrival, i) => {
-      const x = CHOICE_ROW + Math.floor(i / 5) * CHOICE_ROW_GAP;
-      const z = (i % 5 - (Math.min(arrivals.length, 5) - 1) / 2) * CHOICE_STRIDE;
+      const slot = sideSlot(i, arrivals.length, 1);
       const ring = portalRing({
-        x,
-        z,
+        x: slot.x,
+        z: slot.z,
         color: arrival.seen ? 0x496e68 : 0x5c8a7b,
         emissive: arrival.seen ? 0x102a28 : 0x183c38,
         portal: { graphId: arrival.graphId, nodeId: arrival.nodeId },
         relicKey: "thought-graph-reliquary",
+        labelKind: arrival.seen ? "conversation return" : "new companion thought",
+        labelText: arrival.title,
       });
       root.add(ring);
       portals.push(ring);
       addChoice(ring, {
-        via: arrival.seen ? "recent thought" : "new thought",
+        via: arrival.seen ? "conversation return" : "new companion thought",
         kind: arrival.kind,
         text: `${arrival.title} — ${arrival.text}`,
         walk: () => inhabit(arrival.graphId, arrival.nodeId),
@@ -675,6 +722,8 @@
         emissive: 0x3a2040,
         portal: { graphId: parent.graph_id, nodeId: parent.node_id },
         relicKey: "counterfactual-shard-gate",
+        labelKind: "fork return",
+        labelText: "back to the chamber where this path was cut",
       });
       root.add(back);
       portals.push(back);
@@ -682,9 +731,19 @@
     }
 
     plate(payload);
+    renderThreshold(payload);
   }
 
-  function portalRing({ x, z, color, emissive, portal, relicKey }) {
+  function portalRing({
+    x,
+    z,
+    color,
+    emissive,
+    portal,
+    relicKey,
+    labelKind = "doorway",
+    labelText = "another thought",
+  }) {
     const group = new THREE.Group();
     group.position.set(x, 0, z);
     group.userData = { portal, ghost: false };
@@ -707,6 +766,15 @@
     );
     placeholder.position.y = 1.1;
     group.add(placeholder);
+    const board = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.5, 0.9),
+      new THREE.MeshBasicMaterial({
+        map: labelTexture(labelKind, labelText),
+        transparent: true,
+      })
+    );
+    board.position.set(0, 2.3, 0.7);
+    group.add(board);
     mountRelic(group, relicKey, {
       scale: 0.48,
       ghost: false,
@@ -726,20 +794,28 @@
   function plate(payload) {
     const n = payload.node;
     const read = payload.read || {};
+    const traversal = read.traversal || {};
     elKind.textContent = read.kind_line || `${n.kind} · ${n.status}`;
     elText.textContent = n.text;
-    const hereBits = [read.here_line, read.climate_line, read.evidence_line].filter(Boolean);
+    const hereBits = [
+      read.here_line,
+      traversal.terminal ? traversal.state_line : null,
+      read.climate_line,
+      read.evidence_line,
+    ].filter(Boolean);
     elHere.textContent = hereBits.join(" · ");
     const bits = [];
     if (focusIndex >= 0 && choices[focusIndex]) {
       const c = choices[focusIndex].choice;
       const kind = (c.kind || "").replace(/_/g, " ");
-      elHere.textContent = c.via === "new thought" || c.via === "recent thought"
-        ? `${c.via} nearby · ${kind} — ${c.text}`
+      elHere.textContent = c.via === "new companion thought" || c.via === "conversation return"
+        ? `${c.via} · ${kind} — ${c.text}`
         : `path ${focusIndex + 1}/${choices.length} · ${c.via} · ${kind} — ${c.text}`;
       bits.push("spotlit preview · enter inhabits and makes this the key light · esc clears");
     } else {
-      if (read.look_line) bits.push(read.look_line);
+      if (traversal.look_line || read.look_line) {
+        bits.push(traversal.look_line || read.look_line);
+      }
       if (read.evidence_action_line) bits.push(read.evidence_action_line);
       const shownRelic = RELIC_BY_KEY[manualRelicKey || mappedRelicKey];
       if (shownRelic) {
@@ -749,26 +825,32 @@
             : `form: ${shownRelic.name} · r opens relic index`
         );
       }
-      const pathCount =
-        (payload.shaped || []).length +
-        (payload.rejected_siblings || []).length +
-        (payload.vetoes || []).length +
+      const storyCount =
+        (payload.forward || payload.shaped || []).length +
         (payload.fork_children || []).length;
-      if (pathCount) bits.push(`${pathCount} paths in front`);
+      const sideCount =
+        (payload.rejected_siblings || []).length +
+        (payload.vetoes || []).length;
+      if (storyCount) bits.push(`${storyCount} direct story ${storyCount === 1 ? "path" : "paths"} ahead`);
+      if (sideCount) bits.push(`${sideCount} ${sideCount === 1 ? "road" : "roads"} not taken to the left`);
       if ((payload.fork_children || []).length) bits.push("bronze ring: continuation");
       if (payload.parent && payload.parent.graph_id) bits.push("violet ring: back to the cut");
       const nearbyArrivals = liveArrivals.filter(
         (arrival) => arrival.graphId !== payload.graph_id
       );
+      const atOrigin = payload.origin && payload.origin.id === payload.node.id;
+      const atThreshold = Boolean(traversal.terminal || atOrigin);
       const newArrivals = nearbyArrivals.filter((arrival) => !arrival.seen);
-      if (newArrivals.length) {
+      if (atThreshold && newArrivals.length) {
         bits.push(
-          `${newArrivals.length} new ${newArrivals.length === 1 ? "thought" : "thoughts"} nearby`
+          `${newArrivals.length} new companion ${newArrivals.length === 1 ? "door" : "doors"} to the right`
+        );
+      } else if (atThreshold && nearbyArrivals.length) {
+        bits.push(
+          `${nearbyArrivals.length} conversation return ${nearbyArrivals.length === 1 ? "door" : "doors"} to the right`
         );
       } else if (nearbyArrivals.length) {
-        bits.push(
-          `${nearbyArrivals.length} recent ${nearbyArrivals.length === 1 ? "thought" : "thoughts"} nearby`
-        );
+        bits.push("conversation doors wait at the graph origin or a path ending");
       }
       if (trail.length) bits.push("b retraces your walk");
     }
@@ -776,6 +858,30 @@
     elMeta.textContent = bits.join("  ·  ");
     requestAnimationFrame(resize);
     applyClimate(payload.climate);
+  }
+
+  function renderThreshold(payload) {
+    const traversal = (payload.read && payload.read.traversal) || {};
+    if (!traversal.terminal) {
+      elThreshold.hidden = true;
+      return;
+    }
+    const ready = payload.continuation || null;
+    elThreshold.hidden = false;
+    elThreshold.dataset.ready = ready ? "true" : "false";
+    elThresholdKind.textContent = ready
+      ? "inhabitant ready for continuation"
+      : "end of this graph path";
+    elThresholdText.textContent = ready
+      ? `Request ${ready.id} is waiting for an AI harness. You remain in this chamber.`
+      : traversal.state_line;
+    elThresholdOrigin.disabled = Boolean(
+      payload.origin && payload.origin.id === payload.node.id
+    );
+    elThresholdContinue.disabled = Boolean(ready);
+    elThresholdContinue.textContent = ready
+      ? "continuation requested"
+      : "ready for continuation · q";
   }
 
   function sameStand(a, b) {
@@ -968,13 +1074,18 @@
     composing = kind;
     elComposer.hidden = false;
     const read = (view && view.read) || {};
-    elComposerLabel.textContent =
-      kind === "fork"
-        ? read.fork_line || "fork · accept the chain except this cut"
-        : read.veto_line || "veto · this stays, with a human no";
+    const traversal = read.traversal || {};
+    elComposerLabel.textContent = kind === "fork"
+      ? read.fork_line || "fork · accept the chain except this cut"
+      : kind === "veto"
+        ? read.veto_line || "veto · this stays, with a human no"
+        : traversal.continuation_line || "ready for continuation";
     elComposerInput.value = "";
-    elComposerInput.placeholder =
-      kind === "fork" ? "why this cut (optional)" : "why this is the wrong cut";
+    elComposerInput.placeholder = kind === "fork"
+      ? "why this cut (optional)"
+      : kind === "veto"
+        ? "why this is the wrong cut"
+        : "optional question or invitation for the next AI turn";
     elComposerInput.focus();
   }
 
@@ -988,19 +1099,32 @@
   async function commitGesture() {
     if (!composing || !view || busy) return;
     const kind = composing;
-    const reason = elComposerInput.value.trim();
-    if (kind === "veto" && !reason) {
+    const text = elComposerInput.value.trim();
+    if (kind === "veto" && !text) {
       elComposerLabel.textContent = "veto · a reason is required";
       return;
     }
     busy = true;
     try {
-      const result = await post(kind === "fork" ? "/api/fork" : "/api/veto", {
+      const endpoint = kind === "fork"
+        ? "/api/fork"
+        : kind === "veto"
+          ? "/api/veto"
+          : "/api/continuation";
+      const result = await post(endpoint, {
         node: view.node.id,
         graph: view.graph_id,
         session: view.session_id,
-        reason: reason || undefined,
+        reason: kind !== "continuation" ? text || undefined : undefined,
+        prompt: kind === "continuation" ? text : undefined,
       });
+      if (kind === "continuation") {
+        view.continuation = result.request;
+        closeComposer();
+        plate(view);
+        renderThreshold(view);
+        return;
+      }
       closeComposer();
       const stand = result.stand;
       await inhabit(stand.graph_id, stand.node_id);
@@ -1024,14 +1148,19 @@
 
   function walkDeeper() {
     if (!view) return;
-    const shaped = view.shaped || [];
-    if (shaped.length) {
-      inhabit(view.graph_id, shaped[0].id);
+    const forward = view.forward || view.shaped || [];
+    if (forward.length) {
+      inhabit(view.graph_id, forward[0].id);
       return;
     }
     const forks = view.fork_children || [];
     const first = forks.find((f) => f.id && f.spawn_node_id);
     if (first) inhabit(first.id, first.spawn_node_id);
+  }
+
+  function walkOrigin() {
+    if (!view || !view.origin || view.origin.id === view.node.id) return;
+    inhabit(view.graph_id, view.origin.id);
   }
 
   function applyFocusVisual(mesh, on) {
@@ -1204,6 +1333,8 @@
   }
 
   elEvidenceClose.addEventListener("click", closeEvidenceDescent);
+  elThresholdOrigin.addEventListener("click", walkOrigin);
+  elThresholdContinue.addEventListener("click", () => openComposer("continuation"));
 
   window.addEventListener("keydown", (e) => {
     if (composing) {
@@ -1278,6 +1409,17 @@
     if (e.key === "v") {
       e.preventDefault();
       openComposer("veto");
+    }
+    if (e.key === "o" || e.key === "O") {
+      e.preventDefault();
+      walkOrigin();
+    }
+    if (e.key === "q" || e.key === "Q") {
+      const traversal = view && view.read && view.read.traversal;
+      if (traversal && traversal.terminal && !view.continuation) {
+        e.preventDefault();
+        openComposer("continuation");
+      }
     }
     if (e.key === "b" || e.key === "ArrowDown") {
       e.preventDefault();

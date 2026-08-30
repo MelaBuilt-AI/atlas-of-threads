@@ -7,8 +7,9 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from thought_archaeology.edits import commit, plan_fork, plan_veto
+from thought_archaeology.continuation import continuation_request
 from thought_archaeology.fork import ForkError
-from thought_archaeology.inhabit import inhabit
+from thought_archaeology.inhabit import entry_node, inhabit
 from thought_archaeology.schema import ValidationError
 from thought_archaeology.store import Store, StoreError
 
@@ -49,13 +50,9 @@ def bootstrap_payload(store: Store) -> dict:
             except StoreError:
                 graph = None
             if graph is not None and graph.nodes:
-                spawn_node = next(
-                    (n for n in graph.nodes if n.kind in {"judgment_call", "taste_call"}),
-                    None,
-                ) or next(
-                    (n for n in graph.nodes if n.kind == "claim"),
-                    graph.nodes[0],
-                )
+                spawn_node = entry_node(graph)
+                if spawn_node is None:
+                    continue
                 spawn = {
                     "graph_id": graph.id,
                     "node_id": spawn_node.id,
@@ -104,6 +101,19 @@ class InhabitHandler(BaseHTTPRequestHandler):
             if path == "/api/sessions":
                 self._json(200, bootstrap_payload(self.store))
                 return
+            if path == "/api/continuations":
+                self._json(
+                    200,
+                    {
+                        "requests": [
+                            item.to_dict()
+                            for item in self.store.iter_continuation_requests(
+                                pending=True
+                            )
+                        ]
+                    },
+                )
+                return
             if path.startswith("/api/graphs/"):
                 gid = path[len("/api/graphs/") :].strip("/")
                 graph = self.store.load_graph(gid)
@@ -151,6 +161,9 @@ class InhabitHandler(BaseHTTPRequestHandler):
                 return
             if path == "/api/veto":
                 self._edit_veto()
+                return
+            if path == "/api/continuation":
+                self._continuation_ready()
                 return
             self._json(405, {"error": "unknown write"})
         except ServeError as exc:
@@ -233,6 +246,29 @@ class InhabitHandler(BaseHTTPRequestHandler):
             },
         )
 
+    def _continuation_ready(self) -> None:
+        body = self._read_json()
+        node_id, graph_id, _session_id = self._standing_args(body)
+        if graph_id is None:
+            raise ServeError("graph is required")
+        view = inhabit(self.store, node_id, graph_id=graph_id)
+        graph, node = view.graph, view.node
+        prompt = str(body.get("prompt") or "").strip()
+        request = continuation_request(
+            graph, node, prompt=prompt, source="inhabit_space"
+        )
+        path = self.store.write_continuation_request(request)
+        self.store.log(
+            "continuation_ready",
+            session_id=graph.session_id,
+            graph_id=graph.id,
+            node_id=node.id,
+            request_id=request.id,
+            path=str(path),
+            warnings=[],
+        )
+        self._json(200, {"ok": True, "request": request.to_dict()})
+
     def do_PUT(self) -> None:  # noqa: N802
         self._json(405, {"error": "PUT is not a gesture"})
 
@@ -311,7 +347,10 @@ def serve_forever(
     dist: Path | None = None,
 ) -> None:
     httpd = make_server(store, bind=bind, port=port, dist=dist)
-    print(f"Inhabit Space  http://{bind}:{port}/  (localhost · fork/veto from the chamber)")
+    print(
+        f"Inhabit Space  http://{bind}:{port}/  "
+        "(localhost · fork/veto/continuation from the chamber)"
+    )
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

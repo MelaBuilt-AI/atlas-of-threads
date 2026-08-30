@@ -11,6 +11,10 @@ from pathlib import Path
 from thought_archaeology.compile_common import CompileError
 from thought_archaeology.compile_posthoc import compile_posthoc
 from thought_archaeology.compile_structured import compile_structured
+from thought_archaeology.continuation import (
+    continuation_completion,
+    continuation_request,
+)
 from thought_archaeology.edits import append_op_turn, commit, plan_fork, plan_veto
 from thought_archaeology.evidence import context_provenance_binding
 from thought_archaeology.fingerprint import DEFAULT_MIN_SESSIONS, Fingerprint, fingerprint
@@ -167,6 +171,31 @@ def _parser() -> argparse.ArgumentParser:
     p_veto.add_argument("--session", required=True, metavar="ID")
     p_veto.add_argument("--graph", default=None, metavar="G")
     p_veto.add_argument("--reason", required=True)
+
+    p_continuation = sub.add_parser(
+        "continuation",
+        parents=[sub_globals],
+        help="provider-neutral handoff between an inhabited chamber and an AI harness",
+    )
+    continuation_sub = p_continuation.add_subparsers(
+        dest="continuation_cmd", required=True
+    )
+    p_ready = continuation_sub.add_parser(
+        "ready", parents=[sub_globals], help="mark a chamber ready for continuation"
+    )
+    p_ready.add_argument("node")
+    p_ready.add_argument("--graph", required=True, metavar="G")
+    p_ready.add_argument("--prompt", default="", metavar="TEXT")
+    p_pending = continuation_sub.add_parser(
+        "pending", parents=[sub_globals], help="list requests awaiting a harness"
+    )
+    p_pending.add_argument("--format", choices=["table", "json"], default="table")
+    p_complete = continuation_sub.add_parser(
+        "complete", parents=[sub_globals], help="link a request to its response graph"
+    )
+    p_complete.add_argument("request")
+    p_complete.add_argument("--graph", required=True, metavar="G")
+    p_complete.add_argument("--harness", required=True, metavar="NAME")
 
     p_probe = sub.add_parser(
         "probe",
@@ -355,7 +384,7 @@ def _parser() -> argparse.ArgumentParser:
     p_serve = sub.add_parser(
         "serve",
         parents=[sub_globals],
-        help="read-only Inhabit Space on localhost",
+        help="serve Inhabit Space on localhost",
     )
     p_serve.add_argument("--port", type=int, default=DEFAULT_PORT)
     p_serve.add_argument("--bind", default=DEFAULT_BIND)
@@ -1617,6 +1646,53 @@ def cmd_serve(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_continuation(args: argparse.Namespace) -> int:
+    store = _store(args)
+    if args.continuation_cmd == "ready":
+        graph, node = resolve_standing(store, args.node, graph_id=args.graph)
+        request = continuation_request(
+            graph, node, prompt=args.prompt, source="cli"
+        )
+        path = store.write_continuation_request(request)
+        store.log(
+            "continuation_ready",
+            session_id=graph.session_id,
+            graph_id=graph.id,
+            node_id=node.id,
+            request_id=request.id,
+            path=str(path),
+            warnings=[],
+        )
+        print(request.id)
+        return EXIT_OK
+    if args.continuation_cmd == "pending":
+        requests = list(store.iter_continuation_requests(pending=True))
+        if args.format == "json":
+            print(json.dumps([item.to_dict() for item in requests], ensure_ascii=False))
+        else:
+            print(f"{'request':<26}  {'graph':<26}  {'node':<26}  prompt")
+            for item in requests:
+                prompt = " ".join(item.prompt.split()) or "(continue from here)"
+                print(f"{item.id:<26}  {item.graph_id:<26}  {item.node_id:<26}  {prompt}")
+        return EXIT_OK
+    if args.continuation_cmd == "complete":
+        completion = continuation_completion(
+            args.request, args.graph, args.harness
+        )
+        path = store.write_continuation_completion(completion)
+        store.log(
+            "continuation_complete",
+            graph_id=args.graph,
+            request_id=args.request,
+            completion_id=completion.id,
+            path=str(path),
+            warnings=[],
+        )
+        print(completion.id)
+        return EXIT_OK
+    raise UsageError("unknown continuation command")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _parser()
     try:
@@ -1637,6 +1713,7 @@ def main(argv: list[str] | None = None) -> int:
         "inhabit": cmd_inhabit,
         "fork": cmd_fork,
         "veto": cmd_veto,
+        "continuation": cmd_continuation,
         "sensor": cmd_sensor,
         "evidence": cmd_evidence,
         "provenance": cmd_provenance,

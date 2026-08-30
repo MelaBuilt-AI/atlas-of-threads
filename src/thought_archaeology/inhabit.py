@@ -9,11 +9,31 @@ from thought_archaeology.models import ThoughtGraph, ThoughtNode
 from thought_archaeology.store import Store, StoreError
 
 
+def entry_node(graph: ThoughtGraph) -> ThoughtNode | None:
+    """Choose the chamber where a graph is first inhabited."""
+    return next(
+        (node for node in graph.nodes if node.kind in {"judgment_call", "taste_call"}),
+        None,
+    ) or next(
+        (node for node in graph.nodes if node.kind == "claim"),
+        graph.nodes[0] if graph.nodes else None,
+    )
+
+
 def _spawn_id(graph: ThoughtGraph) -> str | None:
-    for node in graph.nodes:
-        if node.kind == "claim":
-            return node.id
-    return graph.nodes[0].id if graph.nodes else None
+    node = entry_node(graph)
+    return node.id if node is not None else None
+
+
+def _forward_nodes(graph: ThoughtGraph, node: ThoughtNode) -> tuple[ThoughtNode, ...]:
+    """Direct story continuations; the transitive omit-set remains separate."""
+    forward_ids: set[str] = set()
+    for edge in graph.edges:
+        if edge.source_id == node.id and edge.kind in {"supports", "shapes", "taste_of"}:
+            forward_ids.add(edge.target_id)
+        elif edge.target_id == node.id and edge.kind == "depends_on":
+            forward_ids.add(edge.source_id)
+    return tuple(item for item in graph.nodes if item.id in forward_ids)
 
 
 KIND_SENSE = {
@@ -83,7 +103,7 @@ def story_path_read(view: InhabitView) -> dict:
                 }
             )
     for heading, nodes in (
-        ("this path made", view.shaped),
+        ("this path made", view.forward),
         ("chosen over", view.rejected_siblings),
     ):
         if nodes:
@@ -185,7 +205,7 @@ def chamber_read(view: InhabitView) -> dict:
                 }
             )
     here = ["you are here"]
-    if shaped_n:
+    if view.forward:
         here.append("ahead: what this thought made")
     if view.rejected_siblings:
         here.append("to the sides: roads not taken")
@@ -193,6 +213,7 @@ def chamber_read(view: InhabitView) -> dict:
         here.append("bronze ring: a continuation you already cut")
     if view.graph.parent_graph_id and view.graph.fork is not None:
         here.append("violet ring: walk back to the cut")
+    terminal = not view.forward and not view.fork_children
     return {
         "kind_line": f"{display_kind.replace('_', ' ')} — {sense}",
         "here_line": " · ".join(here),
@@ -212,6 +233,21 @@ def chamber_read(view: InhabitView) -> dict:
         ),
         "evidence_layers": evidence_layers,
         "story_path": story_path_read(view),
+        "traversal": {
+            "terminal": terminal,
+            "state_line": (
+                "end of this graph path — remain here, return to its origin, or invite continuation"
+                if terminal
+                else "story paths continue ahead; conversation doors wait at thresholds"
+            ),
+            "look_line": (
+                "left/right preview a story path · enter walks · up follows the next story step · down or b retraces"
+            ),
+            "return_line": "return to this graph's origin",
+            "continuation_line": (
+                "mark this chamber ready for any connected AI harness; an optional prompt can travel with it"
+            ),
+        },
         "look_line": "left/right preview a path · enter walk it · up deeper · down or b retrace",
     }
 
@@ -230,12 +266,14 @@ def node_payload(node: ThoughtNode) -> dict:
 class InhabitView:
     graph: ThoughtGraph
     node: ThoughtNode
+    forward: tuple[ThoughtNode, ...]
     shaped: tuple[ThoughtNode, ...]
     rejected_siblings: tuple[ThoughtNode, ...]
     vetoes: tuple[ThoughtNode, ...]
     fork_children: tuple[ThoughtGraph, ...]
     climate: dict | None = None
     evidence: tuple[EvidenceBinding, ...] = ()
+    continuation: dict | None = None
 
     def to_dict(self) -> dict:
         fork = self.graph.fork
@@ -254,11 +292,14 @@ class InhabitView:
             "parent_graph_id": self.graph.parent_graph_id,
             "parent": parent,
             "node": node_payload(self.node),
+            "origin": node_payload(entry_node(self.graph)) if entry_node(self.graph) else None,
+            "forward": [node_payload(n) for n in self.forward],
             "shaped": [node_payload(n) for n in self.shaped],
             "rejected_siblings": [node_payload(n) for n in self.rejected_siblings],
             "vetoes": [node_payload(n) for n in self.vetoes],
             "climate": self.climate,
             "evidence": [binding.to_dict() for binding in self.evidence],
+            "continuation": self.continuation,
             "read": chamber_read(self),
             "fork_children": [
                 {
@@ -364,6 +405,7 @@ def inhabit(
         store, node_id, graph_id=graph_id, session_id=session_id
     )
     shaped_ids = omit_set(graph, node.id) - {node.id}
+    forward = _forward_nodes(graph, node)
     shaped = tuple(n for n in graph.nodes if n.id in shaped_ids)
 
     sibling_by_id: dict[str, ThoughtNode] = {}
@@ -405,15 +447,22 @@ def inhabit(
         for raw in store.evidence_chain(graph.session_id, leaf["id"]):
             evidence_by_id.setdefault(raw["id"], EvidenceBinding.from_dict(raw))
     evidence = tuple(evidence_by_id.values())
+    pending = [
+        item.to_dict()
+        for item in store.iter_continuation_requests(pending=True)
+        if item.graph_id == graph.id and item.node_id == node.id
+    ]
     return InhabitView(
         graph=graph,
         node=node,
+        forward=forward,
         shaped=shaped,
         rejected_siblings=tuple(sibling_by_id.values()),
         vetoes=tuple(veto_by_id.values()),
         fork_children=tuple(children),
         climate=climate_at(node, fp),
         evidence=evidence,
+        continuation=pending[-1] if pending else None,
     )
 
 
