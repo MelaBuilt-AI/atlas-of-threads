@@ -384,6 +384,11 @@ def test_space_sound_field_uses_cinematic_pack_and_is_event_bound():
     assert 'volume.addEventListener("keydown"' in sound
     assert "arrivalSplash" in sound
     assert "cameraShift" in sound
+    assert 'gain: 0.3375, submerged: true' in sound
+    assert 'gain: 0.435, submerged: true' in sound
+    assert sound.count("submerged: true") == 4
+    assert "function connectSubmerged" in sound
+    assert 'lowpass.frequency.value = 720' in sound
     assert {path.name for path in audio.glob("*.ogg")} == expected
     for name in expected:
         assert (audio / name).read_bytes().startswith(b"OggS")
@@ -484,7 +489,9 @@ def test_live_companion_uses_finalized_store_heads_as_optional_doorways(tmp_path
     assert source_payload["prompt"] == ""
     assert source_payload["harness"] == "grok"
 
-    js = (viz_dist_path() / "space.js").read_text(encoding="utf-8")
+    dist = viz_dist_path()
+    html = (dist / "index.html").read_text(encoding="utf-8")
+    js = (dist / "space.js").read_text(encoding="utf-8")
     assert "knownHeads" in js
     assert "pollLiveCompanion" in js
     assert 'api("/api/sessions")' in js
@@ -508,13 +515,16 @@ def test_live_companion_uses_finalized_store_heads_as_optional_doorways(tmp_path
     assert "choice.selectionColor || DEFAULT_SELECTION_COLOR" in js
     assert "WAITING_BEAM_COLOR" in js
     assert "visibleNeuronIndex" in js
+    assert "neuronAtOrAboveMesh" in js
+    assert "world.y < minimumY" in js
+    assert "visibleNeuronIndex(standingMesh)" in js
     assert "makeContinuationLightning" in js
     assert "beginContinuationCircuit(ready)" in js
     assert "completeContinuationCircuit(ring, arrival)" in js
     assert 'continuationCircuit.phase = "arrival"' in js
     completed_circuit = js[
         js.index("function completeContinuationCircuit") :
-        js.index("const circuitBox")
+        js.index("function restoreArrivalCircuit")
     ]
     assert "visibleNeuronIndex" not in completed_circuit
     assert "neuronIndex: continuationCircuit.neuronIndex" in completed_circuit
@@ -523,6 +533,10 @@ def test_live_companion_uses_finalized_store_heads_as_optional_doorways(tmp_path
     assert "restoreArrivalCircuit(ring, arrival)" in js
     assert "clearContinuationCircuit();" in js
     assert "updateContinuationCircuit(t)" in js
+    assert '<canvas id="c"></canvas>' in html
+    assert 'tabindex="0"' not in html
+    assert 'window.addEventListener("pointercancel", stopDragging)' in js
+    assert 'window.addEventListener("blur", stopDragging)' in js
     assert "revealWaitingArrivals" in js
     reveal = js[
         js.index("async function revealWaitingArrivals") :

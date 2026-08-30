@@ -8,12 +8,14 @@
   const AUDIO_ROOT = "./assets/audio/";
 
   // Conservative values from the sound-pack handoff. Continuous layers share
-  // low-frequency energy and are routed through one master compressor.
+  // low-frequency energy and are routed through one master compressor. The
+  // four navigation cues are 25% below their original gains and use only the
+  // submerged path below; every other chamber sound remains unchanged.
   const PACK = {
     atmosphere: { file: "neural-atmosphere-loop.ogg", gain: 0.29, loop: true },
-    cycle: { file: "object-cycle.ogg", gain: 0.45 },
-    forward: { file: "traversal-forward.ogg", gain: 0.58 },
-    back: { file: "traversal-back.ogg", gain: 0.58 },
+    cycle: { file: "object-cycle.ogg", gain: 0.3375, submerged: true },
+    forward: { file: "traversal-forward.ogg", gain: 0.435, submerged: true },
+    back: { file: "traversal-back.ogg", gain: 0.435, submerged: true },
     redReturn: { file: "red-return-activate.ogg", gain: 0.6 },
     blueActivate: { file: "blue-new-path-activate.ogg", gain: 0.56 },
     blueEnter: { file: "blue-new-path-enter.ogg", gain: 0.62 },
@@ -21,7 +23,7 @@
     greenActivate: { file: "green-beam-activate.ogg", gain: 0.56 },
     greenSparks: { file: "green-beam-sparks-loop.ogg", gain: 0.16, loop: true },
     blueSplash: { file: "blue-path-complete-splash.ogg", gain: 0.66 },
-    camera: { file: "camera-cycle-transition.ogg", gain: 0.45 },
+    camera: { file: "camera-cycle-transition.ogg", gain: 0.3375, submerged: true },
   };
 
   let saved = {};
@@ -120,6 +122,28 @@
     return panner;
   }
 
+  function connectSubmerged(source, destination, pan = 0) {
+    const lowpass = context.createBiquadFilter();
+    const dry = context.createGain();
+    const delay = context.createDelay(0.5);
+    const echoFilter = context.createBiquadFilter();
+    const wet = context.createGain();
+    const output = context.createGain();
+    lowpass.type = "lowpass";
+    lowpass.frequency.value = 720;
+    lowpass.Q.value = 1.15;
+    dry.gain.value = 0.86;
+    delay.delayTime.value = 0.19;
+    echoFilter.type = "lowpass";
+    echoFilter.frequency.value = 480;
+    wet.gain.value = 0.14;
+    source.connect(lowpass);
+    lowpass.connect(dry).connect(output);
+    lowpass.connect(delay).connect(echoFilter);
+    echoFilter.connect(wet).connect(output);
+    connectPanned(output, destination, pan);
+  }
+
   async function ensurePack() {
     if (!context || packState === "ready") return packState === "ready";
     if (packLoad) return packLoad;
@@ -169,7 +193,8 @@
     source.buffer = buffer;
     gain.gain.value = item.gain;
     source.connect(gain);
-    connectPanned(gain, cueBus, pan);
+    if (item.submerged) connectSubmerged(gain, cueBus, pan);
+    else connectPanned(gain, cueBus, pan);
     source.start();
   }
 

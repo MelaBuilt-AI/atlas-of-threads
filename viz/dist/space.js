@@ -611,16 +611,32 @@
     neuralSky.group.rotation.y = t * 0.0045;
   }
 
-  function visibleNeuronIndex() {
+  function neuronAtOrAboveMesh(index, mesh) {
+    if (!neuralSky || !mesh || index < 0 || index >= neuralSky.nodes.length) {
+      return false;
+    }
+    const sourceTop = new THREE.Box3().setFromObject(mesh).max.y;
+    const world = neuralSky.nodes[index].clone();
+    neuralSky.group.localToWorld(world);
+    return world.y >= sourceTop;
+  }
+
+  function visibleNeuronIndex(sourceMesh) {
     if (!neuralSky || !neuralSky.nodes.length) return -1;
     scene.updateMatrixWorld(true);
     camera.updateMatrixWorld(true);
     const visible = [];
+    const highEnough = [];
     const world = new THREE.Vector3();
     const projected = new THREE.Vector3();
+    const minimumY = sourceMesh
+      ? new THREE.Box3().setFromObject(sourceMesh).max.y
+      : -Infinity;
     neuralSky.nodes.forEach((node, index) => {
       world.copy(node);
       neuralSky.group.localToWorld(world);
+      if (world.y < minimumY) return;
+      highEnough.push(index);
       projected.copy(world).project(camera);
       if (
         projected.z > -1 && projected.z < 1 &&
@@ -630,7 +646,8 @@
     });
     const candidates = visible.length
       ? visible
-      : neuralSky.nodes.map((_node, index) => index);
+      : highEnough;
+    if (!candidates.length) return -1;
     return candidates[Math.floor(Math.random() * candidates.length)];
   }
 
@@ -739,12 +756,13 @@
     clearContinuationCircuit();
     const retained = saved &&
       saved.requestId === request.id &&
-      saved.phase === "waiting"
+      saved.phase === "waiting" &&
+      neuronAtOrAboveMesh(saved.neuronIndex, standingMesh)
       ? saved.neuronIndex
       : -1;
     const neuronIndex = retained >= 0 && retained < neuralSky.nodes.length
       ? retained
-      : visibleNeuronIndex();
+      : visibleNeuronIndex(standingMesh);
     if (neuronIndex < 0) return;
     continuationCircuit = {
       requestId: request.id,
@@ -810,11 +828,18 @@
       saved.targetNodeId !== arrival.nodeId ||
       saved.neuronIndex < 0 || saved.neuronIndex >= neuralSky.nodes.length
     ) return;
+    const neuronIndex = neuronAtOrAboveMesh(saved.neuronIndex, standingMesh)
+      ? saved.neuronIndex
+      : visibleNeuronIndex(standingMesh);
+    if (neuronIndex < 0) return;
     continuationCircuit = {
       ...saved,
+      neuronIndex,
       targetMesh: mesh,
       lightning: makeContinuationLightning(NEW_PATH_SELECTION_COLOR),
     };
+    rememberedCircuit = { ...saved, neuronIndex };
+    saveContinuationCircuit();
     sound.setBeam("arrival");
   }
 
@@ -1751,13 +1776,18 @@
   canvas.addEventListener("pointerdown", (e) => {
     if (e.button !== 0) return;
     dragging = true;
+    canvas.dataset.dragging = "true";
     dragMoved = false;
     lastX = e.clientX;
     lastY = e.clientY;
   });
-  window.addEventListener("pointerup", () => {
+  function stopDragging() {
     dragging = false;
-  });
+    delete canvas.dataset.dragging;
+  }
+  window.addEventListener("pointerup", stopDragging);
+  window.addEventListener("pointercancel", stopDragging);
+  window.addEventListener("blur", stopDragging);
   window.addEventListener("pointermove", (e) => {
     if (!dragging) return;
     const dx = e.clientX - lastX;
@@ -2099,7 +2129,9 @@
 
   function closeRelicIndex() {
     elRelicIndex.hidden = true;
-    canvas.focus();
+    if (document.activeElement && document.activeElement.blur) {
+      document.activeElement.blur();
+    }
     showWaitingArrivals();
   }
 
@@ -2192,7 +2224,9 @@
   function closeEvidenceDescent() {
     sound.surface("evidence", false);
     elEvidenceDescent.hidden = true;
-    canvas.focus();
+    if (document.activeElement && document.activeElement.blur) {
+      document.activeElement.blur();
+    }
     showWaitingArrivals();
   }
 

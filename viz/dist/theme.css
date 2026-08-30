@@ -32,7 +32,7 @@ html, body {
   cursor: grab;
 }
 
-#c:active { cursor: grabbing; }
+#c[data-dragging="true"] { cursor: grabbing; }
 
 #plate {
   position: absolute;
