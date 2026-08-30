@@ -770,6 +770,12 @@
       });
       root.add(mesh);
       targets.push(mesh);
+      addClockChoice(mesh, {
+        via: item.via,
+        kind: item.node.kind,
+        text: item.node.text,
+        walk: () => inhabit(payload.graph_id, item.node.id),
+      });
       markRise(mesh, 0.08 + i * 0.07);
     });
 
@@ -807,6 +813,12 @@
       });
       root.add(ring);
       portals.push(ring);
+      addClockChoice(ring, {
+        via: "continuation",
+        kind: "fork",
+        text: f.reason || "a path that omitted this chamber",
+        walk: () => inhabit(f.id, f.spawn_node_id),
+      });
       markRise(ring, 0.18 + i * 0.08);
     });
 

@@ -255,7 +255,8 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     code, body, _ = _get(httpd_url + "/")
     assert code == 200
     assert "counterclockwise" in body
-    assert "walk north story path" in body
+    assert "counterclockwise through all paths" in body
+    assert "walk north shortcut" in body
     assert "overhead" in body
     assert "shift+c home" in body
     assert "human no" in body
@@ -305,7 +306,7 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert "walkDeeper();" in js
     assert "clockwiseChoices" in js
     assert "Math.atan2(position.x, -position.z)" in js
-    assert js.count("addClockChoice(") == 4
+    assert js.count("addClockChoice(") == 6
     assert "sparkColors" in js
     assert "inhabit(view.graph_id, cycle[" not in js
 

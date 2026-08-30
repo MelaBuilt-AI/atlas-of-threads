@@ -162,9 +162,9 @@ Inhabit Space: you stand at a thought-node. Walking a chamber fetches
 `/api/inhabit/{node}` — the same omit-set as `ta inhabit`. Fork (`f`) and
 veto (`v`) POST to Python; the browser does not compute the omit-set.
 Left/right selection is a true-north clock around the inhabited chamber: Left
-moves counterclockwise and Right clockwise through every side and return path.
-Direct story paths remain north and are walked by click or Up rather than mixed
-into the side-path cycle; Enter also walks north when no side path is selected.
+moves counterclockwise and Right clockwise through every visible path, including
+story and fork paths at north. Up remains a direct north-path shortcut; Enter
+walks the selected path, or the north path when no selection is active.
 The surrounding neural canopy is procedural: dim
 connections carry visible pulses while the graph itself remains the authored
 story, not a circuit claim. No Node runtime; `viz/dist` is committed.
