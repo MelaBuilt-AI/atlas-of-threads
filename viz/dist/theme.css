@@ -187,13 +187,18 @@ body[data-climate="emerging"] #banner { color: #c8f26a; }
   opacity: 0.68;
 }
 
-#threshold[data-ready="true"] {
+#threshold[data-ready="working"] {
   border-left-color: var(--phosphor);
   box-shadow: -0.25rem 0 1.2rem rgba(200, 242, 106, 0.12);
+  animation: continuation-pulse 0.9s ease-in-out infinite alternate;
 }
 
-#threshold[data-ready="true"] #threshold-continue {
+#threshold[data-ready="working"] #threshold-continue {
   color: var(--phosphor);
+}
+
+#threshold[data-ready="working"] .kind {
+  animation: working-text 1.1s ease-in-out infinite alternate;
 }
 
 #threshold[data-ready="pending"] {
@@ -241,6 +246,11 @@ body[data-climate="emerging"] #banner { color: #c8f26a; }
 @keyframes continuation-pulse {
   from { box-shadow: -0.15rem 0 0.5rem rgba(176, 141, 87, 0.12); }
   to { box-shadow: -0.35rem 0 1.35rem rgba(200, 242, 106, 0.28); }
+}
+
+@keyframes working-text {
+  from { opacity: 0.55; }
+  to { opacity: 1; }
 }
 
 #relic-index,

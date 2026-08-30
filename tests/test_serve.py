@@ -373,6 +373,11 @@ def test_terminal_traversal_separates_story_and_conversation_routes():
     assert 'elThreshold.dataset.ask = "false"' in js
     assert "#threshold-ask-box" in css
     assert "marking inhabitant ready" in js
+    assert 'elThreshold.dataset.ready = ready ? "working" : "false"' in js
+    assert '"AI working…"' in js
+    assert '"cancel response · q"' in js
+    assert '#threshold[data-ready="working"]' in css
+    assert "working-text" in css
     assert 'openComposer("continuation")' in js
     assert "#threshold" in css
 
@@ -421,13 +426,19 @@ def test_live_companion_uses_finalized_store_heads_as_optional_doorways(tmp_path
     assert "visibleArrivals" in js
     assert "continuationSourceArrival" in js
     assert "arrival.anchorGraphId === payload.graph_id" in js
-    assert 'labelKind: "return to continuation source"' in js
+    assert 'text: "Return to conversation origin"' in js
+    assert 'labelKind: "conversation origin"' in js
+    assert 'relicKey: arrival.returnOrigin' in js
+    assert "RETURN_COLOR" in js
+    assert "choice.selectionColor || DEFAULT_SELECTION_COLOR" in js
+    assert 'inhabit(view.graph_id, view.node.id, "poll")' in js
     assert "item.anchorGraphId === arrival.anchorGraphId" in js
     assert "currentSession.head_graph_id !== view.graph_id" in js
     assert "new companion thought · ${attribution}" in js
     assert "window.localStorage" in js
     assert "COMPANION_MEMORY_KEY" in js
-    assert 'relicKey: "thought-graph-reliquary"' in js
+    assert '"counterfactual-shard-gate"' in js
+    assert '"thought-graph-reliquary"' in js
     assert "setInterval(pollLiveCompanion" in js
     assert "restart ta serve, then refresh" in js
 

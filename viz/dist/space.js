@@ -108,6 +108,9 @@
   const CHOICE_ROW = CELL * 4;
   const CHOICE_ROW_GAP = CELL * 3;
   const CHOICE_COLS = 7;
+  const DEFAULT_SELECTION_COLOR = 0xe2c48a;
+  const RETURN_COLOR = 0xc94f4f;
+  const RETURN_EMISSIVE = 0x641818;
 
   const camera = new THREE.PerspectiveCamera(55, 1, 0.2, 200);
   camera.position.set(0, 2.4, 7.2);
@@ -246,14 +249,14 @@
       graphId: source.graph_id,
       nodeId: source.node_id,
       anchorGraphId: payload.graph_id,
-      kind: source.node.kind,
-      text: source.prompt
-        ? `${source.node.text} — question: ${source.prompt}`
-        : `${source.node.text} — no new question was attached`,
-      title: source.title || "continuation source",
+      kind: "return",
+      text: "Return to conversation origin",
+      title: "Return to conversation origin",
       seen: true,
-      via: "continuation source",
-      labelKind: "return to continuation source",
+      via: "conversation origin",
+      labelKind: "conversation origin",
+      description: "Return to conversation origin",
+      returnOrigin: true,
     };
     if (source.model && source.model.name !== "unknown") {
       entry.modelName = source.model.name;
@@ -296,7 +299,7 @@
   const selectionTarget = new THREE.Object3D();
   scene.add(selectionTarget);
   const selectionSpot = new THREE.SpotLight(
-    0xe2c48a,
+    DEFAULT_SELECTION_COLOR,
     0,
     30,
     Math.PI / 7,
@@ -926,10 +929,16 @@
       const ring = portalRing({
         x: slot.x,
         z: slot.z,
-        color: arrival.seen ? 0x496e68 : 0x5c8a7b,
-        emissive: arrival.seen ? 0x102a28 : 0x183c38,
+        color: arrival.returnOrigin
+          ? RETURN_COLOR
+          : arrival.seen ? 0x496e68 : 0x5c8a7b,
+        emissive: arrival.returnOrigin
+          ? RETURN_EMISSIVE
+          : arrival.seen ? 0x102a28 : 0x183c38,
         portal: { graphId: arrival.graphId, nodeId: arrival.nodeId },
-        relicKey: "thought-graph-reliquary",
+        relicKey: arrival.returnOrigin
+          ? "counterfactual-shard-gate"
+          : "thought-graph-reliquary",
         labelKind: arrival.labelKind || (arrival.seen
           ? "conversation return"
           : attribution
@@ -943,6 +952,8 @@
         via,
         kind: arrival.kind,
         text: `${companionTitle(arrival)} — ${arrival.text}`,
+        description: arrival.description,
+        selectionColor: arrival.returnOrigin ? RETURN_COLOR : null,
         walk: () => inhabit(arrival.graphId, arrival.nodeId),
       });
       markRise(ring, 0.24 + i * 0.08);
@@ -1059,9 +1070,11 @@
     if (focusIndex >= 0 && choices[focusIndex]) {
       const c = choices[focusIndex].choice;
       const kind = (c.kind || "").replace(/_/g, " ");
-      elHere.textContent = c.via === "new companion thought" || c.via === "conversation return"
-        ? `${c.via} · ${kind} — ${c.text}`
-        : `path ${focusIndex + 1}/${choices.length} · ${c.via} · ${kind} — ${c.text}`;
+      elHere.textContent = c.description || (
+        c.via === "new companion thought" || c.via === "conversation return"
+          ? `${c.via} · ${kind} — ${c.text}`
+          : `path ${focusIndex + 1}/${choices.length} · ${c.via} · ${kind} — ${c.text}`
+      );
       bits.push("spotlit preview · enter inhabits and makes this the key light · esc clears");
     } else {
       if (traversal.look_line || read.look_line) {
@@ -1117,12 +1130,12 @@
     }
     const ready = payload.continuation || null;
     elThreshold.hidden = false;
-    elThreshold.dataset.ready = ready ? "true" : "false";
+    elThreshold.dataset.ready = ready ? "working" : "false";
     elThresholdKind.textContent = ready
-      ? "inhabitant ready for continuation"
+      ? "AI working…"
       : "end of this graph path";
     elThresholdText.textContent = ready
-      ? `Request ${ready.id} is waiting for an AI harness. You remain in this chamber.`
+      ? "The continuation is active. This chamber will update when the new path arrives."
       : traversal.state_line;
     elThresholdOrigin.disabled = Boolean(
       payload.origin && payload.origin.id === payload.node.id
@@ -1130,7 +1143,7 @@
     elThresholdContinue.disabled = false;
     elThresholdAsk.disabled = Boolean(ready);
     elThresholdContinue.textContent = ready
-      ? "cancel continuation · q"
+      ? "cancel response · q"
       : "ready for continuation · q";
   }
 
@@ -1237,7 +1250,9 @@
       !elEvidenceDescent.hidden
     ) return;
     arrivalsDirty = false;
-    layout(view);
+    inhabit(view.graph_id, view.node.id, "poll").catch(() => {
+      arrivalsDirty = true;
+    });
   }
 
   async function pollLiveCompanion() {
@@ -1283,12 +1298,12 @@
       }
       if (added) {
         arrivalsDirty = true;
-        showWaitingArrivals();
       }
     } catch (_error) {
       // The chamber remains usable if its local companion poll misses a beat.
     } finally {
       companionPolling = false;
+      showWaitingArrivals();
     }
   }
 
@@ -1871,6 +1886,10 @@
       : null;
     if (focused) {
       aimSpot(selectionSpot, selectionTarget, focused, -2.5, overhead ? 7.5 : 5.2, 2.8);
+      const choice = choices[focusIndex].choice;
+      selectionSpot.color.setHex(
+        choice.selectionColor || DEFAULT_SELECTION_COLOR
+      );
       selectionSpot.intensity = overhead ? 1500 : 1200;
     } else selectionSpot.intensity = 0;
   }

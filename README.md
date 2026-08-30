@@ -278,8 +278,11 @@ evidence.
 
 While Inhabit Space remains open, it polls the local store for finalized graph
 heads. A later `ta compile` rises as an optional teal doorway beside the current
-chamber; the user is never teleported. Direct story relations are walked one
-edge at a time in front, rejected roads remain to the left, and conversational
+chamber without a manual page refresh; the user is never teleported. If the
+inhabitant is composing, inspecting a relic/evidence pane, or previewing a path,
+the arrival waits until that interaction clears before the chamber relays out.
+Direct story relations are walked one edge at a time in front, rejected roads
+remain to the left, and conversational
 doors appear to the right only at graph origins and path endings. Entering a
 doorway marks it seen but keeps a quieter reciprocal return route in bounded
 browser memory. Companion doors name the harness and model when their completion
@@ -291,8 +294,9 @@ individual objects keep their semantic kind. Poll enrichment matches the exact
 doorway stand, so a reciprocal route to another node in the same graph cannot
 trigger repeated chamber respawns. Companion doors stay anchored to the graph
 where they arrived instead of following the inhabitant globally. A continuation
-graph carries one canonical return to the exact source chamber and states
-whether a new question was attached. A terminal chamber explicitly offers
+graph carries one canonical red return doorway to the exact source chamber. Its
+distinct relic, ring, selection light, and label all mean only “Return to
+conversation origin.” A terminal chamber explicitly offers
 return to the graph origin or a continuation request. This is a turn-level
 companion for completed answers, not token-level hidden-thought streaming.
 
@@ -302,7 +306,10 @@ companion for completed answers, not token-level hidden-thought streaming.
 client. At a terminal chamber, the ready button immediately writes and visibly
 activates the handoff; clicking it again cancels the pending handoff. “Ask from
 here” toggles an inline prompt beneath the terminal actions, keeping the action
-visibly selected until it is submitted or toggled off. Inhabit Space writes a
+visibly selected until it is submitted or toggled off. Submitting changes the
+terminal pane to an animated `AI working…` state. That state remains until a
+harness completes the request and the new path appears automatically, or the
+user cancels the request. Inhabit Space writes a
 `ContinuationRequest` containing only its request/session/graph/node ids,
 timestamp, source, and prompt. Requests live under
 `data/continuations/requests/`; completion receipts live under
