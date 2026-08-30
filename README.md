@@ -289,9 +289,12 @@ the newer head as a doorway rather than silently treating it as already known.
 After entry, graph-level attribution remains visible on every chamber while the
 individual objects keep their semantic kind. Poll enrichment matches the exact
 doorway stand, so a reciprocal route to another node in the same graph cannot
-trigger repeated chamber respawns. A terminal chamber explicitly offers return
-to the graph origin or a continuation request. This is a turn-level companion
-for completed answers, not token-level hidden-thought streaming.
+trigger repeated chamber respawns. Companion doors stay anchored to the graph
+where they arrived instead of following the inhabitant globally. A continuation
+graph carries one canonical return to the exact source chamber and states
+whether a new question was attached. A terminal chamber explicitly offers
+return to the graph origin or a continuation request. This is a turn-level
+companion for completed answers, not token-level hidden-thought streaming.
 
 ## Harness-neutral continuation
 

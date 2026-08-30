@@ -16,6 +16,7 @@ from thought_archaeology.inhabit import inhabit
 from thought_archaeology.serve import (
     InhabitHandler,
     ServeError,
+    _continuation_source,
     bootstrap_payload,
     make_server,
     viz_dist_path,
@@ -117,6 +118,7 @@ def test_inhabit_json_matches_cli(httpd_url: str, tmp_path: Path):
     assert payload["graph_id"] == view.graph.id
     assert payload["model"] == view.graph.model.to_dict()
     assert payload["continuation_harness"] is None
+    assert payload["continuation_source"] is None
     assert payload["node"]["id"] == view.node.id
     assert payload["origin"]["id"]
     assert payload["forward"] == [
@@ -398,6 +400,12 @@ def test_live_companion_uses_finalized_store_heads_as_optional_doorways(tmp_path
         item for item in payload["sessions"] if item["id"] == answer_session_id
     )
     assert answer["spawn"]["continuation_harness"] == "grok"
+    source_payload = _continuation_source(store, answer_graph_id)
+    assert source_payload is not None
+    assert source_payload["graph_id"] == graph_id
+    assert source_payload["node_id"] == source.nodes[0].id
+    assert source_payload["prompt"] == ""
+    assert source_payload["harness"] == "grok"
 
     js = (viz_dist_path() / "space.js").read_text(encoding="utf-8")
     assert "knownHeads" in js
@@ -410,7 +418,11 @@ def test_live_companion_uses_finalized_store_heads_as_optional_doorways(tmp_path
     assert "companionAttribution" in js
     assert "graphAttribution" in js
     assert "inside the ${attribution} graph" in js
-    assert "item.graphId === head && item.nodeId === arrival.nodeId" in js
+    assert "visibleArrivals" in js
+    assert "continuationSourceArrival" in js
+    assert "arrival.anchorGraphId === payload.graph_id" in js
+    assert 'labelKind: "return to continuation source"' in js
+    assert "item.anchorGraphId === arrival.anchorGraphId" in js
     assert "currentSession.head_graph_id !== view.graph_id" in js
     assert "new companion thought · ${attribution}" in js
     assert "window.localStorage" in js

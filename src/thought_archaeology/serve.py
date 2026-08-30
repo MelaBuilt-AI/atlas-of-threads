@@ -49,6 +49,27 @@ def _harness_by_graph(store: Store) -> dict[str, str]:
     }
 
 
+def _continuation_source(store: Store, graph_id: str) -> dict | None:
+    for completion in store.iter_continuation_completions():
+        if completion.graph_id != graph_id:
+            continue
+        request = store.load_continuation_request(completion.request_id)
+        graph = store.load_graph(request.graph_id)
+        node = next(item for item in graph.nodes if item.id == request.node_id)
+        session = store.load_session(request.session_id)
+        return {
+            "graph_id": request.graph_id,
+            "node_id": request.node_id,
+            "session_id": request.session_id,
+            "title": session.title,
+            "node": _node_brief(node),
+            "model": graph.model.to_dict(),
+            "prompt": request.prompt,
+            "harness": completion.harness,
+        }
+    return None
+
+
 def bootstrap_payload(store: Store) -> dict:
     harness_by_graph = _harness_by_graph(store)
     sessions = []
@@ -145,6 +166,9 @@ class InhabitHandler(BaseHTTPRequestHandler):
                 payload["continuation_harness"] = _harness_by_graph(
                     self.store
                 ).get(view.graph.id)
+                payload["continuation_source"] = _continuation_source(
+                    self.store, view.graph.id
+                )
                 self._json(200, payload)
                 return
             self._static(path)

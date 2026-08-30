@@ -175,20 +175,26 @@
 
   function rememberCompanion(entry) {
     const previous = liveArrivals.find(
-      (item) => item.graphId === entry.graphId && item.nodeId === entry.nodeId
+      (item) =>
+        item.graphId === entry.graphId &&
+        item.nodeId === entry.nodeId &&
+        item.anchorGraphId === entry.anchorGraphId
     );
     const remembered = previous
       ? { ...previous, ...entry, seen: Boolean(previous.seen || entry.seen) }
       : entry;
     liveArrivals = liveArrivals.filter(
-      (item) => item.graphId !== entry.graphId || item.nodeId !== entry.nodeId
+      (item) =>
+        item.graphId !== entry.graphId ||
+        item.nodeId !== entry.nodeId ||
+        item.anchorGraphId !== entry.anchorGraphId
     );
     liveArrivals.push(remembered);
     liveArrivals = liveArrivals.slice(-12);
     saveCompanionThoughts();
   }
 
-  function companionFromSession(session, seen = false) {
+  function companionFromSession(session, seen = false, anchorGraphId = null) {
     if (!session || !session.head_graph_id || !session.spawn) return null;
     const entry = {
       sessionId: session.id,
@@ -199,6 +205,7 @@
       title: session.title || "untitled thought",
       seen,
     };
+    if (anchorGraphId) entry.anchorGraphId = anchorGraphId;
     if (session.spawn.continuation_harness) {
       entry.harness = session.spawn.continuation_harness;
     }
@@ -229,6 +236,48 @@
       ? payload.model.name
       : "";
     return [harness, modelName].filter(Boolean).join(" · ");
+  }
+
+  function continuationSourceArrival(payload) {
+    const source = payload.continuation_source;
+    if (!source || source.graph_id === payload.graph_id) return null;
+    const entry = {
+      sessionId: source.session_id,
+      graphId: source.graph_id,
+      nodeId: source.node_id,
+      anchorGraphId: payload.graph_id,
+      kind: source.node.kind,
+      text: source.prompt
+        ? `${source.node.text} — question: ${source.prompt}`
+        : `${source.node.text} — no new question was attached`,
+      title: source.title || "continuation source",
+      seen: true,
+      via: "continuation source",
+      labelKind: "return to continuation source",
+    };
+    if (source.model && source.model.name !== "unknown") {
+      entry.modelName = source.model.name;
+    }
+    return entry;
+  }
+
+  function visibleArrivals(payload) {
+    const arrivals = liveArrivals.filter(
+      (arrival) =>
+        arrival.anchorGraphId === payload.graph_id &&
+        arrival.graphId !== payload.graph_id
+    );
+    const source = continuationSourceArrival(payload);
+    if (
+      source &&
+      !arrivals.some(
+        (arrival) =>
+          arrival.graphId === source.graphId && arrival.nodeId === source.nodeId
+      )
+    ) {
+      arrivals.unshift(source);
+    }
+    return arrivals;
   }
 
   const root = new THREE.Group();
@@ -795,9 +844,7 @@
     const traversal = (payload.read && payload.read.traversal) || {};
     const atOrigin = payload.origin && payload.origin.id === payload.node.id;
     const atThreshold = Boolean(traversal.terminal || atOrigin);
-    const arrivals = atThreshold
-      ? liveArrivals.filter((arrival) => arrival.graphId !== payload.graph_id)
-      : [];
+    const arrivals = atThreshold ? visibleArrivals(payload) : [];
     const storyNodes = forward.map((node) => ({
       node,
       ghost: false,
@@ -875,6 +922,7 @@
     arrivals.forEach((arrival, i) => {
       const slot = sideSlot(i, arrivals.length, 1);
       const attribution = companionAttribution(arrival);
+      const via = arrival.via || (arrival.seen ? "conversation return" : "new companion thought");
       const ring = portalRing({
         x: slot.x,
         z: slot.z,
@@ -882,17 +930,17 @@
         emissive: arrival.seen ? 0x102a28 : 0x183c38,
         portal: { graphId: arrival.graphId, nodeId: arrival.nodeId },
         relicKey: "thought-graph-reliquary",
-        labelKind: arrival.seen
+        labelKind: arrival.labelKind || (arrival.seen
           ? "conversation return"
           : attribution
             ? `new companion thought · ${attribution}`
-            : "new companion thought",
+            : "new companion thought"),
         labelText: arrival.title,
       });
       root.add(ring);
       portals.push(ring);
       addClockChoice(ring, {
-        via: arrival.seen ? "conversation return" : "new companion thought",
+        via,
         kind: arrival.kind,
         text: `${companionTitle(arrival)} — ${arrival.text}`,
         walk: () => inhabit(arrival.graphId, arrival.nodeId),
@@ -996,6 +1044,11 @@
     elText.textContent = n.text;
     const hereBits = [
       attribution ? `inside the ${attribution} graph` : null,
+      payload.continuation_source
+        ? payload.continuation_source.prompt
+          ? `continued from question: ${payload.continuation_source.prompt}`
+          : "continued from a source chamber without a new question"
+        : null,
       read.here_line,
       traversal.terminal ? traversal.state_line : null,
       read.climate_line,
@@ -1033,9 +1086,7 @@
       if (sideCount) bits.push(`${sideCount} ${sideCount === 1 ? "road" : "roads"} not taken to the left`);
       if ((payload.fork_children || []).length) bits.push("bronze ring: continuation");
       if (payload.parent && payload.parent.graph_id) bits.push("violet ring: back to the cut");
-      const nearbyArrivals = liveArrivals.filter(
-        (arrival) => arrival.graphId !== payload.graph_id
-      );
+      const nearbyArrivals = visibleArrivals(payload);
       const atOrigin = payload.origin && payload.origin.id === payload.node.id;
       const atThreshold = Boolean(traversal.terminal || atOrigin);
       const newArrivals = nearbyArrivals.filter((arrival) => !arrival.seen);
@@ -1095,12 +1146,17 @@
     const prev = view
       ? { graphId: view.graph_id, nodeId: view.node.id }
       : null;
-    const enteredCompanion = liveArrivals.some(
-      (arrival) => arrival.graphId === next.graphId
+    const enteredCompanion = view && visibleArrivals(view).some(
+      (arrival) =>
+        arrival.graphId === next.graphId && arrival.nodeId === next.nodeId
     );
     if (enteredCompanion) {
       liveArrivals = liveArrivals.map((arrival) =>
-        arrival.graphId === next.graphId ? { ...arrival, seen: true } : arrival
+        arrival.graphId === next.graphId &&
+        arrival.nodeId === next.nodeId &&
+        arrival.anchorGraphId === view.graph_id
+          ? { ...arrival, seen: true }
+          : arrival
       );
       saveCompanionThoughts();
       if (origin === "walk" && view && prev) {
@@ -1112,6 +1168,7 @@
           text: view.node.text,
           title: sessionTitles.get(view.session_id) || "earlier thought",
           seen: true,
+          anchorGraphId: next.graphId,
         });
       }
     }
@@ -1148,7 +1205,9 @@
           currentSession.head_graph_id &&
           currentSession.head_graph_id !== view.graph_id
         ) {
-          const arrival = companionFromSession(currentSession);
+          const arrival = companionFromSession(
+            currentSession, false, view.graph_id
+          );
           if (arrival) {
             rememberCompanion(arrival);
             layout(view);
@@ -1198,10 +1257,15 @@
           view &&
           (view.fork_children || []).some((child) => child.id === head)
         ) continue;
-        const arrival = companionFromSession(session);
+        const arrival = companionFromSession(
+          session, false, view && view.graph_id
+        );
         if (!arrival) continue;
         const existing = liveArrivals.find(
-          (item) => item.graphId === head && item.nodeId === arrival.nodeId
+          (item) =>
+            item.graphId === head &&
+            item.nodeId === arrival.nodeId &&
+            item.anchorGraphId === arrival.anchorGraphId
         );
         if (existing) {
           if (
