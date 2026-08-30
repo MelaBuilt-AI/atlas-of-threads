@@ -269,11 +269,16 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert "overhead" in body
     assert "shift+c home" in body
     assert "human no" in body
+    assert "s sound" in body
     assert 'id="topbar"' in body
+    assert 'id="sound-controls"' in body
+    assert 'id="sound-toggle"' in body
+    assert 'id="sound-volume"' in body
     assert 'id="relic-index"' in body
     assert 'id="evidence-descent"' in body
     assert 'id="story-path"' in body
     assert "relic-loader.js" in body
+    assert "sound.js" in body
     js = _get(httpd_url + "/space.js")[1]
     assert "/api/fork" in js
     assert "/api/veto" in js
@@ -310,7 +315,7 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert 'id="threshold"' in body
     css = _get(httpd_url + "/theme.css")[1]
     assert "calc(2.25rem + var(--plate-height" in css
-    assert "grid-template-columns: max-content minmax(0, 1fr)" in css
+    assert "grid-template-columns: max-content minmax(0, 1fr) max-content" in css
     assert "cycleChoice" in js
     assert "if (focusIndex < 0)" in js
     assert "walkDeeper();" in js
@@ -329,6 +334,33 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert code == 200
     assert ctype == "model/gltf-binary"
     assert model.startswith(b"glTF")
+
+
+def test_space_sound_field_is_procedural_and_event_bound():
+    dist = viz_dist_path()
+    html = (dist / "index.html").read_text(encoding="utf-8")
+    js = (dist / "space.js").read_text(encoding="utf-8")
+    sound = (dist / "sound.js").read_text(encoding="utf-8")
+    assert '<script src="./sound.js"></script>' in html
+    assert "AudioContext" in sound
+    assert "createOscillator" in sound
+    assert "createBuffer" in sound
+    assert "new Audio(" not in sound
+    assert ".mp3" not in sound
+    assert ".wav" not in sound
+    assert "startAmbience" in sound
+    assert "startWorkingLayer" in sound
+    assert "startBeamLayer" in sound
+    assert "arrivalSplash" in sound
+    assert "cameraShift" in sound
+    assert "sound.cycle" in js
+    assert "sound.traverse" in js
+    assert 'sound.setBeam("waiting"' in js
+    assert 'sound.setBeam("arrival")' in js
+    assert "sound.arrivalSplash()" in js
+    assert "sound.setWorking(Boolean(ready))" in js
+    assert "sound.cameraShift(overhead)" in js
+    assert "sound.edit(kind)" in js
 
 
 def test_evidence_descent_is_a_static_server_authored_read_surface():

@@ -201,6 +201,23 @@ differently, but that is a behavioral/context intervention—not a weight edit o
 vendor preference-training signal. Provider-backed fork regeneration is an
 explicit CLI operation; the browser gesture itself invokes no model.
 
+The chamber's sound field is synthesized live with the Web Audio API; it ships
+no sampled music or stock effects. A moody subharmonic neural bed wakes on the
+first keyboard or pointer interaction (browser autoplay policy) and remains
+continuous. Original procedural cues distinguish object cycling, forward and
+backward traversal, red origin returns, blue path arrivals and entry, camera
+transitions, AI-working pressure, green-beam activation/crackle, blue completion
+lightning, evidence descent, cut/veto inscription, and cancellation. `s` toggles
+mute; the top-bar control also exposes persistent browser-local volume.
+
+A future open-weight training slice may explicitly export reviewed cuts and
+human vetoes as versioned training examples, paired with accepted alternatives
+where needed, then record the base model, dataset, recipe, and resulting local
+checkpoint. This must remain a deliberate export/train operation: chamber
+gestures never silently update weights. A veto is a negative preference signal;
+a cut is a structural counterfactual and does not by itself assert a preferred
+replacement or universal error.
+
 `ta canvas` / `ta export-wiki` write a lossy Markdown projection (`type: overview`,
 Obsidian wikilinks). Hidden reasoning stays JSON-only. Dual archaeology appears
 only with `--fingerprint PATH`. Neither command writes `wiki/index.md` or

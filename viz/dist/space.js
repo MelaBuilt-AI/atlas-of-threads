@@ -88,6 +88,7 @@
   const elEvidenceIntro = document.getElementById("evidence-intro");
   const elEvidenceStrata = document.getElementById("evidence-strata");
   const elEvidenceClose = document.getElementById("evidence-close");
+  const sound = window.TASound;
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -724,6 +725,7 @@
     continuationCircuit = null;
     rememberedCircuit = null;
     saveContinuationCircuit();
+    sound.setBeam(null);
   }
 
   function beginContinuationCircuit(request) {
@@ -764,6 +766,7 @@
       targetNodeId: null,
     };
     saveContinuationCircuit();
+    sound.setBeam("waiting", retained < 0);
   }
 
   function completeContinuationCircuit(mesh, arrival) {
@@ -785,6 +788,9 @@
       targetNodeId: arrival.nodeId,
     };
     saveContinuationCircuit();
+    sound.setWorking(false);
+    sound.setBeam("arrival");
+    sound.arrivalSplash();
   }
 
   function restoreArrivalCircuit(mesh, arrival) {
@@ -808,6 +814,7 @@
       targetMesh: mesh,
       lightning: makeContinuationLightning(NEW_PATH_SELECTION_COLOR),
     };
+    sound.setBeam("arrival");
   }
 
   const circuitBox = new THREE.Box3();
@@ -1150,6 +1157,9 @@
       arrival.graphId === arrivingFocus.graphId &&
       arrival.nodeId === arrivingFocus.nodeId &&
       arrival.anchorGraphId === arrivingFocus.anchorGraphId;
+    const audioRole = arrival.returnOrigin
+      ? "return"
+      : (autoFocus || !arrival.seen) ? "new-path" : "companion";
     const ring = portalRing({
       x: slot.x,
       z: slot.z,
@@ -1169,6 +1179,7 @@
           ? `new companion thought · ${attribution}`
           : "new companion thought"),
       labelText: arrival.title,
+      audioRole,
     });
     root.add(ring);
     portals.push(ring);
@@ -1188,6 +1199,7 @@
         ? RETURN_COLOR
         : autoFocus ? NEW_PATH_SELECTION_COLOR : null,
       autoFocus,
+      audioRole,
       arrivalKey: arrivalKey(arrival),
       walk: () => inhabit(arrival.graphId, arrival.nodeId),
     });
@@ -1255,6 +1267,7 @@
         via: item.via,
         kind: item.node.kind,
         text: item.node.text,
+        audioRole: "story",
         walk: () => inhabit(payload.graph_id, item.node.id),
       });
       markRise(mesh, 0.08 + i * 0.07);
@@ -1275,6 +1288,7 @@
         via: item.via,
         kind: item.node.kind,
         text: item.node.text,
+        audioRole: "rejected",
         walk: () => inhabit(payload.graph_id, item.node.id),
       });
       markRise(mesh, 0.12 + i * 0.07);
@@ -1291,6 +1305,7 @@
         relicKey: "fork-compass",
         labelKind: "story fork",
         labelText: f.reason || "continuation without this chamber",
+        audioRole: "fork",
       });
       root.add(ring);
       portals.push(ring);
@@ -1298,6 +1313,7 @@
         via: "continuation",
         kind: "fork",
         text: f.reason || "a path that omitted this chamber",
+        audioRole: "fork",
         walk: () => inhabit(f.id, f.spawn_node_id),
       });
       markRise(ring, 0.18 + i * 0.08);
@@ -1316,6 +1332,7 @@
         relicKey: "counterfactual-shard-gate",
         labelKind: "fork return",
         labelText: "back to the chamber where this path was cut",
+        audioRole: "back",
       });
       root.add(back);
       portals.push(back);
@@ -1323,6 +1340,7 @@
         via: "fork return",
         kind: "fork",
         text: "back to the chamber where this path was cut",
+        audioRole: "back",
         walk: () => inhabit(parent.graph_id, parent.node_id),
       });
       markRise(back, 0.28);
@@ -1348,10 +1366,11 @@
     relicKey,
     labelKind = "doorway",
     labelText = "another thought",
+    audioRole = "story",
   }) {
     const group = new THREE.Group();
     group.position.set(x, 0, z);
-    group.userData = { portal, ghost: false };
+    group.userData = { portal, ghost: false, audioRole };
     const geo = new THREE.TorusGeometry(0.7, 0.07, 10, 32);
     const mat = new THREE.MeshStandardMaterial({
       color,
@@ -1391,7 +1410,7 @@
       new THREE.MeshBasicMaterial({ visible: false })
     );
     hit.rotation.x = Math.PI / 2;
-    hit.userData = { portal };
+    hit.userData = { portal, audioRole };
     group.add(hit);
     return group;
   }
@@ -1479,11 +1498,13 @@
     const traversal = (payload.read && payload.read.traversal) || {};
     if (!traversal.terminal) {
       elThreshold.hidden = true;
+      sound.setWorking(false);
       requestAnimationFrame(resize);
       return;
     }
     const ready = payload.continuation || null;
     if (ready) beginContinuationCircuit(ready);
+    sound.setWorking(Boolean(ready));
     const attempt = payload.continuation_attempt || null;
     const harness = attempt && attempt.harness
       ? attempt.harness.charAt(0).toUpperCase() + attempt.harness.slice(1)
@@ -1777,6 +1798,10 @@
       (d) => d.portal && d.portal.graphId && d.portal.nodeId
     );
     if (portalHit) {
+      sound.traverse(
+        portalHit.audioRole === "back" ? "back" : "forward",
+        portalHit.audioRole || "story"
+      );
       inhabit(portalHit.portal.graphId, portalHit.portal.nodeId);
       return;
     }
@@ -1784,12 +1809,16 @@
       raycaster.intersectObjects(targets, true),
       (d) => d.id
     );
-    if (nodeHit && view) inhabit(view.graph_id, nodeHit.id);
+    if (nodeHit && view) {
+      sound.traverse("forward", "story");
+      inhabit(view.graph_id, nodeHit.id);
+    }
   });
 
   function openComposer(kind) {
     if (!view || busy) return;
     composing = kind;
+    sound.surface(kind);
     if (kind === "continuation") {
       elThreshold.dataset.ask = "true";
       elThresholdAsk.setAttribute("aria-pressed", "true");
@@ -1857,6 +1886,7 @@
       });
       closeComposer();
       const stand = result.stand;
+      sound.edit(kind);
       await inhabit(stand.graph_id, stand.node_id);
     } catch (err) {
       elComposerLabel.textContent = String(err.message || err);
@@ -1909,6 +1939,8 @@
     try {
       await post("/api/continuation/cancel", { request: request.id });
       clearContinuationCircuit();
+      sound.setWorking(false);
+      sound.cancel();
       view.continuation = null;
       plate(view);
       renderThreshold(view);
@@ -1934,10 +1966,12 @@
   function walkBack() {
     if (trail.length) {
       const prev = trail.pop();
+      sound.traverse("back", "story");
       inhabit(prev.graphId, prev.nodeId, "back");
       return;
     }
     if (view && view.parent && view.parent.graph_id && view.parent.node_id) {
+      sound.traverse("back", "back");
       inhabit(view.parent.graph_id, view.parent.node_id, "back");
     }
   }
@@ -1946,17 +1980,22 @@
     if (!view) return;
     const forward = view.forward || view.shaped || [];
     if (forward.length) {
+      sound.traverse("forward", "story");
       inhabit(view.graph_id, forward[0].id);
       return;
     }
     const forks = view.fork_children || [];
     const first = forks.find((f) => f.id && f.spawn_node_id);
-    if (first) inhabit(first.id, first.spawn_node_id);
+    if (first) {
+      sound.traverse("forward", "fork");
+      inhabit(first.id, first.spawn_node_id);
+    }
   }
 
   function walkOrigin() {
     if (!view || !view.origin || view.origin.id === view.node.id) return;
     if (composing) closeComposer();
+    sound.traverse("back", "return");
     inhabit(view.graph_id, view.origin.id);
   }
 
@@ -1999,6 +2038,7 @@
       focusIndex = clock[next].index;
     }
     showFocus();
+    sound.cycle(choices[focusIndex].choice.audioRole || "story", dir);
   }
 
   function selectFocus() {
@@ -2007,6 +2047,8 @@
       return;
     }
     if (!choices[focusIndex]) return;
+    const role = choices[focusIndex].choice.audioRole || "story";
+    sound.traverse(role === "back" ? "back" : "forward", role);
     choices[focusIndex].choice.walk();
   }
 
@@ -2047,6 +2089,7 @@
 
   function openRelicIndex() {
     if (!view || composing) return;
+    sound.surface("relic");
     renderRelicIndex();
     elRelicIndex.hidden = false;
     const selected = elRelicGrid.querySelector(".mapped") || elRelicGrid.firstElementChild;
@@ -2139,12 +2182,14 @@
 
   function openEvidenceDescent() {
     if (!view || composing) return;
+    sound.surface("evidence");
     renderEvidenceDescent();
     elEvidenceDescent.hidden = false;
     elEvidenceClose.focus();
   }
 
   function closeEvidenceDescent() {
+    sound.surface("evidence", false);
     elEvidenceDescent.hidden = true;
     canvas.focus();
     showWaitingArrivals();
@@ -2215,7 +2260,12 @@
       } else {
         overhead = !overhead;
       }
+      sound.cameraShift(overhead);
       if (view) plate(view);
+    }
+    if (e.key === "s" || e.key === "S") {
+      e.preventDefault();
+      sound.toggleMuted();
     }
     if (e.key === "h") {
       helpOn = !helpOn;
