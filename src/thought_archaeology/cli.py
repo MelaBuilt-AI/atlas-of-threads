@@ -12,6 +12,7 @@ from thought_archaeology.compile_common import CompileError
 from thought_archaeology.compile_posthoc import compile_posthoc
 from thought_archaeology.compile_structured import compile_structured
 from thought_archaeology.continuation import (
+    continuation_cancellation,
     continuation_completion,
     continuation_request,
 )
@@ -190,6 +191,10 @@ def _parser() -> argparse.ArgumentParser:
         "pending", parents=[sub_globals], help="list requests awaiting a harness"
     )
     p_pending.add_argument("--format", choices=["table", "json"], default="table")
+    p_cancel = continuation_sub.add_parser(
+        "cancel", parents=[sub_globals], help="withdraw a pending continuation request"
+    )
+    p_cancel.add_argument("request")
     p_complete = continuation_sub.add_parser(
         "complete", parents=[sub_globals], help="link a request to its response graph"
     )
@@ -1674,6 +1679,18 @@ def cmd_continuation(args: argparse.Namespace) -> int:
             for item in requests:
                 prompt = " ".join(item.prompt.split()) or "(continue from here)"
                 print(f"{item.id:<26}  {item.graph_id:<26}  {item.node_id:<26}  {prompt}")
+        return EXIT_OK
+    if args.continuation_cmd == "cancel":
+        cancellation = continuation_cancellation(args.request, source="cli")
+        path = store.write_continuation_cancellation(cancellation)
+        store.log(
+            "continuation_cancel",
+            request_id=args.request,
+            cancellation_id=cancellation.id,
+            path=str(path),
+            warnings=[],
+        )
+        print(cancellation.id)
         return EXIT_OK
     if args.continuation_cmd == "complete":
         completion = continuation_completion(

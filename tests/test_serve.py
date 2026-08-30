@@ -300,8 +300,10 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert "calc(2.25rem + var(--plate-height" in css
     assert "grid-template-columns: max-content minmax(0, 1fr)" in css
     assert "cycleChoice" in js
-    assert "horizontallyOrderedChoices" in js
+    assert "nearestDirectionalChoice" in js
     assert "position.project(camera)" in js
+    assert "Math.abs(a.y - current.y) * 3" in js
+    assert "sparkColors" in js
     assert "inhabit(view.graph_id, cycle[" not in js
 
     code, loader, _ = _get(httpd_url + "/relic-loader.js")
@@ -349,7 +351,9 @@ def test_terminal_traversal_separates_story_and_conversation_routes():
     assert "renderThreshold" in js
     assert "walkOrigin" in js
     assert "markContinuationReady" in js
-    assert 'elThresholdContinue.addEventListener("click", () => markContinuationReady())' in js
+    assert "cancelContinuationReady" in js
+    assert 'post("/api/continuation/cancel"' in js
+    assert 'elThresholdContinue.addEventListener("click", toggleContinuationReady)' in js
     assert 'elThresholdAsk.addEventListener("click", () => openComposer("continuation"))' in js
     assert "marking inhabitant ready" in js
     assert 'openComposer("continuation")' in js
@@ -409,6 +413,22 @@ def test_continuation_endpoint_writes_harness_neutral_request(
     assert code == 200
     assert json.loads(body)["continuation"] == request
 
+    code, body = _post(
+        httpd_url + "/api/continuation/cancel", {"request": request["id"]}
+    )
+    assert code == 200, body
+    cancellation = json.loads(body)["cancellation"]
+    assert cancellation["request_id"] == request["id"]
+    code, body, _ = _get(httpd_url + "/api/continuations")
+    assert code == 200
+    assert json.loads(body)["requests"] == []
+    code, body, _ = _get(
+        httpd_url
+        + f"/api/inhabit/{spawn['node_id']}?graph={spawn['graph_id']}"
+    )
+    assert code == 200
+    assert json.loads(body)["continuation"] is None
+
 
 def test_continuation_handler_without_socket(tmp_path: Path):
     store_path = tmp_path / "data"
@@ -434,6 +454,17 @@ def test_continuation_handler_without_socket(tmp_path: Path):
     handler.path = "/api/continuations"
     handler.do_GET()
     assert replies[-1] == (200, {"requests": [request]})
+
+    handler._read_json = lambda: {"request": request["id"]}
+    handler._continuation_cancel()
+    assert replies[-1][0] == 200
+    cancellation = replies[-1][1]["cancellation"]
+    assert cancellation["request_id"] == request["id"]
+    assert cancellation["source"] == "inhabit_space"
+
+    handler.path = "/api/continuations"
+    handler.do_GET()
+    assert replies[-1] == (200, {"requests": []})
 
 
 def test_inhabit_climate_none_without_fingerprint(httpd_url: str):

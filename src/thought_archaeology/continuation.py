@@ -81,6 +81,36 @@ class ContinuationCompletion:
         }
 
 
+@dataclass(frozen=True)
+class ContinuationCancellation:
+    """Append-only receipt withdrawing a request before harness completion."""
+
+    schema_version: str
+    id: str
+    request_id: str
+    created_at: str
+    source: ContinuationSource
+
+    @classmethod
+    def from_dict(cls, data: dict) -> Self:
+        return cls(
+            schema_version=data.get("schema_version", SCHEMA_VERSION),
+            id=data["id"],
+            request_id=data["request_id"],
+            created_at=data["created_at"],
+            source=data["source"],
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "schema_version": self.schema_version,
+            "id": self.id,
+            "request_id": self.request_id,
+            "created_at": self.created_at,
+            "source": self.source,
+        }
+
+
 def continuation_request(
     graph: ThoughtGraph,
     node: ThoughtNode,
@@ -112,4 +142,18 @@ def continuation_completion(
         graph_id=graph_id,
         created_at=now_iso(),
         harness=harness.strip(),
+    )
+
+
+def continuation_cancellation(
+    request_id: str,
+    *,
+    source: ContinuationSource = "cli",
+) -> ContinuationCancellation:
+    return ContinuationCancellation(
+        schema_version=SCHEMA_VERSION,
+        id=new_ulid(),
+        request_id=request_id,
+        created_at=now_iso(),
+        source=source,
     )

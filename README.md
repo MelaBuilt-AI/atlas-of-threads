@@ -123,6 +123,7 @@ ta fork NODE --session ID [--graph G] [--reason TEXT]
 ta veto NODE --session ID [--graph G] --reason TEXT
 ta continuation ready NODE --graph G [--prompt TEXT]
 ta continuation pending [--format table|json]
+ta continuation cancel REQUEST
 ta continuation complete REQUEST --graph G --harness NAME
 ta sensor attach NODE [--graph G] [--session S]
 ta sensor attach --from-attribution PATH
@@ -277,12 +278,13 @@ answers, not token-level hidden-thought streaming.
 
 “Ready for continuation” is an append-only handoff, not an embedded model
 client. At a terminal chamber, the ready button immediately writes and visibly
-activates the handoff; “ask from here” adds an optional question first. Inhabit
-Space writes a
+activates the handoff; clicking it again cancels the pending handoff, while
+“ask from here” adds an optional question first. Inhabit Space writes a
 `ContinuationRequest` containing only its request/session/graph/node ids,
 timestamp, source, and prompt. Requests live under
 `data/continuations/requests/`; completion receipts live under
-`data/continuations/completions/`. Graphs and requests remain immutable.
+`data/continuations/completions/`; cancellation receipts live under
+`data/continuations/cancellations/`. Graphs and requests remain immutable.
 
 Any AI harness can use the filesystem, CLI JSON, or localhost API:
 
@@ -293,13 +295,17 @@ ta continuation pending --format json
 # load the referenced public thought/story context
 ta show GRAPH_ID --format json
 
+# withdraw before a harness completes it; this appends a cancellation receipt
+ta continuation cancel REQUEST_ID
+
 # generate through any model/provider, compile the finalized answer normally,
 # then acknowledge which graph answered the request
 ta continuation complete REQUEST_ID --graph NEW_GRAPH_ID --harness my-runner
 ```
 
-The equivalent local endpoints are `GET /api/continuations` and
-`POST /api/continuation`. Thought Archaeology owns the durable boundary and the
+The equivalent local endpoints are `GET /api/continuations`,
+`POST /api/continuation`, and `POST /api/continuation/cancel`. Thought
+Archaeology owns the durable boundary and the
 graph; the harness owns credentials, model invocation, prompt assembly, and
 the decision to compile a finalized response. No vendor SDK or callback URL is
 required by the core.

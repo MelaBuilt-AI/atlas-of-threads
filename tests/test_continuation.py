@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from thought_archaeology.continuation import (
+    continuation_cancellation,
     continuation_completion,
     continuation_request,
 )
@@ -65,6 +66,10 @@ def test_continuation_request_and_completion_are_append_only(tmp_path: Path):
         store.write_continuation_completion(
             continuation_completion(request.id, next_graph, "other-harness")
         )
+    with pytest.raises(StoreError, match="already completed"):
+        store.write_continuation_cancellation(
+            continuation_cancellation(request.id)
+        )
 
 
 def test_continuation_cli_is_a_provider_neutral_inbox(tmp_path: Path):
@@ -110,6 +115,55 @@ def test_continuation_cli_is_a_provider_neutral_inbox(tmp_path: Path):
             "generic-runner",
         ],
         store=store_path,
+    )
+    assert code == 0, err
+    assert len(out.strip()) == 26
+    code, out, err = run(
+        ["continuation", "pending", "--format", "json"], store=store_path
+    )
+    assert code == 0, err
+    assert json.loads(out) == []
+
+
+def test_continuation_cancellation_is_append_only(tmp_path: Path):
+    store_path = tmp_path / "data"
+    _session_id, graph_id = _compiled(store_path)
+    store = Store(store_path)
+    graph = store.load_graph(graph_id)
+    request = continuation_request(graph, graph.nodes[0])
+    store.write_continuation_request(request)
+
+    cancellation = continuation_cancellation(
+        request.id, source="inhabit_space"
+    )
+    path = store.write_continuation_cancellation(cancellation)
+    assert path.is_file()
+    assert list(store.iter_continuation_cancellations()) == [cancellation]
+    assert list(store.iter_continuation_requests(pending=True)) == []
+    with pytest.raises(StoreError, match="already canceled"):
+        store.write_continuation_cancellation(
+            continuation_cancellation(request.id)
+        )
+
+    _next_session, next_graph = _compiled(store_path, "answer")
+    with pytest.raises(StoreError, match="was canceled"):
+        store.write_continuation_completion(
+            continuation_completion(request.id, next_graph, "test-harness")
+        )
+
+
+def test_continuation_cancel_cli_withdraws_from_inbox(tmp_path: Path):
+    store_path = tmp_path / "data"
+    _session_id, graph_id = _compiled(store_path)
+    graph = Store(store_path).load_graph(graph_id)
+    code, out, err = run(
+        ["continuation", "ready", graph.nodes[0].id, "--graph", graph.id],
+        store=store_path,
+    )
+    assert code == 0, err
+    request_id = out.strip()
+    code, out, err = run(
+        ["continuation", "cancel", request_id], store=store_path
     )
     assert code == 0, err
     assert len(out.strip()) == 26

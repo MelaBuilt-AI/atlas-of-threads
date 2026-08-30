@@ -36,6 +36,7 @@ SCHEMA_NAMES = (
     "training-provenance.schema.json",
     "continuation-request.schema.json",
     "continuation-completion.schema.json",
+    "continuation-cancellation.schema.json",
 )
 
 DAG_EDGE_KINDS = frozenset({"supports", "depends_on", "shapes", "taste_of"})

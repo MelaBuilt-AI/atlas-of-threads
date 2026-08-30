@@ -8,7 +8,11 @@ from collections.abc import Iterator
 from dataclasses import replace
 from pathlib import Path
 
-from thought_archaeology.continuation import ContinuationCompletion, ContinuationRequest
+from thought_archaeology.continuation import (
+    ContinuationCancellation,
+    ContinuationCompletion,
+    ContinuationRequest,
+)
 from thought_archaeology.ids import now_iso, new_ulid
 from thought_archaeology.models import SCHEMA_VERSION, Session, ThoughtGraph, ThoughtNode, Turn
 from thought_archaeology.schema import ValidationError, validate_graph, validate_schema
@@ -278,6 +282,10 @@ class Store:
     def continuation_completions_dir(self) -> Path:
         return self.root / "continuations" / "completions"
 
+    @property
+    def continuation_cancellations_dir(self) -> Path:
+        return self.root / "continuations" / "cancellations"
+
     def write_continuation_request(self, request: ContinuationRequest) -> Path:
         self._require()
         graph = self.load_graph(request.graph_id)
@@ -309,21 +317,70 @@ class Store:
         if not self.continuation_requests_dir.is_dir():
             return
             yield  # pragma: no cover
-        completed = (
-            {item.request_id for item in self.iter_continuation_completions()}
-            if pending
-            else set()
-        )
+        closed = set()
+        if pending:
+            closed.update(
+                item.request_id for item in self.iter_continuation_completions()
+            )
+            closed.update(
+                item.request_id for item in self.iter_continuation_cancellations()
+            )
         for path in sorted(self.continuation_requests_dir.glob("*.json")):
             raw = json.loads(path.read_text(encoding="utf-8"))
             validate_schema("continuation-request.schema.json", raw)
             request = ContinuationRequest.from_dict(raw)
-            if request.id not in completed:
+            if request.id not in closed:
                 yield request
+
+    def write_continuation_cancellation(
+        self, cancellation: ContinuationCancellation
+    ) -> Path:
+        self._require()
+        self.load_continuation_request(cancellation.request_id)
+        if any(
+            item.request_id == cancellation.request_id
+            for item in self.iter_continuation_completions()
+        ):
+            raise StoreError(
+                f"continuation request {cancellation.request_id} already completed"
+            )
+        if any(
+            item.request_id == cancellation.request_id
+            for item in self.iter_continuation_cancellations()
+        ):
+            raise StoreError(
+                f"continuation request {cancellation.request_id} already canceled (write-once)"
+            )
+        validate_schema(
+            "continuation-cancellation.schema.json", cancellation.to_dict()
+        )
+        _mkdir(self.continuation_cancellations_dir)
+        path = self.continuation_cancellations_dir / f"{cancellation.id}.json"
+        _write_json(path, cancellation.to_dict())
+        return path
+
+    def iter_continuation_cancellations(
+        self,
+    ) -> Iterator[ContinuationCancellation]:
+        self._require()
+        if not self.continuation_cancellations_dir.is_dir():
+            return
+            yield  # pragma: no cover
+        for path in sorted(self.continuation_cancellations_dir.glob("*.json")):
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            validate_schema("continuation-cancellation.schema.json", raw)
+            yield ContinuationCancellation.from_dict(raw)
 
     def write_continuation_completion(self, completion: ContinuationCompletion) -> Path:
         self._require()
         request = self.load_continuation_request(completion.request_id)
+        if any(
+            item.request_id == completion.request_id
+            for item in self.iter_continuation_cancellations()
+        ):
+            raise StoreError(
+                f"continuation request {completion.request_id} was canceled"
+            )
         if completion.graph_id == request.graph_id:
             raise StoreError("continuation completion must point to a new graph")
         self.load_graph(completion.graph_id)

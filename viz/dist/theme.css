@@ -201,6 +201,10 @@ body[data-climate="emerging"] #banner { color: #c8f26a; }
   animation: continuation-pulse 0.9s ease-in-out infinite alternate;
 }
 
+#threshold[data-ready="canceled"] {
+  border-left-color: var(--bronze-hot);
+}
+
 @keyframes continuation-pulse {
   from { box-shadow: -0.15rem 0 0.5rem rgba(176, 141, 87, 0.12); }
   to { box-shadow: -0.35rem 0 1.35rem rgba(200, 242, 106, 0.28); }

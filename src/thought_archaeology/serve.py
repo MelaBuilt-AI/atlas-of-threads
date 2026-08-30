@@ -7,7 +7,10 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from thought_archaeology.edits import commit, plan_fork, plan_veto
-from thought_archaeology.continuation import continuation_request
+from thought_archaeology.continuation import (
+    continuation_cancellation,
+    continuation_request,
+)
 from thought_archaeology.fork import ForkError
 from thought_archaeology.inhabit import entry_node, inhabit
 from thought_archaeology.schema import ValidationError
@@ -165,6 +168,9 @@ class InhabitHandler(BaseHTTPRequestHandler):
             if path == "/api/continuation":
                 self._continuation_ready()
                 return
+            if path == "/api/continuation/cancel":
+                self._continuation_cancel()
+                return
             self._json(405, {"error": "unknown write"})
         except ServeError as exc:
             self._json(400, {"error": str(exc)})
@@ -268,6 +274,28 @@ class InhabitHandler(BaseHTTPRequestHandler):
             warnings=[],
         )
         self._json(200, {"ok": True, "request": request.to_dict()})
+
+    def _continuation_cancel(self) -> None:
+        body = self._read_json()
+        request_id = str(body.get("request") or body.get("request_id") or "").strip()
+        if not request_id:
+            raise ServeError("request is required")
+        request = self.store.load_continuation_request(request_id)
+        cancellation = continuation_cancellation(
+            request.id, source="inhabit_space"
+        )
+        path = self.store.write_continuation_cancellation(cancellation)
+        self.store.log(
+            "continuation_cancel",
+            session_id=request.session_id,
+            graph_id=request.graph_id,
+            node_id=request.node_id,
+            request_id=request.id,
+            cancellation_id=cancellation.id,
+            path=str(path),
+            warnings=[],
+        )
+        self._json(200, {"ok": True, "cancellation": cancellation.to_dict()})
 
     def do_PUT(self) -> None:  # noqa: N802
         self._json(405, {"error": "PUT is not a gesture"})

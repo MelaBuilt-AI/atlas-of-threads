@@ -401,8 +401,34 @@
       depthWrite: false,
       fog: false,
     })));
+    const sparksPerPulse = 3;
+    const sparkPositions = new Float32Array(pulses.length * sparksPerPulse * 3);
+    const sparkColors = new Float32Array(sparkPositions.length);
+    const sparkGeometry = new THREE.BufferGeometry();
+    sparkGeometry.setAttribute("position", new THREE.BufferAttribute(sparkPositions, 3));
+    sparkGeometry.setAttribute("color", new THREE.BufferAttribute(sparkColors, 3));
+    group.add(new THREE.Points(sparkGeometry, new THREE.PointsMaterial({
+      color: 0xffffff,
+      map: glow,
+      vertexColors: true,
+      size: 0.9,
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      fog: false,
+    })));
     group.userData.sky = true;
-    return { group, pulses, pulsePositions, pulseGeometry };
+    return {
+      group,
+      pulses,
+      pulsePositions,
+      pulseGeometry,
+      sparksPerPulse,
+      sparkPositions,
+      sparkColors,
+      sparkGeometry,
+    };
   }
 
   function updateNeuralSky(t) {
@@ -413,8 +439,30 @@
       neuralSky.pulsePositions[i * 3] = THREE.MathUtils.lerp(start.x, end.x, u);
       neuralSky.pulsePositions[i * 3 + 1] = THREE.MathUtils.lerp(start.y, end.y, u);
       neuralSky.pulsePositions[i * 3 + 2] = THREE.MathUtils.lerp(start.z, end.z, u);
+      const px = neuralSky.pulsePositions[i * 3];
+      const py = neuralSky.pulsePositions[i * 3 + 1];
+      const pz = neuralSky.pulsePositions[i * 3 + 2];
+      const flicker = Math.max(
+        0,
+        (Math.sin(t * 13 + i * 2.17 + u * 24) - 0.45) / 0.55
+      );
+      const junction = u > 0.9 ? (u - 0.9) * 10 : 0;
+      const energy = Math.max(flicker, junction);
+      for (let j = 0; j < neuralSky.sparksPerPulse; j++) {
+        const at = (i * neuralSky.sparksPerPulse + j) * 3;
+        const angle = t * (5 + j) + i * 1.7 + j * Math.PI * 0.67;
+        const reach = 0.16 + energy * (0.35 + j * 0.1);
+        neuralSky.sparkPositions[at] = px + Math.cos(angle) * reach;
+        neuralSky.sparkPositions[at + 1] = py + Math.sin(angle * 1.3) * reach;
+        neuralSky.sparkPositions[at + 2] = pz + Math.sin(angle) * reach;
+        neuralSky.sparkColors[at] = energy;
+        neuralSky.sparkColors[at + 1] = energy * 0.95;
+        neuralSky.sparkColors[at + 2] = energy * 0.42;
+      }
     });
     neuralSky.pulseGeometry.attributes.position.needsUpdate = true;
+    neuralSky.sparkGeometry.attributes.position.needsUpdate = true;
+    neuralSky.sparkGeometry.attributes.color.needsUpdate = true;
     neuralSky.group.rotation.y = t * 0.0045;
   }
 
@@ -960,10 +1008,10 @@
     elThresholdOrigin.disabled = Boolean(
       payload.origin && payload.origin.id === payload.node.id
     );
-    elThresholdContinue.disabled = Boolean(ready);
+    elThresholdContinue.disabled = false;
     elThresholdAsk.disabled = Boolean(ready);
     elThresholdContinue.textContent = ready
-      ? "✓ continuation requested"
+      ? "cancel continuation · q"
       : "ready for continuation · q";
   }
 
@@ -1244,6 +1292,40 @@
     }
   }
 
+  async function cancelContinuationReady() {
+    if (!view || !view.continuation || busy) return;
+    const request = view.continuation;
+    busy = true;
+    elThreshold.dataset.ready = "pending";
+    elThresholdKind.textContent = "canceling continuation…";
+    elThresholdText.textContent = "Writing an append-only cancellation receipt.";
+    elThresholdContinue.disabled = true;
+    elThresholdAsk.disabled = true;
+    elThresholdContinue.textContent = "canceling…";
+    try {
+      await post("/api/continuation/cancel", { request: request.id });
+      view.continuation = null;
+      plate(view);
+      renderThreshold(view);
+      elThreshold.dataset.ready = "canceled";
+      elThresholdKind.textContent = "continuation canceled";
+      elThresholdText.textContent =
+        "The request was withdrawn. You can mark ready again or ask from here.";
+    } catch (err) {
+      renderThreshold(view);
+      elThresholdKind.textContent = "continuation could not be canceled";
+      elThresholdText.textContent = String(err.message || err);
+    } finally {
+      busy = false;
+    }
+  }
+
+  function toggleContinuationReady() {
+    if (!view || busy) return;
+    if (view.continuation) cancelContinuationReady();
+    else markContinuationReady();
+  }
+
   function walkBack() {
     if (trail.length) {
       const prev = trail.pop();
@@ -1289,7 +1371,7 @@
     if (view) plate(view);
   }
 
-  function horizontallyOrderedChoices() {
+  function projectedChoices() {
     scene.updateMatrixWorld(true);
     camera.updateMatrixWorld(true);
     return choices.map((choice, index) => {
@@ -1297,19 +1379,44 @@
       choice.mesh.getWorldPosition(position);
       position.project(camera);
       return { index, x: position.x, y: position.y };
-    }).sort((a, b) => a.x - b.x || b.y - a.y || a.index - b.index);
+    });
+  }
+
+  function nearestDirectionalChoice(dir) {
+    const projected = projectedChoices();
+    if (!projected.length) return -1;
+    if (focusIndex < 0) {
+      projected.sort((a, b) => a.x - b.x || b.y - a.y || a.index - b.index);
+      return dir > 0 ? projected[0].index : projected[projected.length - 1].index;
+    }
+    const current = projected.find((choice) => choice.index === focusIndex);
+    if (!current) return projected[0].index;
+    const directional = projected.filter(
+      (choice) =>
+        choice.index !== focusIndex && (choice.x - current.x) * dir > 0.001
+    );
+    if (directional.length) {
+      directional.sort((a, b) => {
+        const aScore = Math.abs(a.x - current.x) + Math.abs(a.y - current.y) * 3;
+        const bScore = Math.abs(b.x - current.x) + Math.abs(b.y - current.y) * 3;
+        return aScore - bScore || a.index - b.index;
+      });
+      return directional[0].index;
+    }
+    const edgeX = dir > 0
+      ? Math.min(...projected.map((choice) => choice.x))
+      : Math.max(...projected.map((choice) => choice.x));
+    projected.sort((a, b) =>
+      Math.abs(a.x - edgeX) - Math.abs(b.x - edgeX)
+      || Math.abs(a.y - current.y) - Math.abs(b.y - current.y)
+      || a.index - b.index
+    );
+    return projected[0].index;
   }
 
   function cycleChoice(dir) {
     if (!choices.length) return;
-    const ordered = horizontallyOrderedChoices();
-    if (focusIndex < 0) {
-      focusIndex = dir > 0 ? ordered[0].index : ordered[ordered.length - 1].index;
-    } else {
-      const at = ordered.findIndex((choice) => choice.index === focusIndex);
-      const next = (at + dir + ordered.length) % ordered.length;
-      focusIndex = ordered[next].index;
-    }
+    focusIndex = nearestDirectionalChoice(dir);
     showFocus();
   }
 
@@ -1460,7 +1567,7 @@
 
   elEvidenceClose.addEventListener("click", closeEvidenceDescent);
   elThresholdOrigin.addEventListener("click", walkOrigin);
-  elThresholdContinue.addEventListener("click", () => markContinuationReady());
+  elThresholdContinue.addEventListener("click", toggleContinuationReady);
   elThresholdAsk.addEventListener("click", () => openComposer("continuation"));
 
   window.addEventListener("keydown", (e) => {
@@ -1543,9 +1650,9 @@
     }
     if (e.key === "q" || e.key === "Q") {
       const traversal = view && view.read && view.read.traversal;
-      if (traversal && traversal.terminal && !view.continuation) {
+      if (traversal && traversal.terminal) {
         e.preventDefault();
-        markContinuationReady();
+        toggleContinuationReady();
       }
     }
     if (e.key === "b" || e.key === "ArrowDown") {
