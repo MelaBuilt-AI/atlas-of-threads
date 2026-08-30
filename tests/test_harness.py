@@ -126,6 +126,10 @@ def test_harness_run_completes_request_and_advances_session(
     assert outcome["status"] == "completed"
     assert outcome["harness"] == "fake"
     assert outcome["request_id"] == request_id
+    attempts = list(store.iter_continuation_attempts())
+    assert len(attempts) == 1
+    assert attempts[0].request_id == request_id
+    assert attempts[0].harness == "fake"
     assert list(store.iter_continuation_requests(pending=True)) == []
     completions = list(store.iter_continuation_completions())
     assert len(completions) == 1
@@ -222,3 +226,52 @@ def test_ready_without_prompt_does_not_invent_a_user_turn(
     assert after[-1].role == "assistant"
     assert after[-1].parent_turn_id == graph.turn_id
     assert after[-1].graph_id == outcome["graph_id"]
+
+
+def test_harness_service_is_explicit_and_bound_to_store(
+    monkeypatch, tmp_path: Path
+):
+    store_path = tmp_path / "data with space"
+    _compiled(store_path)
+    _register(monkeypatch, tmp_path, store_path)
+    unit = tmp_path / "config" / "systemd" / "user" / "thought-archaeology-harness.service"
+    calls = tmp_path / "systemctl.log"
+    systemctl = tmp_path / "systemctl"
+    systemctl.write_text(
+        "#!/bin/sh\n"
+        'printf "%s\\n" "$*" >> "$TA_TEST_SYSTEMCTL_LOG"\n'
+        'if [ "$2" = "is-enabled" ]; then echo enabled; fi\n'
+        'if [ "$2" = "is-active" ]; then echo active; fi\n',
+        encoding="utf-8",
+    )
+    systemctl.chmod(0o700)
+    monkeypatch.setenv("TA_HARNESS_SERVICE", str(unit))
+    monkeypatch.setenv("TA_SYSTEMCTL", str(systemctl))
+    monkeypatch.setenv("TA_TEST_SYSTEMCTL_LOG", str(calls))
+
+    code, out, err = run(
+        ["harness", "service", "install", "--harness", "fake"],
+        store=store_path,
+    )
+    assert code == 0, err
+    assert out.strip() == str(unit)
+    text = unit.read_text(encoding="utf-8")
+    assert "ExecStart=" in text
+    assert f'"{store_path}"' in text
+    assert '"--harness" "fake"' in text
+    assert "Restart=on-failure" in text
+    assert "credential" not in text.lower()
+    assert calls.read_text(encoding="utf-8").splitlines()[:2] == [
+        "--user daemon-reload",
+        "--user enable --now thought-archaeology-harness.service",
+    ]
+
+    code, out, err = run(
+        ["harness", "service", "status", "--format", "json"],
+        store=store_path,
+    )
+    assert code == 0, err
+    status = json.loads(out)
+    assert status["installed"] is True
+    assert status["enabled"] == "enabled"
+    assert status["active"] == "active"

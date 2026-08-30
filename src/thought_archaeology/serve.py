@@ -49,6 +49,13 @@ def _harness_by_graph(store: Store) -> dict[str, str]:
     }
 
 
+def _attempt_by_request(store: Store) -> dict[str, dict]:
+    return {
+        attempt.request_id: attempt.to_dict()
+        for attempt in store.iter_continuation_attempts()
+    }
+
+
 def _continuation_source(store: Store, graph_id: str) -> dict | None:
     for completion in store.iter_continuation_completions():
         if completion.graph_id != graph_id:
@@ -169,6 +176,12 @@ class InhabitHandler(BaseHTTPRequestHandler):
                 payload["continuation_source"] = _continuation_source(
                     self.store, view.graph.id
                 )
+                if view.continuation:
+                    payload["continuation_attempt"] = _attempt_by_request(
+                        self.store
+                    ).get(view.continuation["id"])
+                else:
+                    payload["continuation_attempt"] = None
                 self._json(200, payload)
                 return
             self._static(path)

@@ -135,6 +135,9 @@ ta harness doctor [NAME] [--timeout SECONDS]
 ta harness remove NAME
 ta harness run [--harness NAME] [--request ID] [--timeout SECONDS]
 ta harness watch [--harness NAME] [--interval SECONDS] [--timeout SECONDS]
+ta harness service install [--harness NAME] [--interval SECONDS] [--timeout SECONDS]
+ta harness service status [--format table|json]
+ta harness service start|stop|restart|remove
 ta sensor attach NODE [--graph G] [--session S]
 ta sensor attach --from-attribution PATH
 ta sensor import-circuit-tracer NODE --graph G --from-graph PATH \
@@ -348,6 +351,8 @@ ta harness doctor
 ta harness status
 ta harness run       # process the oldest pending request once
 ta harness watch     # foreground worker; Ctrl+C stops it
+ta harness service install  # opt in to a persistent user service
+ta harness service status
 ```
 
 `ta harness configure` is the interactive form. The registry lives at
@@ -373,6 +378,20 @@ Run one watcher per store in this first implementation. The initial staged
 adapter targets are Grok, Codex, Claude Code, OpenCode, and Prime Agent; they
 will be installed and exercised locally one at a time against the same
 contract. See [`docs/HARNESS_ADAPTERS.md`](docs/HARNESS_ADAPTERS.md).
+
+On systemd Linux, `ta harness service install` writes one user-owned
+`thought-archaeology-harness.service` bound to the resolved store and selected
+harness, then explicitly enables and starts it. The service restarts only after
+a worker failure; cloning the repository, opening Inhabit Space, and merely
+registering an adapter never install or start it. `service stop|start|restart`
+controls the installed watcher, while `service remove` disables it and removes
+the unit. The foreground `ta harness watch` command remains the portable
+fallback.
+
+When a worker takes a queued request, TA appends a `ContinuationAttempt` before
+calling the adapter. Inhabit Space retains the accepted `AI working…` state and
+adds the harness name while that request is being handled. Completion and
+cancellation remain the only states that close the immutable request.
 
 The first thin adapter ships as `ta-harness-grok`. It uses the already
 authenticated official Grok CLI in headless single-turn mode, disables plan

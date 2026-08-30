@@ -82,6 +82,36 @@ class ContinuationCompletion:
 
 
 @dataclass(frozen=True)
+class ContinuationAttempt:
+    """Append-only receipt that a named harness began handling a request."""
+
+    schema_version: str
+    id: str
+    request_id: str
+    created_at: str
+    harness: str
+
+    @classmethod
+    def from_dict(cls, data: dict) -> Self:
+        return cls(
+            schema_version=data.get("schema_version", SCHEMA_VERSION),
+            id=data["id"],
+            request_id=data["request_id"],
+            created_at=data["created_at"],
+            harness=data["harness"],
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "schema_version": self.schema_version,
+            "id": self.id,
+            "request_id": self.request_id,
+            "created_at": self.created_at,
+            "harness": self.harness,
+        }
+
+
+@dataclass(frozen=True)
 class ContinuationCancellation:
     """Append-only receipt withdrawing a request before harness completion."""
 
@@ -140,6 +170,16 @@ def continuation_completion(
         id=new_ulid(),
         request_id=request_id,
         graph_id=graph_id,
+        created_at=now_iso(),
+        harness=harness.strip(),
+    )
+
+
+def continuation_attempt(request_id: str, harness: str) -> ContinuationAttempt:
+    return ContinuationAttempt(
+        schema_version=SCHEMA_VERSION,
+        id=new_ulid(),
+        request_id=request_id,
         created_at=now_iso(),
         harness=harness.strip(),
     )

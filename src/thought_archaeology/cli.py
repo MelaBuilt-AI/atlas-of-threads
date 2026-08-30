@@ -33,6 +33,12 @@ from thought_archaeology.harness import (
     process_continuation,
     watch_continuations,
 )
+from thought_archaeology.harness_service import (
+    control_harness_service,
+    harness_service_status,
+    install_harness_service,
+    remove_harness_service,
+)
 from thought_archaeology.inhabit import format_inhabit, inhabit, resolve_standing
 from thought_archaeology.models import SCHEMA_VERSION, ModelInfo, Span, ThoughtGraph, Turn
 from thought_archaeology.render_md import render_md
@@ -265,6 +271,30 @@ def _parser() -> argparse.ArgumentParser:
     p_harness_watch.add_argument("--harness", default=None, metavar="NAME")
     p_harness_watch.add_argument("--interval", type=float, default=2, metavar="SECONDS")
     p_harness_watch.add_argument("--timeout", type=float, default=900, metavar="SECONDS")
+    p_harness_service = harness_sub.add_parser(
+        "service", parents=[sub_globals], help="manage the opt-in background watcher"
+    )
+    harness_service_sub = p_harness_service.add_subparsers(
+        dest="harness_service_cmd", required=True
+    )
+    p_harness_service_install = harness_service_sub.add_parser(
+        "install", parents=[sub_globals], help="install, enable, and start the user service"
+    )
+    p_harness_service_install.add_argument("--harness", default=None, metavar="NAME")
+    p_harness_service_install.add_argument(
+        "--interval", type=float, default=2, metavar="SECONDS"
+    )
+    p_harness_service_install.add_argument(
+        "--timeout", type=float, default=900, metavar="SECONDS"
+    )
+    p_harness_service_status = harness_service_sub.add_parser(
+        "status", parents=[sub_globals], help="show background watcher state"
+    )
+    p_harness_service_status.add_argument(
+        "--format", choices=["table", "json"], default="table"
+    )
+    for action in ("start", "stop", "restart", "remove"):
+        harness_service_sub.add_parser(action, parents=[sub_globals])
 
     p_probe = sub.add_parser(
         "probe",
@@ -1888,6 +1918,33 @@ def cmd_harness(args: argparse.Namespace) -> int:
                 print(json.dumps(outcome, ensure_ascii=False), flush=True)
         except KeyboardInterrupt:
             return EXIT_OK
+        return EXIT_OK
+    if args.harness_cmd == "service":
+        action = args.harness_service_cmd
+        if action == "install":
+            spec = registry.get(args.harness)
+            describe_harness(spec, timeout=min(args.timeout, 10))
+            path = install_harness_service(
+                _store(args),
+                spec,
+                interval=args.interval,
+                timeout=args.timeout,
+            )
+            print(path)
+            return EXIT_OK
+        if action == "status":
+            status = harness_service_status()
+            if args.format == "json":
+                print(json.dumps(status, ensure_ascii=False))
+            else:
+                for key, value in status.items():
+                    print(f"{key}: {value}")
+            return EXIT_OK
+        if action == "remove":
+            remove_harness_service()
+        else:
+            control_harness_service(action)
+        print(action)
         return EXIT_OK
     raise UsageError("unknown harness command")
 

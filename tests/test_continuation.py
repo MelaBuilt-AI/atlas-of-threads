@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from thought_archaeology.continuation import (
+    continuation_attempt,
     continuation_cancellation,
     continuation_completion,
     continuation_request,
@@ -52,6 +53,10 @@ def test_continuation_request_and_completion_are_append_only(tmp_path: Path):
     assert request_path.is_file()
     assert store.load_continuation_request(request.id) == request
     assert list(store.iter_continuation_requests(pending=True)) == [request]
+    attempt = continuation_attempt(request.id, "test-harness")
+    attempt_path = store.write_continuation_attempt(attempt)
+    assert attempt_path.is_file()
+    assert list(store.iter_continuation_attempts()) == [attempt]
     with pytest.raises(StoreError, match="new graph"):
         store.write_continuation_completion(
             continuation_completion(request.id, graph.id, "test-harness")

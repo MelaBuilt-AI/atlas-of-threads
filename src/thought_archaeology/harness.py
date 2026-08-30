@@ -14,6 +14,7 @@ from typing import Any, Iterator, Self
 from thought_archaeology.compile_structured import compile_structured
 from thought_archaeology.continuation import (
     ContinuationRequest,
+    continuation_attempt,
     continuation_completion,
 )
 from thought_archaeology.ids import new_ulid, now_iso
@@ -352,6 +353,17 @@ def process_continuation(
     request = _select_request(store, request_id)
     if request is None:
         return None
+    attempt = continuation_attempt(request.id, spec.name)
+    store.write_continuation_attempt(attempt)
+    store.log(
+        "harness_responding",
+        session_id=request.session_id,
+        graph_id=request.graph_id,
+        request_id=request.id,
+        attempt_id=attempt.id,
+        harness=spec.name,
+        warnings=[],
+    )
     result = _adapter_call(
         spec,
         "continue",

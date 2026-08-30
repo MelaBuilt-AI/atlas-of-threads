@@ -10,6 +10,7 @@ versioned JSON to it without a shell.
 ta harness register NAME --adapter /absolute/path/to/ADAPTER --default
 ta harness doctor NAME
 ta harness watch --harness NAME
+ta harness service install --harness NAME
 ```
 
 Use repeated `--arg VALUE` options only for non-secret, fixed adapter arguments.
@@ -95,8 +96,16 @@ discarded before any graph is written.
 
 - `ta harness run` processes the oldest pending request, or a named `--request`.
 - `ta harness watch` stays in the foreground and polls the same durable inbox.
+- `ta harness service install` is the explicit systemd-Linux opt-in that binds
+  the selected harness and resolved store to one persistent user service,
+  enables it, and starts it. Clone/open/register operations remain inert.
+- `ta harness service status|start|stop|restart|remove` inspects and controls
+  that unit. The foreground watcher remains the portable fallback.
 - `ta harness status` reports configuration, store availability, and pending
   count; it does not claim that a detached worker is alive.
+- Immediately before adapter invocation, a worker appends a
+  `ContinuationAttempt` naming the harness. It is an audit receipt for the
+  queued → responding transition, not a claim about hidden model activity.
 - Run one watcher per store in protocol version `1`. Multi-worker claiming and
   leasing are deliberately not implied by the append-only completion model.
 - A request remains pending when no adapter is configured or no worker is

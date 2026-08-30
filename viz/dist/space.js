@@ -1127,13 +1127,20 @@
       return;
     }
     const ready = payload.continuation || null;
+    const attempt = payload.continuation_attempt || null;
+    const harness = attempt && attempt.harness
+      ? attempt.harness.charAt(0).toUpperCase() + attempt.harness.slice(1)
+      : null;
+    const workingLabel = "AI working…";
     elThreshold.hidden = false;
     elThreshold.dataset.ready = ready ? "working" : "false";
     elThresholdKind.textContent = ready
-      ? "AI working…"
+      ? `${workingLabel}${harness ? ` · ${harness}` : ""}`
       : "end of this graph path";
     elThresholdText.textContent = ready
-      ? "The continuation is active. This chamber will update when the new path arrives."
+      ? harness
+        ? `${harness} is responding from this chamber. The new path will arrive automatically.`
+        : "The continuation is queued. This chamber will update when a harness begins responding."
       : traversal.state_line;
     elThresholdOrigin.disabled = Boolean(
       payload.origin && payload.origin.id === payload.node.id
@@ -1294,6 +1301,9 @@
         added = true;
       }
       if (added) {
+        arrivalsDirty = true;
+      }
+      if (view && view.continuation) {
         arrivalsDirty = true;
       }
     } catch (_error) {

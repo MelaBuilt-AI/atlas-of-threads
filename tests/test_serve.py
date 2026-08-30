@@ -9,6 +9,7 @@ from urllib.request import Request, urlopen
 import pytest
 
 from thought_archaeology.continuation import (
+    continuation_attempt,
     continuation_completion,
     continuation_request,
 )
@@ -375,6 +376,8 @@ def test_terminal_traversal_separates_story_and_conversation_routes():
     assert "marking inhabitant ready" in js
     assert 'elThreshold.dataset.ready = ready ? "working" : "false"' in js
     assert '"AI working…"' in js
+    assert "continuation_attempt" in js
+    assert "is responding from this chamber" in js
     assert '"cancel response · q"' in js
     assert '#threshold[data-ready="working"]' in css
     assert "working-text" in css
@@ -476,6 +479,16 @@ def test_continuation_endpoint_writes_harness_neutral_request(
     )
     assert code == 200
     assert json.loads(body)["continuation"] == request
+    assert json.loads(body)["continuation_attempt"] is None
+
+    attempt = continuation_attempt(request["id"], "grok")
+    Store(store_path).write_continuation_attempt(attempt)
+    code, body, _ = _get(
+        httpd_url
+        + f"/api/inhabit/{spawn['node_id']}?graph={spawn['graph_id']}"
+    )
+    assert code == 200
+    assert json.loads(body)["continuation_attempt"] == attempt.to_dict()
 
     code, body = _post(
         httpd_url + "/api/continuation/cancel", {"request": request["id"]}
@@ -518,6 +531,13 @@ def test_continuation_handler_without_socket(tmp_path: Path):
     handler.path = "/api/continuations"
     handler.do_GET()
     assert replies[-1] == (200, {"requests": [request]})
+
+    attempt = continuation_attempt(request["id"], "grok")
+    store.write_continuation_attempt(attempt)
+    handler.path = f"/api/inhabit/{node.id}?graph={graph.id}"
+    handler.do_GET()
+    assert replies[-1][0] == 200
+    assert replies[-1][1]["continuation_attempt"] == attempt.to_dict()
 
     handler._read_json = lambda: {"request": request["id"]}
     handler._continuation_cancel()

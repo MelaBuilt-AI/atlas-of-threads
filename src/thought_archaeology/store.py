@@ -9,6 +9,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from thought_archaeology.continuation import (
+    ContinuationAttempt,
     ContinuationCancellation,
     ContinuationCompletion,
     ContinuationRequest,
@@ -283,6 +284,10 @@ class Store:
         return self.root / "continuations" / "completions"
 
     @property
+    def continuation_attempts_dir(self) -> Path:
+        return self.root / "continuations" / "attempts"
+
+    @property
     def continuation_cancellations_dir(self) -> Path:
         return self.root / "continuations" / "cancellations"
 
@@ -309,6 +314,29 @@ class Store:
         raw = json.loads(path.read_text(encoding="utf-8"))
         validate_schema("continuation-request.schema.json", raw)
         return ContinuationRequest.from_dict(raw)
+
+    def write_continuation_attempt(self, attempt: ContinuationAttempt) -> Path:
+        self._require()
+        self.load_continuation_request(attempt.request_id)
+        validate_schema("continuation-attempt.schema.json", attempt.to_dict())
+        _mkdir(self.continuation_attempts_dir)
+        path = self.continuation_attempts_dir / f"{attempt.id}.json"
+        if path.exists():
+            raise StoreError(
+                f"continuation attempt {attempt.id} already exists (write-once)"
+            )
+        _write_json(path, attempt.to_dict())
+        return path
+
+    def iter_continuation_attempts(self) -> Iterator[ContinuationAttempt]:
+        self._require()
+        if not self.continuation_attempts_dir.is_dir():
+            return
+            yield  # pragma: no cover
+        for path in sorted(self.continuation_attempts_dir.glob("*.json")):
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            validate_schema("continuation-attempt.schema.json", raw)
+            yield ContinuationAttempt.from_dict(raw)
 
     def iter_continuation_requests(
         self, *, pending: bool = False
