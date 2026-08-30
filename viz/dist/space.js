@@ -1243,7 +1243,6 @@
       !arrivalsDirty ||
       !view ||
       composing ||
-      focusIndex >= 0 ||
       !elRelicIndex.hidden ||
       !elEvidenceDescent.hidden
     ) return;

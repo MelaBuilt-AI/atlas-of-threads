@@ -279,8 +279,10 @@ evidence.
 While Inhabit Space remains open, it polls the local store for finalized graph
 heads. A later `ta compile` rises as an optional teal doorway beside the current
 chamber without a manual page refresh; the user is never teleported. If the
-inhabitant is composing, inspecting a relic/evidence pane, or previewing a path,
-the arrival waits until that interaction clears before the chamber relays out.
+inhabitant is composing or inspecting a relic/evidence pane, the arrival waits
+until that interaction clears before the chamber relays out. A selected path
+preview does not hold a completed response indefinitely; completion clears the
+preview and raises the new doorway.
 Direct story relations are walked one edge at a time in front, rejected roads
 remain to the left, and conversational
 doors appear to the right only at graph origins and path endings. Entering a

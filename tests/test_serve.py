@@ -433,6 +433,8 @@ def test_live_companion_uses_finalized_store_heads_as_optional_doorways(tmp_path
     assert "RETURN_COLOR" in js
     assert "choice.selectionColor || DEFAULT_SELECTION_COLOR" in js
     assert 'inhabit(view.graph_id, view.node.id, "poll")' in js
+    waiting = js[js.index("function showWaitingArrivals") : js.index("async function pollLiveCompanion")]
+    assert "focusIndex >= 0" not in waiting
     assert "item.anchorGraphId === arrival.anchorGraphId" in js
     assert "currentSession.head_graph_id !== view.graph_id" in js
     assert "new companion thought · ${attribution}" in js
