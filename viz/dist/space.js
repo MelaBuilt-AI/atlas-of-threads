@@ -380,6 +380,12 @@
     document.documentElement.style.setProperty(
       "--plate-height", `${Math.ceil(elPlate.getBoundingClientRect().height)}px`
     );
+    const thresholdHeight = elThreshold.hidden
+      ? 0
+      : Math.ceil(elThreshold.getBoundingClientRect().height) + 12;
+    document.documentElement.style.setProperty(
+      "--threshold-stack-height", `${thresholdHeight}px`
+    );
   }
   window.addEventListener("resize", resize);
   resize();
@@ -1115,10 +1121,78 @@
     };
   }
 
+  function arrivalSlot(i) {
+    const row = Math.floor(i / 5);
+    const offsets = [0, -1, 1, -2, 2];
+    return {
+      x: CHOICE_ROW + row * CHOICE_ROW_GAP,
+      z: offsets[i % 5] * CHOICE_STRIDE,
+    };
+  }
+
+  function arrivalKey(arrival) {
+    return `${arrival.graphId}:${arrival.nodeId}:${arrival.anchorGraphId || ""}`;
+  }
+
   function addClockChoice(mesh, choice) {
     mesh.userData.choice = choice;
     mesh.userData.focusScale = 1;
     choices.push({ mesh, choice });
+  }
+
+  function addArrivalPortal(arrival, i, rise = true) {
+    const slot = arrivalSlot(i);
+    const attribution = companionAttribution(arrival);
+    const via = arrival.via || (arrival.seen
+      ? "conversation return"
+      : "new companion thought");
+    const autoFocus = arrivingFocus &&
+      arrival.graphId === arrivingFocus.graphId &&
+      arrival.nodeId === arrivingFocus.nodeId &&
+      arrival.anchorGraphId === arrivingFocus.anchorGraphId;
+    const ring = portalRing({
+      x: slot.x,
+      z: slot.z,
+      color: arrival.returnOrigin
+        ? RETURN_COLOR
+        : arrival.seen ? 0x496e68 : 0x5c8a7b,
+      emissive: arrival.returnOrigin
+        ? RETURN_EMISSIVE
+        : arrival.seen ? 0x102a28 : 0x183c38,
+      portal: { graphId: arrival.graphId, nodeId: arrival.nodeId },
+      relicKey: arrival.returnOrigin
+        ? "counterfactual-shard-gate"
+        : "thought-graph-reliquary",
+      labelKind: arrival.labelKind || (arrival.seen
+        ? "conversation return"
+        : attribution
+          ? `new companion thought · ${attribution}`
+          : "new companion thought"),
+      labelText: arrival.title,
+    });
+    root.add(ring);
+    portals.push(ring);
+    if (autoFocus) completeContinuationCircuit(ring, arrival);
+    const retainedArrival = rememberedCircuit &&
+      rememberedCircuit.phase === "arrival" &&
+      rememberedCircuit.targetGraphId === arrival.graphId &&
+      rememberedCircuit.targetNodeId === arrival.nodeId;
+    if (retainedArrival && arrival.seen) clearContinuationCircuit();
+    else if (retainedArrival) restoreArrivalCircuit(ring, arrival);
+    addClockChoice(ring, {
+      via,
+      kind: arrival.kind,
+      text: `${companionTitle(arrival)} — ${arrival.text}`,
+      description: arrival.description,
+      selectionColor: arrival.returnOrigin
+        ? RETURN_COLOR
+        : autoFocus ? NEW_PATH_SELECTION_COLOR : null,
+      autoFocus,
+      arrivalKey: arrivalKey(arrival),
+      walk: () => inhabit(arrival.graphId, arrival.nodeId),
+    });
+    if (rise) markRise(ring, 0.24 + i * 0.08);
+    return { autoFocus, choiceIndex: choices.length - 1 };
   }
 
   function layout(payload) {
@@ -1229,56 +1303,7 @@
       markRise(ring, 0.18 + i * 0.08);
     });
 
-    arrivals.forEach((arrival, i) => {
-      const slot = sideSlot(i, arrivals.length, 1);
-      const attribution = companionAttribution(arrival);
-      const via = arrival.via || (arrival.seen ? "conversation return" : "new companion thought");
-      const autoFocus = arrivingFocus &&
-        arrival.graphId === arrivingFocus.graphId &&
-        arrival.nodeId === arrivingFocus.nodeId &&
-        arrival.anchorGraphId === arrivingFocus.anchorGraphId;
-      const ring = portalRing({
-        x: slot.x,
-        z: slot.z,
-        color: arrival.returnOrigin
-          ? RETURN_COLOR
-          : arrival.seen ? 0x496e68 : 0x5c8a7b,
-        emissive: arrival.returnOrigin
-          ? RETURN_EMISSIVE
-          : arrival.seen ? 0x102a28 : 0x183c38,
-        portal: { graphId: arrival.graphId, nodeId: arrival.nodeId },
-        relicKey: arrival.returnOrigin
-          ? "counterfactual-shard-gate"
-          : "thought-graph-reliquary",
-        labelKind: arrival.labelKind || (arrival.seen
-          ? "conversation return"
-          : attribution
-            ? `new companion thought · ${attribution}`
-            : "new companion thought"),
-        labelText: arrival.title,
-      });
-      root.add(ring);
-      portals.push(ring);
-      if (autoFocus) completeContinuationCircuit(ring, arrival);
-      const retainedArrival = rememberedCircuit &&
-        rememberedCircuit.phase === "arrival" &&
-        rememberedCircuit.targetGraphId === arrival.graphId &&
-        rememberedCircuit.targetNodeId === arrival.nodeId;
-      if (retainedArrival && arrival.seen) clearContinuationCircuit();
-      else if (retainedArrival) restoreArrivalCircuit(ring, arrival);
-      addClockChoice(ring, {
-        via,
-        kind: arrival.kind,
-        text: `${companionTitle(arrival)} — ${arrival.text}`,
-        description: arrival.description,
-        selectionColor: arrival.returnOrigin
-          ? RETURN_COLOR
-          : autoFocus ? NEW_PATH_SELECTION_COLOR : null,
-        autoFocus,
-        walk: () => inhabit(arrival.graphId, arrival.nodeId),
-      });
-      markRise(ring, 0.24 + i * 0.08);
-    });
+    arrivals.forEach((arrival, i) => addArrivalPortal(arrival, i));
 
     const parent = payload.parent;
     if (parent && parent.graph_id && parent.node_id) {
@@ -1454,6 +1479,7 @@
     const traversal = (payload.read && payload.read.traversal) || {};
     if (!traversal.terminal) {
       elThreshold.hidden = true;
+      requestAnimationFrame(resize);
       return;
     }
     const ready = payload.continuation || null;
@@ -1481,6 +1507,7 @@
     elThresholdContinue.textContent = ready
       ? "cancel response · q"
       : "ready for continuation · q";
+    requestAnimationFrame(resize);
   }
 
   function sameStand(a, b) {
@@ -1591,9 +1618,41 @@
       !elEvidenceDescent.hidden
     ) return;
     arrivalsDirty = false;
-    inhabit(view.graph_id, view.node.id, "poll").catch(() => {
+    revealWaitingArrivals().catch(() => {
       arrivalsDirty = true;
     });
+  }
+
+  async function revealWaitingArrivals() {
+    if (!view) return;
+    const graphId = view.graph_id;
+    const nodeId = view.node.id;
+    const q = new URLSearchParams({ graph: graphId });
+    const payload = await api(`/api/inhabit/${nodeId}?${q.toString()}`);
+    if (!view || view.graph_id !== graphId || view.node.id !== nodeId) return;
+    view = payload;
+    const traversal = (payload.read && payload.read.traversal) || {};
+    const atOrigin = payload.origin && payload.origin.id === payload.node.id;
+    const arrivals = traversal.terminal || atOrigin
+      ? visibleArrivals(payload)
+      : [];
+    const existing = new Set(
+      choices.map((item) => item.choice.arrivalKey).filter(Boolean)
+    );
+    let newFocus = -1;
+    arrivals.forEach((arrival, i) => {
+      if (existing.has(arrivalKey(arrival))) return;
+      const added = addArrivalPortal(arrival, i);
+      if (added.autoFocus) newFocus = added.choiceIndex;
+    });
+    if (newFocus >= 0) {
+      focusIndex = newFocus;
+      arrivingFocus = null;
+      showFocus();
+    } else {
+      plate(payload);
+    }
+    renderThreshold(payload);
   }
 
   async function refreshContinuationState() {
@@ -1750,6 +1809,7 @@
       ? "why this cut (optional)"
       : "why this is the wrong cut";
     elComposerInput.focus();
+    requestAnimationFrame(resize);
   }
 
   function closeComposer() {

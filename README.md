@@ -187,6 +187,20 @@ spotlight. Browser-local memory keeps that one visual circuit stable across
 a refresh; the graph store remains canonical. These beams are lifecycle
 atmosphere, not hidden model activity. No Node runtime; `viz/dist` is committed.
 
+When a completed continuation arrives, only its new doorway is inserted and
+raised; the standing relic and existing paths keep their mesh and animation
+state. At a terminal chamber, opening cut (`f`) or human no (`v`) stacks that
+input above the end-of-path pane rather than behind it.
+
+Cut and human no do not train or modify Grok, Codex, or another closed model.
+The browser cut writes a child graph with the selected node and its bounded
+dependents omitted, leaving the original graph intact and adding a fork doorway.
+Human no preserves the graph and adds a human veto node and edge. A later model
+continuation can receive that edited public graph as context and respond
+differently, but that is a behavioral/context intervention—not a weight edit or
+vendor preference-training signal. Provider-backed fork regeneration is an
+explicit CLI operation; the browser gesture itself invokes no model.
+
 `ta canvas` / `ta export-wiki` write a lossy Markdown projection (`type: overview`,
 Obsidian wikilinks). Hidden reasoning stays JSON-only. Dual archaeology appears
 only with `--fingerprint PATH`. Neither command writes `wiki/index.md` or

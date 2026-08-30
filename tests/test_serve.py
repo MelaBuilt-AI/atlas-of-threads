@@ -293,6 +293,7 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert "overSun" in js
     assert "shiftKey" in js
     assert "--plate-height" in js
+    assert "--threshold-stack-height" in js
     assert "RelicGLBLoader.load" in js
     assert "EVIDENCE_RELIC" in js
     assert "openRelicIndex" in js
@@ -361,7 +362,7 @@ def test_terminal_traversal_separates_story_and_conversation_routes():
     assert 'via: "story ahead"' in js
     assert "atThreshold" in js
     assert 'sideSlot(i, sideNodes.length, -1)' in js
-    assert 'sideSlot(i, arrivals.length, 1)' in js
+    assert "arrivalSlot(i)" in js
     assert '"conversation return"' in js
     assert "renderThreshold" in js
     assert "walkOrigin" in js
@@ -373,6 +374,7 @@ def test_terminal_traversal_separates_story_and_conversation_routes():
     assert 'elThreshold.dataset.ask = "true"' in js
     assert 'elThreshold.dataset.ask = "false"' in js
     assert "#threshold-ask-box" in css
+    assert "var(--threshold-stack-height, 0px)" in css
     assert "marking inhabitant ready" in js
     assert 'elThreshold.dataset.ready = ready ? "working" : "false"' in js
     assert '"AI working…"' in js
@@ -419,7 +421,8 @@ def test_live_companion_uses_finalized_store_heads_as_optional_doorways(tmp_path
     assert "knownHeads" in js
     assert "pollLiveCompanion" in js
     assert 'api("/api/sessions")' in js
-    assert 'arrival.seen ? "conversation return" : "new companion thought"' in js
+    assert '"conversation return"' in js
+    assert '"new companion thought"' in js
     assert '"conversation return"' in js
     assert "rememberCompanion" in js
     assert "companionFromSession" in js
@@ -453,7 +456,14 @@ def test_live_companion_uses_finalized_store_heads_as_optional_doorways(tmp_path
     assert "restoreArrivalCircuit(ring, arrival)" in js
     assert "clearContinuationCircuit();" in js
     assert "updateContinuationCircuit(t)" in js
-    assert 'inhabit(view.graph_id, view.node.id, "poll")' in js
+    assert "revealWaitingArrivals" in js
+    reveal = js[
+        js.index("async function revealWaitingArrivals") :
+        js.index("async function refreshContinuationState")
+    ]
+    assert "addArrivalPortal(arrival, i)" in reveal
+    assert "layout(" not in reveal
+    assert "clearRoot" not in reveal
     assert "refreshContinuationState" in js
     refresh = js[js.index("async function refreshContinuationState") : js.index("async function pollLiveCompanion")]
     assert "renderThreshold(payload)" in refresh
@@ -462,6 +472,7 @@ def test_live_companion_uses_finalized_store_heads_as_optional_doorways(tmp_path
     assert "choice.autoFocus" in js
     waiting = js[js.index("function showWaitingArrivals") : js.index("async function pollLiveCompanion")]
     assert "focusIndex >= 0" not in waiting
+    assert "revealWaitingArrivals()" in waiting
     assert "item.anchorGraphId === arrival.anchorGraphId" in js
     assert "currentSession.head_graph_id !== view.graph_id" in js
     assert "new companion thought · ${attribution}" in js
