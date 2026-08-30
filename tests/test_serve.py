@@ -434,8 +434,15 @@ def test_live_companion_uses_finalized_store_heads_as_optional_doorways(tmp_path
     assert 'labelKind: "conversation origin"' in js
     assert 'relicKey: arrival.returnOrigin' in js
     assert "RETURN_COLOR" in js
+    assert "NEW_PATH_SELECTION_COLOR" in js
     assert "choice.selectionColor || DEFAULT_SELECTION_COLOR" in js
     assert 'inhabit(view.graph_id, view.node.id, "poll")' in js
+    assert "refreshContinuationState" in js
+    refresh = js[js.index("async function refreshContinuationState") : js.index("async function pollLiveCompanion")]
+    assert "renderThreshold(payload)" in refresh
+    assert "layout(payload)" not in refresh
+    assert "arrivingFocus" in js
+    assert "choice.autoFocus" in js
     waiting = js[js.index("function showWaitingArrivals") : js.index("async function pollLiveCompanion")]
     assert "focusIndex >= 0" not in waiting
     assert "item.anchorGraphId === arrival.anchorGraphId" in js

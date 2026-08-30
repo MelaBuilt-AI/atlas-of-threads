@@ -109,6 +109,7 @@
   const CHOICE_ROW_GAP = CELL * 3;
   const CHOICE_COLS = 7;
   const DEFAULT_SELECTION_COLOR = 0xe2c48a;
+  const NEW_PATH_SELECTION_COLOR = 0x4f8fd6;
   const RETURN_COLOR = 0xc94f4f;
   const RETURN_EMISSIVE = 0x641818;
 
@@ -150,6 +151,7 @@
   const sessionTitles = new Map();
   let liveArrivals = loadCompanionThoughts();
   let arrivalsDirty = false;
+  let arrivingFocus = null;
   let companionPolling = false;
   let companionReady = false;
 
@@ -924,6 +926,10 @@
       const slot = sideSlot(i, arrivals.length, 1);
       const attribution = companionAttribution(arrival);
       const via = arrival.via || (arrival.seen ? "conversation return" : "new companion thought");
+      const autoFocus = arrivingFocus &&
+        arrival.graphId === arrivingFocus.graphId &&
+        arrival.nodeId === arrivingFocus.nodeId &&
+        arrival.anchorGraphId === arrivingFocus.anchorGraphId;
       const ring = portalRing({
         x: slot.x,
         z: slot.z,
@@ -951,7 +957,10 @@
         kind: arrival.kind,
         text: `${companionTitle(arrival)} — ${arrival.text}`,
         description: arrival.description,
-        selectionColor: arrival.returnOrigin ? RETURN_COLOR : null,
+        selectionColor: arrival.returnOrigin
+          ? RETURN_COLOR
+          : autoFocus ? NEW_PATH_SELECTION_COLOR : null,
+        autoFocus,
         walk: () => inhabit(arrival.graphId, arrival.nodeId),
       });
       markRise(ring, 0.24 + i * 0.08);
@@ -980,7 +989,14 @@
       markRise(back, 0.28);
     }
 
-    plate(payload);
+    const autoFocusIndex = choices.findIndex((item) => item.choice.autoFocus);
+    if (autoFocusIndex >= 0) {
+      focusIndex = autoFocusIndex;
+      arrivingFocus = null;
+      showFocus();
+    } else {
+      plate(payload);
+    }
     renderThreshold(payload);
   }
 
@@ -1259,6 +1275,17 @@
     });
   }
 
+  async function refreshContinuationState() {
+    if (!view || !view.continuation) return;
+    const graphId = view.graph_id;
+    const nodeId = view.node.id;
+    const q = new URLSearchParams({ graph: graphId });
+    const payload = await api(`/api/inhabit/${nodeId}?${q.toString()}`);
+    if (!view || view.graph_id !== graphId || view.node.id !== nodeId) return;
+    view = payload;
+    renderThreshold(payload);
+  }
+
   async function pollLiveCompanion() {
     if (!companionReady || companionPolling) return;
     companionPolling = true;
@@ -1298,13 +1325,18 @@
         }
         if (!changed) continue;
         rememberCompanion(arrival);
+        arrivingFocus = {
+          graphId: arrival.graphId,
+          nodeId: arrival.nodeId,
+          anchorGraphId: arrival.anchorGraphId,
+        };
         added = true;
       }
       if (added) {
         arrivalsDirty = true;
       }
-      if (view && view.continuation) {
-        arrivalsDirty = true;
+      if (!added && view && view.continuation) {
+        await refreshContinuationState();
       }
     } catch (_error) {
       // The chamber remains usable if its local companion poll misses a beat.
