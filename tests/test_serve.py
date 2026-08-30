@@ -426,6 +426,7 @@ def test_live_companion_uses_finalized_store_heads_as_optional_doorways(tmp_path
     assert "visibleArrivals" in js
     assert "continuationSourceArrival" in js
     assert "arrival.anchorGraphId === payload.graph_id" in js
+    assert "arrival.graphId !== source.graphId || arrival.nodeId !== source.nodeId" in js
     assert 'text: "Return to conversation origin"' in js
     assert 'labelKind: "conversation origin"' in js
     assert 'relicKey: arrival.returnOrigin' in js

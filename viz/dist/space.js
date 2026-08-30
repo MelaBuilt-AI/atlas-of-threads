@@ -265,19 +265,17 @@
   }
 
   function visibleArrivals(payload) {
-    const arrivals = liveArrivals.filter(
+    let arrivals = liveArrivals.filter(
       (arrival) =>
         arrival.anchorGraphId === payload.graph_id &&
         arrival.graphId !== payload.graph_id
     );
     const source = continuationSourceArrival(payload);
-    if (
-      source &&
-      !arrivals.some(
+    if (source) {
+      arrivals = arrivals.filter(
         (arrival) =>
-          arrival.graphId === source.graphId && arrival.nodeId === source.nodeId
-      )
-    ) {
+          arrival.graphId !== source.graphId || arrival.nodeId !== source.nodeId
+      );
       arrivals.unshift(source);
     }
     return arrivals;
