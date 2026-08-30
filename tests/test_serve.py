@@ -254,7 +254,8 @@ def test_veto_from_space_requires_reason_then_follows(httpd_url: str, tmp_path: 
 def test_space_shell_mentions_gestures(httpd_url: str):
     code, body, _ = _get(httpd_url + "/")
     assert code == 200
-    assert "preview a path" in body
+    assert "counterclockwise" in body
+    assert "walk north story path" in body
     assert "overhead" in body
     assert "shift+c home" in body
     assert "human no" in body
@@ -300,9 +301,11 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert "calc(2.25rem + var(--plate-height" in css
     assert "grid-template-columns: max-content minmax(0, 1fr)" in css
     assert "cycleChoice" in js
-    assert "nearestDirectionalChoice" in js
-    assert "position.project(camera)" in js
-    assert "Math.abs(a.y - current.y) * 3" in js
+    assert "if (focusIndex < 0)" in js
+    assert "walkDeeper();" in js
+    assert "clockwiseChoices" in js
+    assert "Math.atan2(position.x, -position.z)" in js
+    assert js.count("addClockChoice(") == 4
     assert "sparkColors" in js
     assert "inhabit(view.graph_id, cycle[" not in js
 
@@ -342,6 +345,8 @@ def test_terminal_traversal_separates_story_and_conversation_routes():
     assert 'id="threshold-origin"' in html
     assert 'id="threshold-continue"' in html
     assert 'id="threshold-ask"' in html
+    assert 'id="threshold-ask-box"' in html
+    assert 'id="threshold-ask-input"' in html
     assert "payload.forward" in js
     assert 'via: "story ahead"' in js
     assert "atThreshold" in js
@@ -354,7 +359,10 @@ def test_terminal_traversal_separates_story_and_conversation_routes():
     assert "cancelContinuationReady" in js
     assert 'post("/api/continuation/cancel"' in js
     assert 'elThresholdContinue.addEventListener("click", toggleContinuationReady)' in js
-    assert 'elThresholdAsk.addEventListener("click", () => openComposer("continuation"))' in js
+    assert 'elThresholdAsk.addEventListener("click", toggleContinuationComposer)' in js
+    assert 'elThreshold.dataset.ask = "true"' in js
+    assert 'elThreshold.dataset.ask = "false"' in js
+    assert "#threshold-ask-box" in css
     assert "marking inhabitant ready" in js
     assert 'openComposer("continuation")' in js
     assert "#threshold" in css

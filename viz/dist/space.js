@@ -76,6 +76,8 @@
   const elThresholdOrigin = document.getElementById("threshold-origin");
   const elThresholdContinue = document.getElementById("threshold-continue");
   const elThresholdAsk = document.getElementById("threshold-ask");
+  const elThresholdAskBox = document.getElementById("threshold-ask-box");
+  const elThresholdAskInput = document.getElementById("threshold-ask-input");
   const elRelicIndex = document.getElementById("relic-index");
   const elRelicGrid = document.getElementById("relic-grid");
   const elRelicClose = document.getElementById("relic-close");
@@ -704,7 +706,7 @@
     };
   }
 
-  function addChoice(mesh, choice) {
+  function addClockChoice(mesh, choice) {
     mesh.userData.choice = choice;
     mesh.userData.focusScale = 1;
     choices.push({ mesh, choice });
@@ -768,12 +770,6 @@
       });
       root.add(mesh);
       targets.push(mesh);
-      addChoice(mesh, {
-        via: item.via,
-        kind: item.node.kind,
-        text: item.node.text,
-        walk: () => inhabit(payload.graph_id, item.node.id),
-      });
       markRise(mesh, 0.08 + i * 0.07);
     });
 
@@ -788,7 +784,7 @@
       });
       root.add(mesh);
       targets.push(mesh);
-      addChoice(mesh, {
+      addClockChoice(mesh, {
         via: item.via,
         kind: item.node.kind,
         text: item.node.text,
@@ -811,12 +807,6 @@
       });
       root.add(ring);
       portals.push(ring);
-      addChoice(ring, {
-        via: "continuation",
-        kind: "fork",
-        text: f.reason || "a path that omitted this chamber",
-        walk: () => inhabit(f.id, f.spawn_node_id),
-      });
       markRise(ring, 0.18 + i * 0.08);
     });
 
@@ -834,7 +824,7 @@
       });
       root.add(ring);
       portals.push(ring);
-      addChoice(ring, {
+      addClockChoice(ring, {
         via: arrival.seen ? "conversation return" : "new companion thought",
         kind: arrival.kind,
         text: `${arrival.title} — ${arrival.text}`,
@@ -857,6 +847,12 @@
       });
       root.add(back);
       portals.push(back);
+      addClockChoice(back, {
+        via: "fork return",
+        kind: "fork",
+        text: "back to the chamber where this path was cut",
+        walk: () => inhabit(parent.graph_id, parent.node_id),
+      });
       markRise(back, 0.28);
     }
 
@@ -1203,20 +1199,24 @@
   function openComposer(kind) {
     if (!view || busy) return;
     composing = kind;
+    if (kind === "continuation") {
+      elThreshold.dataset.ask = "true";
+      elThresholdAsk.setAttribute("aria-pressed", "true");
+      elThresholdAskBox.hidden = false;
+      elThresholdAskInput.value = "";
+      elThresholdAskInput.focus();
+      requestAnimationFrame(resize);
+      return;
+    }
     elComposer.hidden = false;
     const read = (view && view.read) || {};
-    const traversal = read.traversal || {};
     elComposerLabel.textContent = kind === "fork"
       ? read.fork_line || "fork · accept the chain except this cut"
-      : kind === "veto"
-        ? read.veto_line || "veto · this stays, with a human no"
-        : traversal.continuation_line || "ready for continuation";
+      : read.veto_line || "veto · this stays, with a human no";
     elComposerInput.value = "";
     elComposerInput.placeholder = kind === "fork"
       ? "why this cut (optional)"
-      : kind === "veto"
-        ? "why this is the wrong cut"
-        : "optional question or invitation for the next AI turn";
+      : "why this is the wrong cut";
     elComposerInput.focus();
   }
 
@@ -1224,13 +1224,25 @@
     composing = null;
     elComposer.hidden = true;
     elComposerInput.blur();
+    elThreshold.dataset.ask = "false";
+    elThresholdAsk.setAttribute("aria-pressed", "false");
+    elThresholdAskBox.hidden = true;
+    elThresholdAskInput.blur();
+    requestAnimationFrame(resize);
     showWaitingArrivals();
+  }
+
+  function toggleContinuationComposer() {
+    if (busy || (composing && composing !== "continuation")) return;
+    if (composing === "continuation") closeComposer();
+    else openComposer("continuation");
   }
 
   async function commitGesture() {
     if (!composing || !view || busy) return;
     const kind = composing;
-    const text = elComposerInput.value.trim();
+    const input = kind === "continuation" ? elThresholdAskInput : elComposerInput;
+    const text = input.value.trim();
     if (kind === "veto" && !text) {
       elComposerLabel.textContent = "veto · a reason is required";
       return;
@@ -1351,6 +1363,7 @@
 
   function walkOrigin() {
     if (!view || !view.origin || view.origin.id === view.node.id) return;
+    if (composing) closeComposer();
     inhabit(view.graph_id, view.origin.id);
   }
 
@@ -1371,57 +1384,36 @@
     if (view) plate(view);
   }
 
-  function projectedChoices() {
+  function clockwiseChoices() {
     scene.updateMatrixWorld(true);
-    camera.updateMatrixWorld(true);
     return choices.map((choice, index) => {
       const position = new THREE.Vector3();
       choice.mesh.getWorldPosition(position);
-      position.project(camera);
-      return { index, x: position.x, y: position.y };
-    });
-  }
-
-  function nearestDirectionalChoice(dir) {
-    const projected = projectedChoices();
-    if (!projected.length) return -1;
-    if (focusIndex < 0) {
-      projected.sort((a, b) => a.x - b.x || b.y - a.y || a.index - b.index);
-      return dir > 0 ? projected[0].index : projected[projected.length - 1].index;
-    }
-    const current = projected.find((choice) => choice.index === focusIndex);
-    if (!current) return projected[0].index;
-    const directional = projected.filter(
-      (choice) =>
-        choice.index !== focusIndex && (choice.x - current.x) * dir > 0.001
-    );
-    if (directional.length) {
-      directional.sort((a, b) => {
-        const aScore = Math.abs(a.x - current.x) + Math.abs(a.y - current.y) * 3;
-        const bScore = Math.abs(b.x - current.x) + Math.abs(b.y - current.y) * 3;
-        return aScore - bScore || a.index - b.index;
-      });
-      return directional[0].index;
-    }
-    const edgeX = dir > 0
-      ? Math.min(...projected.map((choice) => choice.x))
-      : Math.max(...projected.map((choice) => choice.x));
-    projected.sort((a, b) =>
-      Math.abs(a.x - edgeX) - Math.abs(b.x - edgeX)
-      || Math.abs(a.y - current.y) - Math.abs(b.y - current.y)
-      || a.index - b.index
-    );
-    return projected[0].index;
+      const angle = (Math.atan2(position.x, -position.z) + Math.PI * 2)
+        % (Math.PI * 2);
+      return { index, angle, radius: Math.hypot(position.x, position.z) };
+    }).sort((a, b) => a.angle - b.angle || a.radius - b.radius || a.index - b.index);
   }
 
   function cycleChoice(dir) {
     if (!choices.length) return;
-    focusIndex = nearestDirectionalChoice(dir);
+    const clock = clockwiseChoices();
+    if (focusIndex < 0) {
+      focusIndex = dir > 0 ? clock[0].index : clock[clock.length - 1].index;
+    } else {
+      const at = clock.findIndex((choice) => choice.index === focusIndex);
+      const next = (at + dir + clock.length) % clock.length;
+      focusIndex = clock[next].index;
+    }
     showFocus();
   }
 
   function selectFocus() {
-    if (focusIndex < 0 || !choices[focusIndex]) return;
+    if (focusIndex < 0) {
+      walkDeeper();
+      return;
+    }
+    if (!choices[focusIndex]) return;
     choices[focusIndex].choice.walk();
   }
 
@@ -1568,7 +1560,7 @@
   elEvidenceClose.addEventListener("click", closeEvidenceDescent);
   elThresholdOrigin.addEventListener("click", walkOrigin);
   elThresholdContinue.addEventListener("click", toggleContinuationReady);
-  elThresholdAsk.addEventListener("click", () => openComposer("continuation"));
+  elThresholdAsk.addEventListener("click", toggleContinuationComposer);
 
   window.addEventListener("keydown", (e) => {
     if (composing) {

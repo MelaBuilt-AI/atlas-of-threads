@@ -205,6 +205,39 @@ body[data-climate="emerging"] #banner { color: #c8f26a; }
   border-left-color: var(--bronze-hot);
 }
 
+#threshold[data-ask="true"] #threshold-ask {
+  border-color: var(--phosphor);
+  color: var(--phosphor);
+  background: rgba(42, 54, 38, 0.52);
+}
+
+#threshold-ask-box {
+  margin-top: 0.7rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid rgba(176, 141, 87, 0.32);
+}
+
+#threshold-ask-box[hidden] { display: none; }
+
+#threshold-ask-input {
+  width: 100%;
+  background: rgba(18, 16, 14, 0.72);
+  border: 1px solid var(--bronze);
+  color: var(--ink);
+  font-family: "Iowan Old Style", Palatino, serif;
+  font-size: 1.05rem;
+  padding: 0.45rem 0.6rem;
+  outline: none;
+}
+
+#threshold-ask-input:focus { border-color: var(--phosphor); }
+
+#threshold-ask-box .hint {
+  margin-top: 0.35rem;
+  color: var(--mute);
+  font: 0.65rem ui-monospace, Menlo, monospace;
+}
+
 @keyframes continuation-pulse {
   from { box-shadow: -0.15rem 0 0.5rem rgba(176, 141, 87, 0.12); }
   to { box-shadow: -0.35rem 0 1.35rem rgba(200, 242, 106, 0.28); }
