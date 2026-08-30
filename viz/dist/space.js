@@ -60,6 +60,7 @@
   };
 
   const canvas = document.getElementById("c");
+  const elBanner = document.getElementById("banner");
   const elKind = document.getElementById("kind");
   const elText = document.getElementById("text");
   const elHere = document.getElementById("here");
@@ -217,6 +218,17 @@
   function companionTitle(arrival) {
     const attribution = companionAttribution(arrival);
     return attribution ? `${attribution} · ${arrival.title}` : arrival.title;
+  }
+
+  function graphAttribution(payload) {
+    const harness = payload.continuation_harness
+      ? payload.continuation_harness.charAt(0).toUpperCase() +
+        payload.continuation_harness.slice(1)
+      : "";
+    const modelName = payload.model && payload.model.name !== "unknown"
+      ? payload.model.name
+      : "";
+    return [harness, modelName].filter(Boolean).join(" · ");
   }
 
   const root = new THREE.Group();
@@ -976,9 +988,14 @@
     const n = payload.node;
     const read = payload.read || {};
     const traversal = read.traversal || {};
+    const attribution = graphAttribution(payload);
+    elBanner.textContent = attribution
+      ? `${attribution} · story graph · not a circuit trace`
+      : "story graph · not a circuit trace";
     elKind.textContent = read.kind_line || `${n.kind} · ${n.status}`;
     elText.textContent = n.text;
     const hereBits = [
+      attribution ? `inside the ${attribution} graph` : null,
       read.here_line,
       traversal.terminal ? traversal.state_line : null,
       read.climate_line,
@@ -1183,7 +1200,9 @@
         ) continue;
         const arrival = companionFromSession(session);
         if (!arrival) continue;
-        const existing = liveArrivals.find((item) => item.graphId === head);
+        const existing = liveArrivals.find(
+          (item) => item.graphId === head && item.nodeId === arrival.nodeId
+        );
         if (existing) {
           if (
             (!existing.harness && arrival.harness) ||

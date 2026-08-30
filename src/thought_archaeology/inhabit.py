@@ -290,6 +290,7 @@ class InhabitView:
             "graph_id": self.graph.id,
             "session_id": self.graph.session_id,
             "parent_graph_id": self.graph.parent_graph_id,
+            "model": self.graph.model.to_dict(),
             "parent": parent,
             "node": node_payload(self.node),
             "origin": node_payload(entry_node(self.graph)) if entry_node(self.graph) else None,

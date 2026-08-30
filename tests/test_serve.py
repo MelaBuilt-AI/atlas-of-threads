@@ -115,6 +115,8 @@ def test_inhabit_json_matches_cli(httpd_url: str, tmp_path: Path):
     payload = json.loads(body)
     view = inhabit(st, nid, graph_id=gid)
     assert payload["graph_id"] == view.graph.id
+    assert payload["model"] == view.graph.model.to_dict()
+    assert payload["continuation_harness"] is None
     assert payload["node"]["id"] == view.node.id
     assert payload["origin"]["id"]
     assert payload["forward"] == [
@@ -406,6 +408,9 @@ def test_live_companion_uses_finalized_store_heads_as_optional_doorways(tmp_path
     assert "rememberCompanion" in js
     assert "companionFromSession" in js
     assert "companionAttribution" in js
+    assert "graphAttribution" in js
+    assert "inside the ${attribution} graph" in js
+    assert "item.graphId === head && item.nodeId === arrival.nodeId" in js
     assert "currentSession.head_graph_id !== view.graph_id" in js
     assert "new companion thought · ${attribution}" in js
     assert "window.localStorage" in js

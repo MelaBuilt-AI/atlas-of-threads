@@ -286,9 +286,12 @@ browser memory. Companion doors name the harness and model when their completion
 receipt provides them, so a `Grok · grok-4.6` continuation is distinguishable
 from the graph it continued. Reloading while standing in an older graph recovers
 the newer head as a doorway rather than silently treating it as already known.
-A terminal chamber explicitly offers return to the graph origin or a
-continuation request. This is a turn-level companion for completed answers, not
-token-level hidden-thought streaming.
+After entry, graph-level attribution remains visible on every chamber while the
+individual objects keep their semantic kind. Poll enrichment matches the exact
+doorway stand, so a reciprocal route to another node in the same graph cannot
+trigger repeated chamber respawns. A terminal chamber explicitly offers return
+to the graph origin or a continuation request. This is a turn-level companion
+for completed answers, not token-level hidden-thought streaming.
 
 ## Harness-neutral continuation
 

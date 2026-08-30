@@ -42,11 +42,15 @@ def _node_brief(node) -> dict:
     }
 
 
-def bootstrap_payload(store: Store) -> dict:
-    harness_by_graph = {
+def _harness_by_graph(store: Store) -> dict[str, str]:
+    return {
         completion.graph_id: completion.harness
         for completion in store.iter_continuation_completions()
     }
+
+
+def bootstrap_payload(store: Store) -> dict:
+    harness_by_graph = _harness_by_graph(store)
     sessions = []
     for sid in store.iter_session_ids():
         session = store.load_session(sid)
@@ -137,7 +141,11 @@ class InhabitHandler(BaseHTTPRequestHandler):
                 view = inhabit(
                     self.store, nid, graph_id=graph_id, session_id=session
                 )
-                self._json(200, view.to_dict())
+                payload = view.to_dict()
+                payload["continuation_harness"] = _harness_by_graph(
+                    self.store
+                ).get(view.graph.id)
+                self._json(200, payload)
                 return
             self._static(path)
         except ForkError as exc:
