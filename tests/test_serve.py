@@ -8,6 +8,10 @@ from urllib.request import Request, urlopen
 
 import pytest
 
+from thought_archaeology.continuation import (
+    continuation_completion,
+    continuation_request,
+)
 from thought_archaeology.inhabit import inhabit
 from thought_archaeology.serve import (
     InhabitHandler,
@@ -372,10 +376,26 @@ def test_terminal_traversal_separates_story_and_conversation_routes():
 def test_live_companion_uses_finalized_store_heads_as_optional_doorways(tmp_path: Path):
     store_path = tmp_path / "data"
     session_id, graph_id = _compile_simple(store_path)
-    payload = bootstrap_payload(Store(store_path))
+    store = Store(store_path)
+    payload = bootstrap_payload(store)
     session = next(item for item in payload["sessions"] if item["id"] == session_id)
     assert session["head_graph_id"] == graph_id
     assert session["spawn"]["graph_id"] == graph_id
+    assert session["spawn"]["model"]["name"] == "unknown"
+    assert session["spawn"]["continuation_harness"] is None
+
+    source = store.load_graph(graph_id)
+    request = continuation_request(source, source.nodes[0], source="inhabit_space")
+    store.write_continuation_request(request)
+    answer_session_id, answer_graph_id = _compile_simple(store_path)
+    store.write_continuation_completion(
+        continuation_completion(request.id, answer_graph_id, "grok")
+    )
+    payload = bootstrap_payload(store)
+    answer = next(
+        item for item in payload["sessions"] if item["id"] == answer_session_id
+    )
+    assert answer["spawn"]["continuation_harness"] == "grok"
 
     js = (viz_dist_path() / "space.js").read_text(encoding="utf-8")
     assert "knownHeads" in js
@@ -384,6 +404,10 @@ def test_live_companion_uses_finalized_store_heads_as_optional_doorways(tmp_path
     assert 'arrival.seen ? "conversation return" : "new companion thought"' in js
     assert '"conversation return"' in js
     assert "rememberCompanion" in js
+    assert "companionFromSession" in js
+    assert "companionAttribution" in js
+    assert "currentSession.head_graph_id !== view.graph_id" in js
+    assert "new companion thought · ${attribution}" in js
     assert "window.localStorage" in js
     assert "COMPANION_MEMORY_KEY" in js
     assert 'relicKey: "thought-graph-reliquary"' in js

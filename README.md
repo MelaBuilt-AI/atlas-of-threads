@@ -282,9 +282,13 @@ chamber; the user is never teleported. Direct story relations are walked one
 edge at a time in front, rejected roads remain to the left, and conversational
 doors appear to the right only at graph origins and path endings. Entering a
 doorway marks it seen but keeps a quieter reciprocal return route in bounded
-browser memory. A terminal chamber explicitly offers return to the graph origin
-or a continuation request. This is a turn-level companion for completed
-answers, not token-level hidden-thought streaming.
+browser memory. Companion doors name the harness and model when their completion
+receipt provides them, so a `Grok · grok-4.6` continuation is distinguishable
+from the graph it continued. Reloading while standing in an older graph recovers
+the newer head as a doorway rather than silently treating it as already known.
+A terminal chamber explicitly offers return to the graph origin or a
+continuation request. This is a turn-level companion for completed answers, not
+token-level hidden-thought streaming.
 
 ## Harness-neutral continuation
 

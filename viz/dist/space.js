@@ -173,12 +173,50 @@
   }
 
   function rememberCompanion(entry) {
+    const previous = liveArrivals.find(
+      (item) => item.graphId === entry.graphId && item.nodeId === entry.nodeId
+    );
+    const remembered = previous
+      ? { ...previous, ...entry, seen: Boolean(previous.seen || entry.seen) }
+      : entry;
     liveArrivals = liveArrivals.filter(
       (item) => item.graphId !== entry.graphId || item.nodeId !== entry.nodeId
     );
-    liveArrivals.push(entry);
+    liveArrivals.push(remembered);
     liveArrivals = liveArrivals.slice(-12);
     saveCompanionThoughts();
+  }
+
+  function companionFromSession(session, seen = false) {
+    if (!session || !session.head_graph_id || !session.spawn) return null;
+    const entry = {
+      sessionId: session.id,
+      graphId: session.head_graph_id,
+      nodeId: session.spawn.node_id,
+      kind: session.spawn.node.kind,
+      text: session.spawn.node.text,
+      title: session.title || "untitled thought",
+      seen,
+    };
+    if (session.spawn.continuation_harness) {
+      entry.harness = session.spawn.continuation_harness;
+    }
+    if (session.spawn.model && session.spawn.model.name !== "unknown") {
+      entry.modelName = session.spawn.model.name;
+    }
+    return entry;
+  }
+
+  function companionAttribution(arrival) {
+    const harness = arrival.harness
+      ? arrival.harness.charAt(0).toUpperCase() + arrival.harness.slice(1)
+      : "";
+    return [harness, arrival.modelName].filter(Boolean).join(" · ");
+  }
+
+  function companionTitle(arrival) {
+    const attribution = companionAttribution(arrival);
+    return attribution ? `${attribution} · ${arrival.title}` : arrival.title;
   }
 
   const root = new THREE.Group();
@@ -824,6 +862,7 @@
 
     arrivals.forEach((arrival, i) => {
       const slot = sideSlot(i, arrivals.length, 1);
+      const attribution = companionAttribution(arrival);
       const ring = portalRing({
         x: slot.x,
         z: slot.z,
@@ -831,7 +870,11 @@
         emissive: arrival.seen ? 0x102a28 : 0x183c38,
         portal: { graphId: arrival.graphId, nodeId: arrival.nodeId },
         relicKey: "thought-graph-reliquary",
-        labelKind: arrival.seen ? "conversation return" : "new companion thought",
+        labelKind: arrival.seen
+          ? "conversation return"
+          : attribution
+            ? `new companion thought · ${attribution}`
+            : "new companion thought",
         labelText: arrival.title,
       });
       root.add(ring);
@@ -839,7 +882,7 @@
       addClockChoice(ring, {
         via: arrival.seen ? "conversation return" : "new companion thought",
         kind: arrival.kind,
-        text: `${arrival.title} — ${arrival.text}`,
+        text: `${companionTitle(arrival)} — ${arrival.text}`,
         walk: () => inhabit(arrival.graphId, arrival.nodeId),
       });
       markRise(ring, 0.24 + i * 0.08);
@@ -1080,6 +1123,20 @@
       const fromHash = parseHash();
       if (fromHash) {
         await inhabit(fromHash.graphId, fromHash.nodeId, "boot");
+        const currentSession = (boot.sessions || []).find(
+          (session) => view && session.id === view.session_id
+        );
+        if (
+          currentSession &&
+          currentSession.head_graph_id &&
+          currentSession.head_graph_id !== view.graph_id
+        ) {
+          const arrival = companionFromSession(currentSession);
+          if (arrival) {
+            rememberCompanion(arrival);
+            layout(view);
+          }
+        }
         return;
       }
       const spawn = (boot.sessions || []).map((s) => s.spawn).find(Boolean);
@@ -1118,22 +1175,27 @@
         const changed = !knownHeads.has(session.id) || knownHeads.get(session.id) !== head;
         knownHeads.set(session.id, head);
         sessionTitles.set(session.id, session.title || "untitled thought");
-        if (!changed || !head || !session.spawn) continue;
+        if (!head || !session.spawn) continue;
         if (view && head === view.graph_id) continue;
         if (
           view &&
           (view.fork_children || []).some((child) => child.id === head)
         ) continue;
-        if (liveArrivals.some((arrival) => arrival.graphId === head)) continue;
-        rememberCompanion({
-          sessionId: session.id,
-          graphId: head,
-          nodeId: session.spawn.node_id,
-          kind: session.spawn.node.kind,
-          text: session.spawn.node.text,
-          title: session.title || "untitled thought",
-          seen: false,
-        });
+        const arrival = companionFromSession(session);
+        if (!arrival) continue;
+        const existing = liveArrivals.find((item) => item.graphId === head);
+        if (existing) {
+          if (
+            (!existing.harness && arrival.harness) ||
+            (!existing.modelName && arrival.modelName)
+          ) {
+            rememberCompanion(arrival);
+            added = true;
+          }
+          continue;
+        }
+        if (!changed) continue;
+        rememberCompanion(arrival);
         added = true;
       }
       if (added) {

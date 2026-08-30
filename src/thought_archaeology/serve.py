@@ -43,6 +43,10 @@ def _node_brief(node) -> dict:
 
 
 def bootstrap_payload(store: Store) -> dict:
+    harness_by_graph = {
+        completion.graph_id: completion.harness
+        for completion in store.iter_continuation_completions()
+    }
     sessions = []
     for sid in store.iter_session_ids():
         session = store.load_session(sid)
@@ -60,6 +64,8 @@ def bootstrap_payload(store: Store) -> dict:
                     "graph_id": graph.id,
                     "node_id": spawn_node.id,
                     "node": _node_brief(spawn_node),
+                    "model": graph.model.to_dict(),
+                    "continuation_harness": harness_by_graph.get(graph.id),
                 }
         sessions.append(
             {
