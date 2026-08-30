@@ -88,6 +88,7 @@
   const elEvidenceIntro = document.getElementById("evidence-intro");
   const elEvidenceStrata = document.getElementById("evidence-strata");
   const elEvidenceClose = document.getElementById("evidence-close");
+  const elSoundControls = document.getElementById("sound-controls");
   const sound = window.TASound;
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -2201,6 +2202,7 @@
   elThresholdAsk.addEventListener("click", toggleContinuationComposer);
 
   window.addEventListener("keydown", (e) => {
+    if (elSoundControls.contains(e.target)) return;
     if (composing) {
       if (e.key === "Escape") {
         e.preventDefault();

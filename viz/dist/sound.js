@@ -3,6 +3,7 @@
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
   const toggle = document.getElementById("sound-toggle");
   const volume = document.getElementById("sound-volume");
+  const volumeValue = document.getElementById("sound-volume-value");
   const STORAGE_KEY = "thought-archaeology.sound.v1";
 
   let saved = {};
@@ -47,14 +48,23 @@
     toggle.setAttribute("aria-pressed", muted ? "true" : "false");
     toggle.dataset.state = !context ? "asleep" : muted ? "muted" : "on";
     volume.value = String(Math.round(level * 100));
+    volume.setAttribute("aria-valuetext", `${Math.round(level * 100)} percent`);
     volume.disabled = !AudioContextClass;
+    if (volumeValue) {
+      volumeValue.textContent = `${Math.round(level * 100)}%${muted ? " · muted" : ""}`;
+    }
+  }
+
+  function audibleLevel() {
+    if (muted || level <= 0) return 0;
+    return Math.pow(level, 1.35) * 1.75;
   }
 
   function applyMaster(fast = false) {
     if (!context || !master) return;
     const now = context.currentTime;
     master.gain.cancelScheduledValues(now);
-    master.gain.setTargetAtTime(muted ? 0 : level, now, fast ? 0.015 : 0.08);
+    master.gain.setTargetAtTime(audibleLevel(), now, fast ? 0.012 : 0.06);
   }
 
   function makeNoiseBuffer(seconds = 2.8) {
@@ -153,7 +163,7 @@
     ambienceStarted = true;
     const bed = context.createGain();
     const bedFilter = context.createBiquadFilter();
-    bed.gain.value = 0.11;
+    bed.gain.value = 0.22;
     bedFilter.type = "lowpass";
     bedFilter.frequency.value = 310;
     bedFilter.Q.value = 0.7;
@@ -185,7 +195,7 @@
     airFilter.type = "bandpass";
     airFilter.frequency.value = 680;
     airFilter.Q.value = 0.34;
-    airGain.gain.value = 0.022;
+    airGain.gain.value = 0.055;
     airDrift.frequency.value = 0.041;
     airDepth.gain.value = 260;
     airDrift.connect(airDepth).connect(airFilter.frequency);
@@ -231,7 +241,7 @@
     const carrier = context.createOscillator();
     const carrierGain = context.createGain();
     layerGain.gain.setValueAtTime(0.0001, context.currentTime);
-    layerGain.gain.exponentialRampToValueAtTime(0.085, context.currentTime + 0.9);
+    layerGain.gain.exponentialRampToValueAtTime(0.16, context.currentTime + 0.9);
     layerGain.connect(ambienceBus);
     noise.buffer = makeNoiseBuffer(3.7);
     noise.loop = true;
@@ -261,7 +271,7 @@
     const tremoloDepth = context.createGain();
     layerGain.gain.setValueAtTime(0.0001, context.currentTime);
     layerGain.gain.exponentialRampToValueAtTime(
-      phase === "waiting" ? 0.062 : 0.044,
+      phase === "waiting" ? 0.13 : 0.1,
       context.currentTime + 0.18
     );
     layerGain.connect(ambienceBus);
@@ -330,8 +340,8 @@
       compressor.ratio.value = 4;
       compressor.attack.value = 0.006;
       compressor.release.value = 0.28;
-      ambienceBus.gain.value = 0.82;
-      cueBus.gain.value = 0.9;
+      ambienceBus.gain.value = 1.35;
+      cueBus.gain.value = 1.65;
       ambienceBus.connect(master);
       cueBus.connect(master);
       master.connect(compressor).connect(context.destination);
@@ -482,6 +492,14 @@
     renderControl();
   }
 
+  function setVolume(next) {
+    level = Math.max(0, Math.min(1, Number(next) / 100));
+    muted = level === 0;
+    applyMaster(true);
+    save();
+    renderControl();
+  }
+
   async function activateToggle() {
     if (!context) {
       await awaken();
@@ -498,13 +516,48 @@
 
   if (toggle) toggle.addEventListener("click", activateToggle);
   if (volume) {
+    let pointerAdjusting = false;
+    const setVolumeFromPointer = (event) => {
+      const rect = volume.getBoundingClientRect();
+      const ratio = (event.clientX - rect.left) / Math.max(1, rect.width);
+      setVolume(Math.round(Math.max(0, Math.min(1, ratio)) * 100));
+    };
     volume.addEventListener("input", () => {
       awaken();
-      level = Math.max(0, Math.min(1, Number(volume.value) / 100));
-      if (level > 0 && muted) muted = false;
-      applyMaster(true);
-      save();
-      renderControl();
+      setVolume(volume.value);
+    });
+    volume.addEventListener("keydown", (event) => {
+      const steps = {
+        ArrowLeft: -1,
+        ArrowDown: -1,
+        ArrowRight: 1,
+        ArrowUp: 1,
+        PageDown: -10,
+        PageUp: 10,
+      };
+      if (event.key === "Home" || event.key === "End") {
+        event.preventDefault();
+        setVolume(event.key === "Home" ? 0 : 100);
+      } else if (steps[event.key]) {
+        event.preventDefault();
+        setVolume(Number(volume.value) + steps[event.key]);
+      }
+    });
+    volume.addEventListener("pointerdown", (event) => {
+      awaken();
+      pointerAdjusting = true;
+      volume.setPointerCapture(event.pointerId);
+      setVolumeFromPointer(event);
+      event.preventDefault();
+    });
+    volume.addEventListener("pointermove", (event) => {
+      if (pointerAdjusting) setVolumeFromPointer(event);
+    });
+    volume.addEventListener("pointerup", (event) => {
+      pointerAdjusting = false;
+      if (volume.hasPointerCapture(event.pointerId)) {
+        volume.releasePointerCapture(event.pointerId);
+      }
     });
   }
   window.addEventListener("pointerdown", (event) => {

@@ -122,6 +122,12 @@ html, body {
   cursor: pointer;
 }
 
+#sound-volume-value {
+  min-width: 2.5rem;
+  color: var(--mute);
+  text-align: right;
+}
+
 #banner {
   font-family: ui-monospace, Menlo, monospace;
   font-size: 0.68rem;

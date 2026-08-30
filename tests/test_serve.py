@@ -274,6 +274,7 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert 'id="sound-controls"' in body
     assert 'id="sound-toggle"' in body
     assert 'id="sound-volume"' in body
+    assert 'id="sound-volume-value"' in body
     assert 'id="relic-index"' in body
     assert 'id="evidence-descent"' in body
     assert 'id="story-path"' in body
@@ -349,6 +350,9 @@ def test_space_sound_field_is_procedural_and_event_bound():
     assert ".mp3" not in sound
     assert ".wav" not in sound
     assert "startAmbience" in sound
+    assert "audibleLevel" in sound
+    assert "setVolumeFromPointer" in sound
+    assert 'volume.addEventListener("keydown"' in sound
     assert "startWorkingLayer" in sound
     assert "startBeamLayer" in sound
     assert "arrivalSplash" in sound
@@ -361,6 +365,7 @@ def test_space_sound_field_is_procedural_and_event_bound():
     assert "sound.setWorking(Boolean(ready))" in js
     assert "sound.cameraShift(overhead)" in js
     assert "sound.edit(kind)" in js
+    assert "elSoundControls.contains(e.target)" in js
 
 
 def test_evidence_descent_is_a_static_server_authored_read_surface():
