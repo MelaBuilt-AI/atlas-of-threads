@@ -291,7 +291,7 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert "standingMesh" in js
     assert "updateNavigationLights" in js
     assert "payload.forward" in js
-    assert "conversation doors wait at thresholds" in js
+    assert "conversation doors wait at the graph origin or a path ending" in js
     assert 'post(endpoint' in js
     assert '"/api/continuation"' in js
     assert 'id="threshold"' in body
