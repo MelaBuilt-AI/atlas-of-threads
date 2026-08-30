@@ -110,6 +110,7 @@
   const CHOICE_COLS = 7;
   const DEFAULT_SELECTION_COLOR = 0xe2c48a;
   const NEW_PATH_SELECTION_COLOR = 0x4f8fd6;
+  const WAITING_BEAM_COLOR = 0x5df58a;
   const RETURN_COLOR = 0xc94f4f;
   const RETURN_EMISSIVE = 0x641818;
 
@@ -147,11 +148,14 @@
   let layoutGeneration = 0;
   let standingMesh = null;
   const COMPANION_MEMORY_KEY = "thought-archaeology.companions.v1";
+  const CIRCUIT_MEMORY_KEY = "thought-archaeology.continuation-circuit.v1";
   const knownHeads = new Map();
   const sessionTitles = new Map();
   let liveArrivals = loadCompanionThoughts();
   let arrivalsDirty = false;
   let arrivingFocus = null;
+  let rememberedCircuit = loadContinuationCircuit();
+  let continuationCircuit = null;
   let companionPolling = false;
   let companionReady = false;
 
@@ -175,6 +179,33 @@
       );
     } catch (_error) {
       // Browser memory is optional; the graph store remains canonical.
+    }
+  }
+
+  function loadContinuationCircuit() {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(CIRCUIT_MEMORY_KEY));
+      if (
+        !saved || !saved.requestId || !Number.isInteger(saved.neuronIndex) ||
+        (saved.phase !== "waiting" && saved.phase !== "arrival")
+      ) return null;
+      return saved;
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function saveContinuationCircuit() {
+    try {
+      if (rememberedCircuit) {
+        window.localStorage.setItem(
+          CIRCUIT_MEMORY_KEY, JSON.stringify(rememberedCircuit)
+        );
+      } else {
+        window.localStorage.removeItem(CIRCUIT_MEMORY_KEY);
+      }
+    } catch (_error) {
+      // The animation remains functional without tab-scoped memory.
     }
   }
 
@@ -525,6 +556,8 @@
     group.userData.sky = true;
     return {
       group,
+      nodes,
+      glow,
       pulses,
       pulsePositions,
       pulseGeometry,
@@ -568,6 +601,280 @@
     neuralSky.sparkGeometry.attributes.position.needsUpdate = true;
     neuralSky.sparkGeometry.attributes.color.needsUpdate = true;
     neuralSky.group.rotation.y = t * 0.0045;
+  }
+
+  function visibleNeuronIndex() {
+    if (!neuralSky || !neuralSky.nodes.length) return -1;
+    scene.updateMatrixWorld(true);
+    camera.updateMatrixWorld(true);
+    const visible = [];
+    const world = new THREE.Vector3();
+    const projected = new THREE.Vector3();
+    neuralSky.nodes.forEach((node, index) => {
+      world.copy(node);
+      neuralSky.group.localToWorld(world);
+      projected.copy(world).project(camera);
+      if (
+        projected.z > -1 && projected.z < 1 &&
+        Math.abs(projected.x) > 0.2 && Math.abs(projected.x) < 0.82 &&
+        projected.y > 0.32 && projected.y < 0.88
+      ) visible.push(index);
+    });
+    const candidates = visible.length
+      ? visible
+      : neuralSky.nodes.map((_node, index) => index);
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  }
+
+  function makeContinuationLightning(color) {
+    const segments = 42;
+    const positions = new Float32Array((segments + 1) * 3);
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    const haloMaterial = new THREE.LineBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.22,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      fog: false,
+    });
+    const coreMaterial = new THREE.LineBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.96,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      fog: false,
+    });
+    const group = new THREE.Group();
+    group.add(new THREE.Line(geometry, haloMaterial));
+    group.add(new THREE.Line(geometry, coreMaterial));
+
+    const sparkCount = 34;
+    const sparkPositions = new Float32Array(sparkCount * 3);
+    const sparkGeometry = new THREE.BufferGeometry();
+    sparkGeometry.setAttribute(
+      "position", new THREE.BufferAttribute(sparkPositions, 3)
+    );
+    const sparkMaterial = new THREE.PointsMaterial({
+      color,
+      map: neuralSky.glow,
+      size: 0.72,
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      fog: false,
+    });
+    group.add(new THREE.Points(sparkGeometry, sparkMaterial));
+
+    const jointPositions = new Float32Array(6);
+    const jointGeometry = new THREE.BufferGeometry();
+    jointGeometry.setAttribute(
+      "position", new THREE.BufferAttribute(jointPositions, 3)
+    );
+    const jointMaterial = new THREE.PointsMaterial({
+      color,
+      map: neuralSky.glow,
+      size: 2.1,
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      fog: false,
+    });
+    group.add(new THREE.Points(jointGeometry, jointMaterial));
+    group.renderOrder = 8;
+    scene.add(group);
+    return {
+      group,
+      segments,
+      positions,
+      geometry,
+      sparkCount,
+      sparkPositions,
+      sparkGeometry,
+      jointPositions,
+      jointGeometry,
+      materials: [haloMaterial, coreMaterial, sparkMaterial, jointMaterial],
+      seed: Math.random() * 1000,
+    };
+  }
+
+  function setContinuationLightningColor(lightning, color) {
+    lightning.materials.forEach((material) => material.color.setHex(color));
+  }
+
+  function clearContinuationCircuit() {
+    if (continuationCircuit) {
+      const lightning = continuationCircuit.lightning;
+      scene.remove(lightning.group);
+      lightning.geometry.dispose();
+      lightning.sparkGeometry.dispose();
+      lightning.jointGeometry.dispose();
+      lightning.materials.forEach((material) => material.dispose());
+    }
+    continuationCircuit = null;
+    rememberedCircuit = null;
+    saveContinuationCircuit();
+  }
+
+  function beginContinuationCircuit(request) {
+    if (!request || !request.id || !standingMesh || !neuralSky) return;
+    if (continuationCircuit && continuationCircuit.requestId === request.id) {
+      continuationCircuit.targetMesh = standingMesh;
+      return;
+    }
+    const saved = rememberedCircuit;
+    clearContinuationCircuit();
+    const retained = saved &&
+      saved.requestId === request.id &&
+      saved.phase === "waiting"
+      ? saved.neuronIndex
+      : -1;
+    const neuronIndex = retained >= 0 && retained < neuralSky.nodes.length
+      ? retained
+      : visibleNeuronIndex();
+    if (neuronIndex < 0) return;
+    continuationCircuit = {
+      requestId: request.id,
+      sourceGraphId: request.graph_id || (view && view.graph_id),
+      sourceNodeId: request.node_id || (view && view.node.id),
+      neuronIndex,
+      phase: "waiting",
+      targetGraphId: null,
+      targetNodeId: null,
+      targetMesh: standingMesh,
+      lightning: makeContinuationLightning(WAITING_BEAM_COLOR),
+    };
+    rememberedCircuit = {
+      requestId: request.id,
+      sourceGraphId: continuationCircuit.sourceGraphId,
+      sourceNodeId: continuationCircuit.sourceNodeId,
+      neuronIndex,
+      phase: "waiting",
+      targetGraphId: null,
+      targetNodeId: null,
+    };
+    saveContinuationCircuit();
+  }
+
+  function completeContinuationCircuit(mesh, arrival) {
+    if (!continuationCircuit || continuationCircuit.phase !== "waiting") return;
+    continuationCircuit.phase = "arrival";
+    continuationCircuit.targetGraphId = arrival.graphId;
+    continuationCircuit.targetNodeId = arrival.nodeId;
+    continuationCircuit.targetMesh = mesh;
+    setContinuationLightningColor(
+      continuationCircuit.lightning, NEW_PATH_SELECTION_COLOR
+    );
+    rememberedCircuit = {
+      requestId: continuationCircuit.requestId,
+      sourceGraphId: continuationCircuit.sourceGraphId,
+      sourceNodeId: continuationCircuit.sourceNodeId,
+      neuronIndex: continuationCircuit.neuronIndex,
+      phase: "arrival",
+      targetGraphId: arrival.graphId,
+      targetNodeId: arrival.nodeId,
+    };
+    saveContinuationCircuit();
+  }
+
+  function restoreArrivalCircuit(mesh, arrival) {
+    const saved = rememberedCircuit;
+    if (
+      continuationCircuit && continuationCircuit.phase === "arrival" &&
+      continuationCircuit.targetGraphId === arrival.graphId &&
+      continuationCircuit.targetNodeId === arrival.nodeId
+    ) {
+      continuationCircuit.targetMesh = mesh;
+      return;
+    }
+    if (
+      continuationCircuit || !saved || saved.phase !== "arrival" ||
+      saved.targetGraphId !== arrival.graphId ||
+      saved.targetNodeId !== arrival.nodeId ||
+      saved.neuronIndex < 0 || saved.neuronIndex >= neuralSky.nodes.length
+    ) return;
+    continuationCircuit = {
+      ...saved,
+      targetMesh: mesh,
+      lightning: makeContinuationLightning(NEW_PATH_SELECTION_COLOR),
+    };
+  }
+
+  const circuitBox = new THREE.Box3();
+  const circuitStart = new THREE.Vector3();
+  const circuitEnd = new THREE.Vector3();
+  const circuitDirection = new THREE.Vector3();
+  const circuitSide = new THREE.Vector3();
+  const circuitLift = new THREE.Vector3();
+  const circuitPoint = new THREE.Vector3();
+  const circuitNeuron = new THREE.Vector3();
+
+  function meshTop(mesh, out) {
+    circuitBox.setFromObject(mesh);
+    circuitBox.getCenter(out);
+    out.y = circuitBox.max.y + 0.08;
+    return out;
+  }
+
+  function updateContinuationCircuit(t) {
+    const circuit = continuationCircuit;
+    if (!circuit || !circuit.targetMesh || !circuit.targetMesh.parent) return;
+    neuralSky.group.updateMatrixWorld(true);
+    circuitNeuron.copy(neuralSky.nodes[circuit.neuronIndex]);
+    neuralSky.group.localToWorld(circuitNeuron);
+    if (circuit.phase === "waiting") {
+      meshTop(circuit.targetMesh, circuitStart);
+      circuitEnd.copy(circuitNeuron);
+    } else {
+      circuitStart.copy(circuitNeuron);
+      meshTop(circuit.targetMesh, circuitEnd);
+    }
+
+    circuitDirection.subVectors(circuitEnd, circuitStart).normalize();
+    circuitSide.crossVectors(circuitDirection, camera.up).normalize();
+    if (circuitSide.lengthSq() < 0.01) circuitSide.set(1, 0, 0);
+    circuitLift.crossVectors(circuitDirection, circuitSide).normalize();
+    const lightning = circuit.lightning;
+    for (let i = 0; i <= lightning.segments; i++) {
+      const u = i / lightning.segments;
+      const envelope = Math.sin(Math.PI * u);
+      const crackle =
+        Math.sin(i * 8.37 + t * 31 + lightning.seed) * 0.68 +
+        Math.sin(i * 3.11 - t * 47 + lightning.seed * 0.37) * 0.32;
+      const fork = Math.sin(i * 5.19 + t * 23 + lightning.seed * 1.7);
+      circuitPoint.lerpVectors(circuitStart, circuitEnd, u)
+        .addScaledVector(circuitSide, crackle * envelope * 0.28)
+        .addScaledVector(circuitLift, fork * envelope * 0.18);
+      circuitPoint.toArray(lightning.positions, i * 3);
+    }
+    lightning.geometry.attributes.position.needsUpdate = true;
+
+    for (let i = 0; i < lightning.sparkCount; i++) {
+      const u = (i * 0.61803398875 + t * (0.34 + (i % 5) * 0.025)) % 1;
+      const at = Math.min(
+        lightning.segments,
+        Math.floor(u * lightning.segments)
+      );
+      circuitPoint.fromArray(lightning.positions, at * 3);
+      const flare = 0.08 + 0.28 * Math.abs(
+        Math.sin(t * 17 + i * 2.7 + lightning.seed)
+      );
+      circuitPoint
+        .addScaledVector(circuitSide, Math.sin(i * 4.1 + t * 29) * flare)
+        .addScaledVector(circuitLift, Math.cos(i * 3.3 - t * 37) * flare);
+      circuitPoint.toArray(lightning.sparkPositions, i * 3);
+    }
+    lightning.sparkGeometry.attributes.position.needsUpdate = true;
+    circuitStart.toArray(lightning.jointPositions, 0);
+    circuitEnd.toArray(lightning.jointPositions, 3);
+    lightning.jointGeometry.attributes.position.needsUpdate = true;
+    lightning.materials[0].opacity = 0.16 + Math.abs(Math.sin(t * 11)) * 0.2;
+    lightning.materials[1].opacity = 0.76 + Math.abs(Math.sin(t * 19)) * 0.24;
+    lightning.materials[2].opacity = 0.55 + Math.abs(Math.sin(t * 13)) * 0.4;
   }
 
   function stoneMat(color, opacity) {
@@ -952,6 +1259,13 @@
       });
       root.add(ring);
       portals.push(ring);
+      if (autoFocus) completeContinuationCircuit(ring, arrival);
+      const retainedArrival = rememberedCircuit &&
+        rememberedCircuit.phase === "arrival" &&
+        rememberedCircuit.targetGraphId === arrival.graphId &&
+        rememberedCircuit.targetNodeId === arrival.nodeId;
+      if (retainedArrival && arrival.seen) clearContinuationCircuit();
+      else if (retainedArrival) restoreArrivalCircuit(ring, arrival);
       addClockChoice(ring, {
         via,
         kind: arrival.kind,
@@ -1143,6 +1457,7 @@
       return;
     }
     const ready = payload.continuation || null;
+    if (ready) beginContinuationCircuit(ready);
     const attempt = payload.continuation_attempt || null;
     const harness = attempt && attempt.harness
       ? attempt.harness.charAt(0).toUpperCase() + attempt.harness.slice(1)
@@ -1177,6 +1492,12 @@
     if (graphId) q.set("graph", graphId);
     const payload = await api(`/api/inhabit/${nodeId}?${q.toString()}`);
     const next = { graphId: payload.graph_id, nodeId: payload.node.id };
+    if (
+      continuationCircuit &&
+      continuationCircuit.phase === "arrival" &&
+      continuationCircuit.targetGraphId === next.graphId &&
+      continuationCircuit.targetNodeId === next.nodeId
+    ) clearContinuationCircuit();
     const prev = view
       ? { graphId: view.graph_id, nodeId: view.node.id }
       : null;
@@ -1527,6 +1848,7 @@
     elThresholdContinue.textContent = "canceling…";
     try {
       await post("/api/continuation/cancel", { request: request.id });
+      clearContinuationCircuit();
       view.continuation = null;
       plate(view);
       renderThreshold(view);
@@ -1958,6 +2280,7 @@
       scene.fog.density = climateFog;
     }
     updateNeuralSky(t);
+    updateContinuationCircuit(t);
     tickRise(t);
     updateNavigationLights(t);
     renderer.render(scene, camera);

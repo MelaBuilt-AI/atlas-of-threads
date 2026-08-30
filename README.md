@@ -178,9 +178,14 @@ Left/right selection is a true-north clock around the inhabited chamber: Left
 moves counterclockwise and Right clockwise through every visible path, including
 story and fork paths at north. Up remains a direct north-path shortcut; Enter
 walks the selected path, or the north path when no selection is active.
-The surrounding neural canopy is procedural: dim
-connections carry visible pulses while the graph itself remains the authored
-story, not a circuit claim. No Node runtime; `viz/dist` is committed.
+The surrounding neural canopy is procedural: dim connections carry visible
+pulses while the graph itself remains the authored story, not a circuit claim.
+A continuation request connects the standing relic to one random visible neuron
+with sparking green lightning. Completion retains that neuron and returns a blue
+beam to the new doorway until entry, alongside the doorway's blue selection
+spotlight. Browser-local memory keeps that one visual circuit stable across
+a refresh; the graph store remains canonical. These beams are lifecycle
+atmosphere, not hidden model activity. No Node runtime; `viz/dist` is committed.
 
 `ta canvas` / `ta export-wiki` write a lossy Markdown projection (`type: overview`,
 Obsidian wikilinks). Hidden reasoning stays JSON-only. Dual archaeology appears
