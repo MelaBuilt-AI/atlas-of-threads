@@ -119,7 +119,7 @@ harness can be tested against the same protocol before the next is added:
 | Adapter | Stage |
 |---|---|
 | Grok | implemented as `ta-harness-grok`; deterministic CLI-contract coverage complete |
-| Codex | planned after Grok's real terminal-to-doorway acceptance |
+| Codex | implemented as `ta-harness-codex`; deterministic CLI-contract coverage complete |
 | Claude Code | planned |
 | OpenCode | planned |
 | Prime Agent | planned |
@@ -158,3 +158,39 @@ Optional process environment:
 
 Grok authentication remains wherever the official CLI keeps it. Never place a
 token in `--arg` or the TA harness registry.
+
+## Codex
+
+`ta-harness-codex` requires an authenticated `codex` executable. `describe`
+reads `codex --version` and selects the priority-one visible model from
+`codex debug models --bundled`, unless `TA_CODEX_MODEL` explicitly pins one.
+The same model is passed to `continue` and returned as graph attribution.
+
+Each continuation runs in a private empty temporary directory through direct
+argv with an ephemeral session, ignored user/project rules, ignored user
+configuration, read-only sandboxing, no web-search flag, and no git-repository
+requirement. Authentication still belongs to the Codex CLI. The bounded TA
+prompt is supplied on stdin, and the final response is read from Codex's
+dedicated `--output-last-message` file; transient CLI output never enters the
+graph.
+
+```text
+codex exec --ephemeral --ignore-user-config --ignore-rules \
+  --sandbox read-only --skip-git-repo-check --color never \
+  --model MODEL --output-last-message PRIVATE_TEMP_FILE \
+  --cd PRIVATE_TEMP_DIR -
+```
+
+Optional process environment:
+
+- `TA_CODEX_BIN` — alternate Codex executable;
+- `TA_CODEX_MODEL` — explicit model id, avoiding bundled-model discovery;
+- `TA_CODEX_TIMEOUT` — positive model-call timeout in seconds (default 840).
+
+Registering the adapter does not start it:
+
+```bash
+ta harness register codex --adapter "$(command -v ta-harness-codex)"
+ta harness doctor codex
+ta harness run --harness codex
+```

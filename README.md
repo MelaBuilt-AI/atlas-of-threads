@@ -449,6 +449,22 @@ ta harness run --harness grok
 `TA_GROK_TIMEOUT` changes the model-call timeout in seconds. These variables
 are adapter settings, not graph data; credentials remain in Grok's own login.
 
+The second staged adapter ships as `ta-harness-codex`. It uses an already
+authenticated Codex CLI in an ephemeral empty working directory, ignores
+user/project rules and user configuration, requests a read-only sandbox, and
+captures only the dedicated final-message file. It pins and reports one model
+identifier for exact graph attribution:
+
+```bash
+ta harness register codex --adapter "$(command -v ta-harness-codex)"
+ta harness doctor codex
+ta harness run --harness codex
+```
+
+`TA_CODEX_BIN`, `TA_CODEX_MODEL`, and `TA_CODEX_TIMEOUT` provide the same
+executable/model/timeout controls for this adapter. Codex authentication stays
+inside the Codex CLI; the TA core and harness registry receive no credentials.
+
 Thought Archaeology owns the durable boundary and graph compilation; the
 harness owns credentials, model invocation, and provider-specific prompt
 assembly. No vendor SDK or callback URL is required by the core.
