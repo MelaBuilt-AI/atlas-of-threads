@@ -82,6 +82,13 @@ def test_harness_registry_is_user_owned_and_secret_free(monkeypatch, tmp_path: P
     ]
     assert "credential" not in json.dumps(raw).lower()
 
+    refreshed = HarnessRegistry(config).record_model(
+        "fake", "fake-default", cli_version="fake-cli 1.0"
+    )
+    assert refreshed.model == "fake-default"
+    assert refreshed.model_refreshed_at
+    assert refreshed.cli_version == "fake-cli 1.0"
+
     code, out, err = run(["harness", "list", "--format", "json"], store=store_path)
     assert code == 0, err
     assert json.loads(out)[0]["default"] is True

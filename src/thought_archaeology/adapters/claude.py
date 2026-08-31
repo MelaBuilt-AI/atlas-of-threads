@@ -58,12 +58,23 @@ def _version(executable: str) -> str:
 
 def _configured_model() -> str | None:
     model = os.environ.get("TA_CLAUDE_MODEL")
-    if model is None:
+    if model is not None:
+        model = model.strip()
+        if not model:
+            raise ClaudeAdapterError("TA_CLAUDE_MODEL must not be empty")
+        return model
+    claude_root = Path(
+        os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude"
+    )
+    settings_path = claude_root / "settings.json"
+    if not settings_path.is_file():
         return None
-    model = model.strip()
-    if not model:
-        raise ClaudeAdapterError("TA_CLAUDE_MODEL must not be empty")
-    return model
+    try:
+        settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    saved = settings.get("model") if isinstance(settings, dict) else None
+    return saved.strip() if isinstance(saved, str) and saved.strip() else None
 
 
 def _validate_envelope(raw: Any) -> dict[str, Any]:

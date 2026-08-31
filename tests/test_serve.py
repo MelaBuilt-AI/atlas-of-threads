@@ -183,7 +183,9 @@ def test_thread_compass_and_legend_controls_are_chamber_overlays():
     assert 'id="workspace-new-form"' in html
     assert 'id="workspace-history"' in html
     assert "Activate ${workspaceName(harness.name)}" in js
+    assert 'refresh.textContent = "↻ Refresh"' in js
     assert 'post("/api/workspace/harness"' in js
+    assert 'post("/api/workspace/harness/model"' in js
     assert 'post("/api/workspace/inquiry"' in js
     assert 'api("/api/workspace")' in js
     assert 'e.key === "m"' in js
@@ -341,6 +343,41 @@ def test_workspace_switches_future_harness_and_preserves_watcher_timing(
         },
     )
     assert registry.default_name() == "grok"
+
+
+def test_workspace_refreshes_harness_model_without_switching(monkeypatch, tmp_path: Path):
+    store_path = tmp_path / "data"
+    _compile_simple(store_path)
+    store = Store(store_path)
+    config = tmp_path / "config" / "harnesses.json"
+    fake_adapter = Path(__file__).with_name("fake_harness_adapter.py")
+    monkeypatch.setenv("TA_HARNESS_CONFIG", str(config))
+    registry = HarnessRegistry()
+    registry.register(
+        "codex",
+        sys.executable,
+        args=(str(fake_adapter),),
+        make_default=True,
+    )
+    registry.register("grok", sys.executable, args=(str(fake_adapter),))
+
+    replies = []
+    handler = object.__new__(InhabitHandler)
+    handler.store = store
+    handler._read_json = lambda: {"harness": "grok"}
+    handler._json = lambda code, body: replies.append((code, body))
+    handler._workspace_harness_model()
+
+    assert replies[-1][0] == 200
+    assert registry.default_name() == "codex"
+    refreshed = registry.get("grok")
+    assert refreshed.model == "fake-default"
+    assert refreshed.model_refreshed_at
+    assert refreshed.cli_version == "fake-cli 1.0"
+    workspace = replies[-1][1]["workspace"]
+    grok = next(item for item in workspace["harnesses"] if item["name"] == "grok")
+    assert grok["model"] == "fake-default"
+    assert grok["selected"] is False
 
 
 def test_fork_from_space_keeps_g0(httpd_url: str, tmp_path: Path):

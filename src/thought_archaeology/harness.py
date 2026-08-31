@@ -46,6 +46,9 @@ class HarnessSpec:
     name: str
     argv: tuple[str, ...]
     registered_at: str
+    model: str | None = None
+    model_refreshed_at: str | None = None
+    cli_version: str | None = None
 
     @classmethod
     def from_dict(cls, name: str, data: dict[str, Any]) -> Self:
@@ -57,10 +60,31 @@ class HarnessSpec:
         registered_at = data.get("registered_at")
         if not isinstance(registered_at, str) or not registered_at:
             raise HarnessError(f"harness {name!r} has invalid registered_at")
-        return cls(name=name, argv=tuple(argv), registered_at=registered_at)
+        optional = {
+            key: data.get(key)
+            for key in ("model", "model_refreshed_at", "cli_version")
+        }
+        if any(
+            value is not None and not isinstance(value, str)
+            for value in optional.values()
+        ):
+            raise HarnessError(f"harness {name!r} has invalid model metadata")
+        return cls(
+            name=name,
+            argv=tuple(argv),
+            registered_at=registered_at,
+            **optional,
+        )
 
     def to_dict(self) -> dict[str, Any]:
-        return {"argv": list(self.argv), "registered_at": self.registered_at}
+        data = {"argv": list(self.argv), "registered_at": self.registered_at}
+        if self.model is not None:
+            data["model"] = self.model
+        if self.model_refreshed_at is not None:
+            data["model_refreshed_at"] = self.model_refreshed_at
+        if self.cli_version is not None:
+            data["cli_version"] = self.cli_version
+        return data
 
 
 class HarnessRegistry:
@@ -172,6 +196,24 @@ class HarnessRegistry:
         raw["default"] = name
         self._save(raw)
         return HarnessSpec.from_dict(name, raw["harnesses"][name])
+
+    def record_model(
+        self, name: str, model: str, *, cli_version: str | None = None
+    ) -> HarnessSpec:
+        model = model.strip()
+        if not model:
+            raise HarnessError(f"harness {name!r} returned an empty default_model")
+        raw = self._load()
+        if name not in raw["harnesses"]:
+            raise HarnessError(f"harness {name!r} is not registered")
+        data = dict(raw["harnesses"][name])
+        data["model"] = model
+        data["model_refreshed_at"] = now_iso()
+        if cli_version:
+            data["cli_version"] = cli_version.strip()
+        raw["harnesses"] = {**raw["harnesses"], name: data}
+        self._save(raw)
+        return HarnessSpec.from_dict(name, data)
 
     def specs(self) -> tuple[HarnessSpec, ...]:
         raw = self._load()

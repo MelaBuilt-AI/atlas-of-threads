@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -63,6 +64,15 @@ def _default_model(executable: str) -> str:
     configured = os.environ.get("TA_CODEX_MODEL")
     if configured:
         return configured.strip()
+    codex_root = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
+    config_path = codex_root / "config.toml"
+    if config_path.is_file():
+        try:
+            saved = tomllib.loads(config_path.read_text(encoding="utf-8")).get("model")
+        except (OSError, tomllib.TOMLDecodeError):
+            saved = None
+        if isinstance(saved, str) and saved.strip():
+            return saved.strip()
     stdout = _run_metadata([executable, "debug", "models", "--bundled"])
     try:
         models = json.loads(stdout)["models"]

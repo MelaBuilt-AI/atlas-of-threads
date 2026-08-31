@@ -13,7 +13,11 @@ from thought_archaeology.continuation import (
     continuation_request,
 )
 from thought_archaeology.fork import ForkError
-from thought_archaeology.harness import HarnessError, HarnessRegistry
+from thought_archaeology.harness import (
+    HarnessError,
+    HarnessRegistry,
+    describe_harness,
+)
 from thought_archaeology.harness_service import (
     control_harness_service,
     harness_service_options,
@@ -143,7 +147,12 @@ def workspace_payload(store: Store) -> dict:
             "error": str(exc),
         }
     harnesses = [
-        {"name": spec.name, "selected": spec.name == default}
+        {
+            "name": spec.name,
+            "selected": spec.name == default,
+            "model": spec.model,
+            "model_refreshed_at": spec.model_refreshed_at,
+        }
         for spec in registry.specs()
     ]
     completions = {
@@ -535,6 +544,9 @@ class InhabitHandler(BaseHTTPRequestHandler):
             if path == "/api/workspace/harness":
                 self._workspace_harness()
                 return
+            if path == "/api/workspace/harness/model":
+                self._workspace_harness_model()
+                return
             if path == "/api/workspace/inquiry":
                 self._workspace_inquiry()
                 return
@@ -708,6 +720,30 @@ class InhabitHandler(BaseHTTPRequestHandler):
             "workspace_harness",
             harness=name,
             path=str(unit_path),
+            warnings=[],
+        )
+        self._json(200, {"ok": True, "workspace": workspace_payload(self.store)})
+
+    def _workspace_harness_model(self) -> None:
+        body = self._read_json()
+        name = str(body.get("harness") or "").strip()
+        if not name:
+            raise ServeError("harness is required")
+        registry = HarnessRegistry()
+        description = describe_harness(registry.get(name), timeout=10)
+        model = description.get("default_model")
+        if not isinstance(model, str) or not model.strip():
+            raise HarnessError(f"harness {name!r} returned an empty default_model")
+        cli_version = description.get("cli_version")
+        registry.record_model(
+            name,
+            model,
+            cli_version=cli_version if isinstance(cli_version, str) else None,
+        )
+        self.store.log(
+            "workspace_model_refresh",
+            harness=name,
+            model=model.strip(),
             warnings=[],
         )
         self._json(200, {"ok": True, "workspace": workspace_payload(self.store)})

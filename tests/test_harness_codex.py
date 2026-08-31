@@ -4,7 +4,7 @@ import json
 import sys
 from pathlib import Path
 
-from thought_archaeology.adapters.codex import _codex_bin
+from thought_archaeology.adapters.codex import _codex_bin, _default_model
 from thought_archaeology.store import Store
 
 from tests.helpers import FIXTURES
@@ -21,6 +21,18 @@ def test_codex_discovery_preserves_launcher_symlink(monkeypatch, tmp_path: Path)
 
     assert _codex_bin() == str(shim.absolute())
     assert shim.is_symlink()
+
+
+def test_codex_uses_saved_harness_model(monkeypatch, tmp_path: Path):
+    codex_root = tmp_path / "codex"
+    codex_root.mkdir()
+    (codex_root / "config.toml").write_text(
+        'model = "codex-saved"\n', encoding="utf-8"
+    )
+    monkeypatch.delenv("TA_CODEX_MODEL", raising=False)
+    monkeypatch.setenv("CODEX_HOME", str(codex_root))
+
+    assert _default_model(str(FAKE_CODEX)) == "codex-saved"
 
 
 def _source(store_path: Path) -> tuple[str, str]:
@@ -54,6 +66,7 @@ def test_codex_adapter_handshake_and_real_cli_shape(monkeypatch, tmp_path: Path)
     capture = tmp_path / "codex-call.json"
     monkeypatch.setenv("TA_HARNESS_CONFIG", str(config))
     monkeypatch.setenv("TA_CODEX_BIN", str(FAKE_CODEX))
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex-home"))
     monkeypatch.setenv("TA_TEST_CODEX_CALL", str(capture))
     monkeypatch.setenv(
         "PYTHONPATH", str(Path(__file__).resolve().parent.parent / "src")

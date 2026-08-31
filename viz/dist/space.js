@@ -483,17 +483,34 @@
 
     elWorkspaceHarnesses.replaceChildren();
     for (const harness of payload.harnesses || []) {
+      const row = document.createElement("div");
+      row.className = "workspace-harness-row";
       const button = document.createElement("button");
       button.type = "button";
       button.className = "workspace-harness";
       const isActive = harness.selected && watcherActive;
       if (isActive) button.classList.add("active");
-      button.textContent = isActive
+      const action = document.createElement("strong");
+      action.textContent = isActive
         ? `${workspaceName(harness.name)} · active`
         : `Activate ${workspaceName(harness.name)}`;
+      const model = document.createElement("small");
+      model.textContent = harness.model
+        ? `model · ${harness.model}`
+        : "model · refresh to read";
+      button.append(action, model);
       button.disabled = workspaceBusy || isActive || pending.length > 0;
       button.addEventListener("click", () => activateWorkspaceHarness(harness.name));
-      elWorkspaceHarnesses.append(button);
+      const refresh = document.createElement("button");
+      refresh.type = "button";
+      refresh.className = "workspace-model-refresh";
+      refresh.textContent = "↻ Refresh";
+      refresh.setAttribute("aria-label", `Refresh ${workspaceName(harness.name)} model`);
+      refresh.title = `Refresh ${workspaceName(harness.name)} model`;
+      refresh.disabled = workspaceBusy;
+      refresh.addEventListener("click", () => refreshWorkspaceHarnessModel(harness.name));
+      row.append(button, refresh);
+      elWorkspaceHarnesses.append(row);
     }
 
     elWorkspaceNewToggle.disabled = workspaceBusy || pending.length > 0 || !active;
@@ -530,6 +547,31 @@
     try {
       const result = await post("/api/workspace/harness", { harness: name });
       elWorkspaceActionStatus.textContent = `${workspaceName(name)} is active for future continuations.`;
+      workspaceBusy = false;
+      renderWorkspace(result.workspace);
+    } catch (error) {
+      elWorkspaceActionStatus.textContent = String(error.message || error);
+      workspaceBusy = false;
+      const payload = await api("/api/workspace").catch(() => null);
+      if (payload) renderWorkspace(payload);
+    } finally {
+      workspaceBusy = false;
+    }
+  }
+
+  async function refreshWorkspaceHarnessModel(name) {
+    if (workspaceBusy) return;
+    workspaceBusy = true;
+    elWorkspaceActionStatus.textContent = `refreshing ${workspaceName(name)} model…`;
+    for (const button of elWorkspaceHarnesses.querySelectorAll("button")) {
+      button.disabled = true;
+    }
+    try {
+      const result = await post("/api/workspace/harness/model", { harness: name });
+      const refreshed = (result.workspace.harnesses || []).find((item) => item.name === name);
+      elWorkspaceActionStatus.textContent = refreshed && refreshed.model
+        ? `${workspaceName(name)} model refreshed · ${refreshed.model}`
+        : `${workspaceName(name)} model refreshed.`;
       workspaceBusy = false;
       renderWorkspace(result.workspace);
     } catch (error) {

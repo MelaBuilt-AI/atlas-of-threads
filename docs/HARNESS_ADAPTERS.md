@@ -92,6 +92,14 @@ TA checks that the request is still pending after model invocation and again
 after in-memory compilation. If the inhabitant canceled it, the response is
 discarded before any graph is written.
 
+In Inhabit Space, each registered collaborator has a separate **Refresh**
+action. After the user chooses a model in the provider's own harness, Refresh
+runs `describe` and stores only the returned model, CLI version, and refresh
+timestamp as a display snapshot in the user-owned registry. It does not change
+the default harness, restart a watcher, or alter any graph. The adapter still
+re-reads the provider setting when `continue` runs, and the completion's
+`model_name` remains the authority for new graph attribution.
+
 ## Worker behavior
 
 - `ta harness run` processes the oldest pending request, or a named `--request`.
@@ -162,9 +170,11 @@ token in `--arg` or the TA harness registry.
 ## Codex
 
 `ta-harness-codex` requires an authenticated `codex` executable. `describe`
-reads `codex --version` and selects the priority-one visible model from
-`codex debug models --bundled`, unless `TA_CODEX_MODEL` explicitly pins one.
-The same model is passed to `continue` and returned as graph attribution.
+reads `codex --version` and only the root `model` key from Codex's own
+`config.toml`, unless `TA_CODEX_MODEL` explicitly pins one. When neither is
+present it selects the priority-one visible model from
+`codex debug models --bundled`. The same model is passed explicitly to
+`continue` and returned as graph attribution.
 
 Each continuation runs in a private empty temporary directory through direct
 argv with an ephemeral session, ignored user/project rules, ignored user
@@ -198,10 +208,10 @@ ta harness run --harness codex
 ## Claude Code
 
 `ta-harness-claude` requires an authenticated official `claude` executable.
-`describe` reads only `claude --version` and does not inspect user settings to
-guess a default model. Unless `TA_CLAUDE_MODEL` pins a model or alias, the
-adapter lets Claude Code select its default and records the exact canonical
-serving model from the completed JSON result's `modelUsage` field.
+`describe` reads `claude --version` and only the saved `model` field from Claude
+Code's `settings.json`, unless `TA_CLAUDE_MODEL` pins a model or alias. The
+adapter passes that value explicitly and records the exact canonical serving
+model from the completed JSON result's `modelUsage` field.
 
 Each continuation runs in a private empty temporary directory with safe mode,
 an empty tool set, an empty strict MCP configuration, disabled slash commands

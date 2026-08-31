@@ -5,7 +5,7 @@ import json
 import sys
 from pathlib import Path
 
-from thought_archaeology.adapters.claude import _claude_bin, main
+from thought_archaeology.adapters.claude import _claude_bin, _configured_model, main
 from thought_archaeology.store import Store
 
 from tests.helpers import FIXTURES
@@ -22,6 +22,18 @@ def test_claude_discovery_preserves_launcher_symlink(monkeypatch, tmp_path: Path
 
     assert _claude_bin() == str(shim.absolute())
     assert shim.is_symlink()
+
+
+def test_claude_uses_saved_harness_model(monkeypatch, tmp_path: Path):
+    claude_root = tmp_path / "claude"
+    claude_root.mkdir()
+    (claude_root / "settings.json").write_text(
+        json.dumps({"model": "sonnet"}), encoding="utf-8"
+    )
+    monkeypatch.delenv("TA_CLAUDE_MODEL", raising=False)
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(claude_root))
+
+    assert _configured_model() == "sonnet"
 
 
 def _source(store_path: Path) -> tuple[str, str]:

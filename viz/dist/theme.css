@@ -394,7 +394,14 @@ html, body {
   margin-top: 0.75rem;
 }
 
+.workspace-harness-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+}
+
 .workspace-harness,
+.workspace-model-refresh,
 .workspace-history-entry,
 .workspace-action,
 #workspace-new-form button {
@@ -410,6 +417,8 @@ html, body {
 
 .workspace-harness:hover,
 .workspace-harness:focus-visible,
+.workspace-model-refresh:hover,
+.workspace-model-refresh:focus-visible,
 .workspace-history-entry:hover,
 .workspace-history-entry:focus-visible,
 .workspace-action:hover,
@@ -429,9 +438,33 @@ html, body {
 }
 
 .workspace-harness:disabled,
+.workspace-model-refresh:disabled,
 .workspace-history-entry:disabled {
   cursor: default;
   opacity: 0.72;
+}
+
+.workspace-harness strong,
+.workspace-harness small {
+  display: block;
+}
+
+.workspace-harness strong {
+  font: inherit;
+}
+
+.workspace-harness small {
+  margin-top: 0.2rem;
+  color: var(--mute);
+  font-size: 0.58rem;
+}
+
+.workspace-model-refresh {
+  width: auto;
+  min-width: 5.8rem;
+  padding-inline: 0.58rem;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .workspace-history-entry strong,

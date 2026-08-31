@@ -364,7 +364,12 @@ registered collaborators, marks the harness that will author future
 continuations, and changes the explicit background watcher with one action while
 preserving its polling interval and timeout. Switching is refused while a
 continuation is pending, so an in-flight response is never interrupted or
-reattributed. Existing graphs always retain their recorded harness and model.
+reattributed. Each collaborator also has a right-side **Refresh** action: after
+choosing a model in that provider's own harness, Refresh asks only that adapter
+for its current model and caches the non-secret label in the user-owned registry.
+It does not activate the collaborator, restart the watcher, or change an existing
+graph. The adapter reads the provider setting again when it handles a future
+request, and the completed graph keeps the model actually reported for that run.
 
 **New Graph** expands a clean opening-inquiry composer. Submission creates a new
 session with one human-authored uncertainty as its origin, queues the ordinary
@@ -429,10 +434,11 @@ ta harness service status
 `$TA_HARNESS_CONFIG`, or otherwise
 `$XDG_CONFIG_HOME/thought-archaeology/harnesses.json` (falling back to
 `~/.config/thought-archaeology/harnesses.json`). It stores only an absolute
-executable argv and registration metadata with mode `0600`; never put API keys
-in adapter arguments. Credentials and model settings stay in the adapter's
-normal environment, keychain, or own configuration. TA invokes argv directly
-with `shell=False`, and merely opening Inhabit Space never starts an adapter.
+executable argv, registration metadata, and an optional refreshed model/version
+display snapshot with mode `0600`; never put API keys in adapter arguments.
+Credentials and authoritative model settings stay in the adapter's normal
+environment, keychain, or own configuration. TA invokes argv directly with
+`shell=False`, and merely opening Inhabit Space never starts an adapter.
 
 Adapters implement protocol version `1` over JSON stdin/stdout. `describe`
 advertises the `continue` capability. `continue` receives the immutable request,
@@ -482,8 +488,10 @@ are adapter settings, not graph data; credentials remain in Grok's own login.
 The second staged adapter ships as `ta-harness-codex`. It uses an already
 authenticated Codex CLI in an ephemeral empty working directory, ignores
 user/project rules and user configuration, requests a read-only sandbox, and
-captures only the dedicated final-message file. It pins and reports one model
-identifier for exact graph attribution:
+captures only the dedicated final-message file. For model selection alone, it
+reads the root `model` value from Codex's own `config.toml` (or
+`TA_CODEX_MODEL`), passes that value explicitly, and reports it for graph
+attribution. No other Codex setting is imported into the isolated call:
 
 ```bash
 ta harness register codex --adapter "$(command -v ta-harness-codex)"
@@ -508,9 +516,10 @@ ta harness run --harness claude
 ```
 
 `TA_CLAUDE_BIN`, `TA_CLAUDE_MODEL`, and `TA_CLAUDE_TIMEOUT` are the bounded
-adapter controls. Without a model override, Claude Code chooses its configured
-default and the adapter records the model actually reported after completion.
-Authentication remains owned by Claude Code.
+adapter controls. Without a model override, the adapter reads only Claude Code's
+saved `model` setting, passes it explicitly, and records the exact canonical
+model actually reported after completion. Authentication remains owned by
+Claude Code.
 
 Thought Archaeology owns the durable boundary and graph compilation; the
 harness owns credentials, model invocation, and provider-specific prompt

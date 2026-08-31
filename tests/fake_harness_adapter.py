@@ -15,6 +15,8 @@ def main() -> int:
                     "protocol_version": "1",
                     "name": "fake-harness",
                     "capabilities": ["continue"],
+                    "cli_version": "fake-cli 1.0",
+                    "default_model": "fake-default",
                 }
             )
         )
