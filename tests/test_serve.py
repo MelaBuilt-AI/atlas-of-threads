@@ -382,7 +382,7 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert '"/api/continuation"' in js
     assert 'id="threshold"' in body
     css = _get(httpd_url + "/theme.css")[1]
-    assert "calc(2.25rem + var(--plate-height" in css
+    assert "width: min(31rem, 92vw)" in css
     assert "grid-template-columns: max-content minmax(0, 1fr) max-content" in css
     assert "cycleChoice" in js
     assert "if (focusIndex < 0)" in js
@@ -470,7 +470,7 @@ def test_space_sound_field_uses_cinematic_pack_and_is_event_bound():
     assert "sound.setWorking(Boolean(ready))" in js
     assert "sound.cameraShift(overhead)" in js
     assert "sound.edit(kind)" in js
-    assert "elSoundControls.contains(e.target)" in js
+    assert "if (!elLegendMenu.hidden)" in js
 
 
 def test_evidence_descent_is_a_static_server_authored_read_surface():
