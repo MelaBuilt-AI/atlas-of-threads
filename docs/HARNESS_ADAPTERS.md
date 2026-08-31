@@ -129,7 +129,7 @@ harness can be tested against the same protocol before the next is added:
 | Grok | implemented as `ta-harness-grok`; deterministic CLI-contract coverage complete |
 | Codex | implemented as `ta-harness-codex`; deterministic CLI-contract coverage complete |
 | Claude Code | implemented as `ta-harness-claude`; deterministic CLI-contract coverage complete |
-| OpenCode | planned |
+| OpenCode | implemented as `ta-harness-opencode`; deterministic CLI-contract coverage complete |
 | Prime Agent | planned |
 
 These names are planned adapter targets, not provider dependencies of the TA
@@ -247,4 +247,50 @@ the adapter does not start it:
 ta harness register claude --adapter "$(command -v ta-harness-claude)"
 ta harness doctor claude
 ta harness run --harness claude
+```
+
+## OpenCode
+
+`ta-harness-opencode` requires an authenticated official `opencode` executable.
+Model selection has explicit precedence: `TA_OPENCODE_MODEL`, a fixed `model`
+in OpenCode's resolved configuration, then the latest nonempty model selection
+stored by an OpenCode session. The latter is read through OpenCode's own
+read-only `db` command, not by opening its database directly. Provider and model
+are always passed back to `run` explicitly; the selected variant is also passed
+when present.
+
+Each continuation supplies the public TA envelope on stdin and runs in an empty
+temporary directory with external plugins and project configuration disabled.
+`OPENCODE_PERMISSION={"*":"deny"}` denies every tool permission; thinking,
+continuation, and auto-approval flags are never enabled, while an invocation-only
+config override forces manual sharing even if the user's normal config uses
+auto-share. The adapter
+accepts only finalized `text` events from raw JSON output and rejects any tool
+event or structured error.
+
+OpenCode `run` persists a session even for a fresh non-interactive turn. After a
+successful call, the adapter uses the official `export` command to verify the
+exact `providerID`, `modelID`, and variant reported on the assistant message.
+It then deletes that one adapter-created session through the official `session
+delete` command before returning the response to TA. Thinking and tool traces
+never enter the graph, and OpenCode remains the sole owner of authentication.
+
+```text
+opencode run --pure --format json --model PROVIDER/MODEL \
+  [--variant VARIANT] --dir PRIVATE_TEMP_DIR
+```
+
+Optional process environment:
+
+- `TA_OPENCODE_BIN` — alternate OpenCode executable;
+- `TA_OPENCODE_MODEL` — explicit `provider/model` selection;
+- `TA_OPENCODE_VARIANT` — explicit provider-specific variant;
+- `TA_OPENCODE_TIMEOUT` — positive model-call timeout in seconds (default 840).
+
+Registering the adapter does not activate it or restart the watcher:
+
+```bash
+ta harness register opencode --adapter "$(command -v ta-harness-opencode)"
+ta harness doctor opencode
+ta harness run --harness opencode
 ```

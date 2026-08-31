@@ -21,6 +21,7 @@ ta = "thought_archaeology.cli:main"
 ta-harness-claude = "thought_archaeology.adapters.claude:main"
 ta-harness-codex = "thought_archaeology.adapters.codex:main"
 ta-harness-grok = "thought_archaeology.adapters.grok:main"
+ta-harness-opencode = "thought_archaeology.adapters.opencode:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

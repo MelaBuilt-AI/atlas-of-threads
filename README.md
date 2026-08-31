@@ -450,8 +450,8 @@ the existing completion receipt, and advances the session head. If the request
 is canceled while the model is responding, the result is discarded before any
 graph is written.
 
-Run one watcher per store in this first implementation. Grok, Codex, and Claude
-Code adapters are implemented; OpenCode and Prime Agent remain staged targets
+Run one watcher per store in this first implementation. Grok, Codex, Claude
+Code, and OpenCode adapters are implemented; Prime Agent remains a staged target
 to exercise locally against the same contract. See
 [`docs/HARNESS_ADAPTERS.md`](docs/HARNESS_ADAPTERS.md).
 
@@ -521,6 +521,27 @@ saved `model` setting and otherwise uses Claude Code's default `sonnet` alias.
 It passes that selection explicitly and records the exact canonical model
 actually reported after completion. Authentication remains owned by Claude
 Code.
+
+The fourth staged adapter ships as `ta-harness-opencode`. It runs the
+authenticated official OpenCode CLI in raw-JSON pure mode from an empty
+temporary directory, disables project configuration, denies every permission,
+and keeps thinking, sharing, continuation, and auto-approval off. It accepts
+only finalized public text, verifies the exact serving provider/model/variant
+from OpenCode's own export, and deletes the adapter-created OpenCode session:
+
+```bash
+ta harness register opencode --adapter "$(command -v ta-harness-opencode)"
+ta harness doctor opencode
+ta harness run --harness opencode
+```
+
+`TA_OPENCODE_BIN`, `TA_OPENCODE_MODEL`, `TA_OPENCODE_VARIANT`, and
+`TA_OPENCODE_TIMEOUT` provide executable, explicit `provider/model`, variant,
+and timeout controls. Without an override, Refresh uses a fixed model in
+OpenCode's resolved configuration or the latest nonempty session selection made
+inside OpenCode. The selection is passed explicitly on invocation, while exact
+graph attribution is verified from the completed assistant message. OpenCode
+authentication remains outside Thought Archaeology.
 
 Thought Archaeology owns the durable boundary and graph compilation; the
 harness owns credentials, model invocation, and provider-specific prompt
