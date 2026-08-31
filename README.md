@@ -517,9 +517,10 @@ ta harness run --harness claude
 
 `TA_CLAUDE_BIN`, `TA_CLAUDE_MODEL`, and `TA_CLAUDE_TIMEOUT` are the bounded
 adapter controls. Without a model override, the adapter reads only Claude Code's
-saved `model` setting, passes it explicitly, and records the exact canonical
-model actually reported after completion. Authentication remains owned by
-Claude Code.
+saved `model` setting and otherwise uses Claude Code's default `sonnet` alias.
+It passes that selection explicitly and records the exact canonical model
+actually reported after completion. Authentication remains owned by Claude
+Code.
 
 Thought Archaeology owns the durable boundary and graph compilation; the
 harness owns credentials, model invocation, and provider-specific prompt

@@ -13,7 +13,7 @@ from thought_archaeology.harness import HARNESS_PROTOCOL_VERSION
 from thought_archaeology.schema import read_prompt
 
 DEFAULT_MODEL_TIMEOUT = 840.0
-PROVIDER_DEFAULT = "Claude Code default (resolved on continuation)"
+PROVIDER_DEFAULT = "sonnet"
 
 
 class ClaudeAdapterError(Exception):
@@ -77,6 +77,10 @@ def _configured_model() -> str | None:
     return saved.strip() if isinstance(saved, str) and saved.strip() else None
 
 
+def _selected_model() -> str:
+    return _configured_model() or PROVIDER_DEFAULT
+
+
 def _validate_envelope(raw: Any) -> dict[str, Any]:
     if not isinstance(raw, dict):
         raise ClaudeAdapterError("continue expects one JSON object on stdin")
@@ -136,24 +140,60 @@ def _model_timeout() -> float:
     return timeout
 
 
-def _reported_model(result: dict[str, Any]) -> str:
+def _reported_model(
+    result: dict[str, Any], configured_model: str | None = None
+) -> str:
     model_usage = result.get("modelUsage")
-    if not isinstance(model_usage, dict) or len(model_usage) != 1:
-        raise ClaudeAdapterError(
-            "Claude Code did not report exactly one serving model in modelUsage"
+    if not isinstance(model_usage, dict) or not model_usage:
+        raise ClaudeAdapterError("Claude Code reported no serving model in modelUsage")
+    candidates: list[tuple[str, str]] = []
+    for reported_name, usage in model_usage.items():
+        if not isinstance(reported_name, str) or not reported_name.strip():
+            continue
+        canonical = usage.get("canonicalModel") if isinstance(usage, dict) else None
+        exact_name = (
+            canonical.strip()
+            if isinstance(canonical, str) and canonical.strip()
+            else reported_name.strip()
         )
-    reported_name, usage = next(iter(model_usage.items()))
-    if not isinstance(reported_name, str) or not reported_name.strip():
+        candidates.append((reported_name.strip(), exact_name))
+    if not candidates:
         raise ClaudeAdapterError("Claude Code returned an empty serving model")
-    if isinstance(usage, dict):
-        canonical = usage.get("canonicalModel")
-        if isinstance(canonical, str) and canonical.strip():
-            return canonical.strip()
-    return reported_name.strip()
+    if len(candidates) == 1:
+        return candidates[0][1]
+    if configured_model:
+        requested = configured_model.strip().casefold()
+        exact = [
+            exact_name
+            for reported_name, exact_name in candidates
+            if requested in {reported_name.casefold(), exact_name.casefold()}
+        ]
+        if len(exact) == 1:
+            return exact[0]
+        families = {
+            family
+            for family in ("haiku", "sonnet", "opus")
+            if family in requested
+        }
+        family_matches = [
+            exact_name
+            for reported_name, exact_name in candidates
+            if any(
+                family in reported_name.casefold() or family in exact_name.casefold()
+                for family in families
+            )
+        ]
+        if len(family_matches) == 1:
+            return family_matches[0]
+    reported = ", ".join(exact_name for _, exact_name in candidates)
+    raise ClaudeAdapterError(
+        "Claude Code reported multiple serving models and none uniquely matched "
+        f"the configured model: {reported}"
+    )
 
 
 def _continue(
-    executable: str, envelope: dict[str, Any], configured_model: str | None
+    executable: str, envelope: dict[str, Any], configured_model: str
 ) -> tuple[str, str]:
     prompt = _prompt(envelope)
     argv = [
@@ -182,8 +222,7 @@ def _continue(
             "Use no tools and return only the requested final response."
         ),
     ]
-    if configured_model is not None:
-        argv.extend(["--model", configured_model])
+    argv.extend(["--model", configured_model])
     with tempfile.TemporaryDirectory(prefix="ta-claude-") as temp_dir:
         try:
             proc = subprocess.run(
@@ -224,7 +263,7 @@ def _continue(
         raise ClaudeAdapterError(f"Claude model call failed: {detail}")
     if not isinstance(response, str) or not response.strip():
         raise ClaudeAdapterError("Claude model call returned no final response")
-    return response.strip(), _reported_model(result)
+    return response.strip(), _reported_model(result, configured_model)
 
 
 def _emit(data: dict[str, Any]) -> None:
@@ -238,7 +277,7 @@ def main(argv: list[str] | None = None) -> int:
             raise ClaudeAdapterError("usage: ta-harness-claude describe|continue")
         executable = _claude_bin()
         version = _version(executable)
-        configured_model = _configured_model()
+        configured_model = _selected_model()
         if args[0] == "describe":
             _emit(
                 {
@@ -246,7 +285,7 @@ def main(argv: list[str] | None = None) -> int:
                     "name": "claude",
                     "capabilities": ["continue"],
                     "cli_version": version,
-                    "default_model": configured_model or PROVIDER_DEFAULT,
+                    "default_model": configured_model,
                 }
             )
             return 0

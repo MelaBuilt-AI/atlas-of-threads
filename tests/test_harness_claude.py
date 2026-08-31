@@ -5,7 +5,14 @@ import json
 import sys
 from pathlib import Path
 
-from thought_archaeology.adapters.claude import _claude_bin, _configured_model, main
+from thought_archaeology.adapters.claude import (
+    ClaudeAdapterError,
+    _claude_bin,
+    _configured_model,
+    _reported_model,
+    _selected_model,
+    main,
+)
 from thought_archaeology.store import Store
 
 from tests.helpers import FIXTURES
@@ -34,6 +41,42 @@ def test_claude_uses_saved_harness_model(monkeypatch, tmp_path: Path):
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(claude_root))
 
     assert _configured_model() == "sonnet"
+
+
+def test_claude_uses_sonnet_when_default_has_no_saved_override(
+    monkeypatch, tmp_path: Path
+):
+    monkeypatch.delenv("TA_CLAUDE_MODEL", raising=False)
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude"))
+
+    assert _selected_model() == "sonnet"
+
+
+def test_claude_attributes_configured_family_when_usage_has_multiple_models():
+    result = {
+        "modelUsage": {
+            "claude-haiku-4-5": {"canonicalModel": "claude-haiku-4-5-20251001"},
+            "claude-sonnet-4-6": {"canonicalModel": "claude-sonnet-4-6-20260101"},
+        }
+    }
+
+    assert _reported_model(result, "sonnet") == "claude-sonnet-4-6-20260101"
+
+
+def test_claude_rejects_ambiguous_multi_model_usage_without_configured_match():
+    result = {
+        "modelUsage": {
+            "claude-haiku-4-5": {},
+            "claude-sonnet-4-6": {},
+        }
+    }
+
+    try:
+        _reported_model(result, "default")
+    except ClaudeAdapterError as exc:
+        assert "multiple serving models" in str(exc)
+    else:
+        raise AssertionError("ambiguous multi-model usage should be rejected")
 
 
 def _source(store_path: Path) -> tuple[str, str]:

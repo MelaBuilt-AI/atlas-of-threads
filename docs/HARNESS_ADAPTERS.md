@@ -209,9 +209,14 @@ ta harness run --harness codex
 
 `ta-harness-claude` requires an authenticated official `claude` executable.
 `describe` reads `claude --version` and only the saved `model` field from Claude
-Code's `settings.json`, unless `TA_CLAUDE_MODEL` pins a model or alias. The
-adapter passes that value explicitly and records the exact canonical serving
-model from the completed JSON result's `modelUsage` field.
+Code's `settings.json`, unless `TA_CLAUDE_MODEL` pins a model or alias. Selecting
+Claude Code's default removes that saved override, so the adapter then uses the
+official `sonnet` alias. It passes the selection explicitly and records the exact
+canonical serving model from the completed JSON result's `modelUsage` field. Claude Code may
+report auxiliary model usage alongside the requested model; when that happens,
+the adapter matches the configured exact name or Haiku/Sonnet/Opus family and
+still records the matched entry's canonical model. Ambiguous unmatched results
+fail rather than guessing.
 
 Each continuation runs in a private empty temporary directory with safe mode,
 an empty tool set, an empty strict MCP configuration, disabled slash commands
