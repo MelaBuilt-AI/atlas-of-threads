@@ -26,7 +26,9 @@ def _codex_bin() -> str:
         raise CodexAdapterError(
             "Codex CLI not found; install it or set TA_CODEX_BIN to its executable"
         )
-    return str(Path(executable).resolve())
+    # Preserve launcher symlinks such as mise's `codex -> mise` shim. Mise
+    # dispatches from argv[0]; resolving the link would invoke bare `mise`.
+    return str(Path(executable).absolute())
 
 
 def _run_metadata(argv: list[str], *, timeout: float = 30) -> str:

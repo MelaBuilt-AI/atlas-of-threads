@@ -4,12 +4,23 @@ import json
 import sys
 from pathlib import Path
 
+from thought_archaeology.adapters.codex import _codex_bin
 from thought_archaeology.store import Store
 
 from tests.helpers import FIXTURES
 from tests.test_cli import run
 
 FAKE_CODEX = Path(__file__).with_name("fake_codex_cli.py")
+
+
+def test_codex_discovery_preserves_launcher_symlink(monkeypatch, tmp_path: Path):
+    shim = tmp_path / "codex"
+    shim.symlink_to(FAKE_CODEX)
+    monkeypatch.delenv("TA_CODEX_BIN", raising=False)
+    monkeypatch.setenv("PATH", str(tmp_path))
+
+    assert _codex_bin() == str(shim.absolute())
+    assert shim.is_symlink()
 
 
 def _source(store_path: Path) -> tuple[str, str]:
