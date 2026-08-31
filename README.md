@@ -451,8 +451,7 @@ is canceled while the model is responding, the result is discarded before any
 graph is written.
 
 Run one watcher per store in this first implementation. Grok, Codex, Claude
-Code, and OpenCode adapters are implemented; Prime Agent remains a staged target
-to exercise locally against the same contract. See
+Code, OpenCode, and Prime Agent adapters are implemented. See
 [`docs/HARNESS_ADAPTERS.md`](docs/HARNESS_ADAPTERS.md).
 
 On systemd Linux, `ta harness service install` writes one user-owned
@@ -542,6 +541,25 @@ OpenCode's resolved configuration or the latest nonempty session selection made
 inside OpenCode. The selection is passed explicitly on invocation, while exact
 graph attribution is verified from the completed assistant message. OpenCode
 authentication remains outside Thought Archaeology.
+
+The fifth staged adapter ships as `ta-harness-prime-agent`. It runs the
+authenticated official Prime Agent CLI in ephemeral JSON mode from an empty
+temporary directory with sessions, tools, extensions, skills, prompt templates,
+themes, context files, update checks, and telemetry disabled. It reads only
+Prime Agent's saved default provider, model, and thinking level, passes all
+three explicitly, and verifies the provider/model reported by the completed
+assistant event:
+
+```bash
+ta harness register prime-agent --adapter "$(command -v ta-harness-prime-agent)"
+ta harness doctor prime-agent
+ta harness run --harness prime-agent
+```
+
+`TA_PRIME_AGENT_BIN`, `TA_PRIME_AGENT_PROVIDER`, `TA_PRIME_AGENT_MODEL`,
+`TA_PRIME_AGENT_THINKING`, and `TA_PRIME_AGENT_TIMEOUT` provide bounded
+overrides. Prime Agent remains the sole owner of authentication; no key is read
+or copied by Thought Archaeology.
 
 Thought Archaeology owns the durable boundary and graph compilation; the
 harness owns credentials, model invocation, and provider-specific prompt

@@ -130,9 +130,9 @@ harness can be tested against the same protocol before the next is added:
 | Codex | implemented as `ta-harness-codex`; deterministic CLI-contract coverage complete |
 | Claude Code | implemented as `ta-harness-claude`; deterministic CLI-contract coverage complete |
 | OpenCode | implemented as `ta-harness-opencode`; deterministic CLI-contract coverage complete |
-| Prime Agent | planned |
+| Prime Agent | implemented as `ta-harness-prime-agent`; deterministic CLI-contract coverage complete |
 
-These names are planned adapter targets, not provider dependencies of the TA
+These are optional adapter bridges, not provider dependencies of the TA
 package. Each adapter owns its authentication, invocation flags, output
 normalization, and model identifier. The TA core must not acquire their SDKs,
 credentials, or vendor-specific schemas.
@@ -293,4 +293,47 @@ Registering the adapter does not activate it or restart the watcher:
 ta harness register opencode --adapter "$(command -v ta-harness-opencode)"
 ta harness doctor opencode
 ta harness run --harness opencode
+```
+
+## Prime Agent
+
+`ta-harness-prime-agent` requires an authenticated official `prime-agent`
+executable. It reads only `defaultProvider`, `defaultModel`, and
+`defaultThinkingLevel` from Prime Agent's user `settings.json`, unless the
+corresponding TA environment overrides are present. The adapter never opens
+`auth.json`. Provider, model, and thinking are passed explicitly on every call.
+
+Each continuation uses Prime Agent's documented JSON event-stream mode in an
+empty temporary directory. `--no-session` prevents transcript persistence;
+all built-in and discovered tools, extensions, skills, prompt templates,
+themes, and context files are disabled. `--offline` suppresses startup network
+work such as update checks without disabling the selected model call, and
+telemetry is disabled for the invocation. The adapter accepts only a completed
+assistant message with a normal `stop` reason, rejects tool events and tool-call
+content, and verifies the serving provider/model from that message before
+returning public text to TA. Thinking blocks and event-stream metadata never
+enter the graph.
+
+```text
+prime-agent --print --mode json --cwd PRIVATE_TEMP_DIR --offline \
+  --provider PROVIDER --model MODEL --thinking LEVEL --no-session \
+  --no-tools --no-builtin-tools --no-extensions --no-skills \
+  --no-prompt-templates --no-themes --no-context-files \
+  --system-prompt SYSTEM_PROMPT
+```
+
+Optional process environment:
+
+- `TA_PRIME_AGENT_BIN` — alternate Prime Agent executable;
+- `TA_PRIME_AGENT_PROVIDER` — explicit provider identifier;
+- `TA_PRIME_AGENT_MODEL` — explicit model identifier;
+- `TA_PRIME_AGENT_THINKING` — explicit Prime Agent thinking level;
+- `TA_PRIME_AGENT_TIMEOUT` — positive model-call timeout in seconds (default 840).
+
+Registering the adapter does not activate it or restart the watcher:
+
+```bash
+ta harness register prime-agent --adapter "$(command -v ta-harness-prime-agent)"
+ta harness doctor prime-agent
+ta harness run --harness prime-agent
 ```
