@@ -17,6 +17,19 @@
     <div class="here" id="here"></div>
     <div class="meta" id="meta"></div>
   </div>
+  <div id="threshold" hidden aria-live="polite">
+    <div class="kind" id="threshold-kind">end of this graph path</div>
+    <p id="threshold-text"></p>
+    <div class="threshold-actions">
+      <button id="threshold-origin" type="button">return to graph origin · o</button>
+      <button id="threshold-continue" type="button">ready for continuation · q</button>
+      <button id="threshold-ask" type="button" aria-pressed="false">ask from here…</button>
+    </div>
+    <div id="threshold-ask-box" hidden>
+      <input id="threshold-ask-input" type="text" maxlength="400" autocomplete="off" spellcheck="false" placeholder="question or invitation for the next AI turn" />
+      <div class="hint">enter marks ready with this question · esc or ask from here cancels</div>
+    </div>
+  </div>
   <div id="legend-scrim" hidden></div>
   <aside id="legend-menu" hidden aria-label="Legend and controls">
     <header class="menu-head">
@@ -29,24 +42,11 @@
 
     <section class="menu-section" id="context-menu-section">
       <div class="menu-section-label">actions at this chamber</div>
-      <p class="menu-empty">Continuation and edit controls appear here when they are available.</p>
+      <p class="menu-empty">Cut and human-no inscription controls appear here when opened.</p>
       <div id="composer" hidden>
         <div class="kind" id="composer-label">fork</div>
         <input id="composer-input" type="text" maxlength="400" autocomplete="off" spellcheck="false" />
         <div class="hint">enter commits · esc cancels</div>
-      </div>
-      <div id="threshold" hidden aria-live="polite">
-        <div class="kind" id="threshold-kind">end of this graph path</div>
-        <p id="threshold-text"></p>
-        <div class="threshold-actions">
-          <button id="threshold-origin" type="button">return to graph origin · o</button>
-          <button id="threshold-continue" type="button">ready for continuation · q</button>
-          <button id="threshold-ask" type="button" aria-pressed="false">ask from here…</button>
-        </div>
-        <div id="threshold-ask-box" hidden>
-          <input id="threshold-ask-input" type="text" maxlength="400" autocomplete="off" spellcheck="false" placeholder="question or invitation for the next AI turn" />
-          <div class="hint">enter marks ready with this question · esc or ask from here cancels</div>
-        </div>
       </div>
     </section>
 

@@ -189,8 +189,9 @@ atmosphere, not hidden model activity. No Node runtime; `viz/dist` is committed.
 
 When a completed continuation arrives, only its new doorway is inserted and
 raised; the standing relic and existing paths keep their mesh and animation
-state. At a terminal chamber, opening cut (`f`) or human no (`v`) stacks that
-input above the end-of-path pane rather than behind it.
+state. Reaching a terminal chamber restores the end-of-path pane directly in the
+main space, with its return, continuation, and inline question actions visible
+without opening a menu. Cut (`f`) and human no (`v`) remain in the Legend drawer.
 
 Cut and human no do not train or modify Grok, Codex, or another closed model.
 The browser cut writes a child graph with the selected node and its bounded
@@ -211,8 +212,8 @@ activation/crackle, and blue completion lightning. The three continuous layers
 crossfade through one conservative master compressor instead of stopping or
 stacking abruptly. Evidence/relic inspection, cut/veto inscription, and
 cancellation retain their small procedural gestures because this first cinematic
-pack does not include replacements for them. `s` toggles mute; the top-bar
-control exposes persistent browser-local volume and pack loading state.
+pack does not include replacements for them. `s` toggles mute; the Legend drawer
+exposes persistent browser-local volume and pack loading state.
 
 A future open-weight training slice may explicitly export reviewed cuts and
 human vetoes as versioned training examples, paired with accepted alternatives
@@ -354,9 +355,9 @@ read-only endpoint is `GET /api/thread/SESSION_ID`.
 
 The chamber edge stays intentionally quiet: its one top line opens the
 **Legend and controls** drawer with `l`. The drawer owns the sound controls,
-contextual continuation/edit actions, complete key list, and the visual ring,
-beam, and ghost-relic legend. The bottom plate remains descriptive rather than
-repeating controls.
+contextual cut/human-no editor, complete key list, and the visual ring, beam, and
+ghost-relic legend. Terminal continuation actions remain a spatial event in the
+main chamber. The bottom plate remains descriptive rather than repeating controls.
 
 A separate future workspace menu is reserved for explicit state-changing
 operations: activate a registered harness such as Codex or Grok, start a new

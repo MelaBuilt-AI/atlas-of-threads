@@ -153,7 +153,8 @@ def test_thread_compass_and_legend_controls_are_chamber_overlays():
     assert 'id="help"' not in html
     assert 'id="legend-menu"' in html
     assert html.index('id="legend-menu"') < html.index('id="sound-controls"')
-    assert html.index('id="legend-menu"') < html.index('id="threshold"')
+    assert html.index('id="threshold"') < html.index('id="legend-menu"')
+    assert html.index('id="legend-menu"') < html.index('id="composer"')
     assert "Blue ring" in html and "new AI path" in html
     assert "Red ring" in html and "return to conversation origin" in html
     assert "Green beam" in html and "AI request in flight" in html
@@ -169,6 +170,7 @@ def test_thread_compass_and_legend_controls_are_chamber_overlays():
     assert 'e.key === "t"' in js
     assert "openLegendMenu" in js
     assert 'e.key === "l"' in js
+    assert 'if (kind !== "continuation" && elLegendMenu.hidden)' in js
 
 
 def test_inhabit_json_matches_cli(httpd_url: str, tmp_path: Path):
@@ -516,6 +518,8 @@ def test_terminal_traversal_separates_story_and_conversation_routes():
     assert 'elThreshold.dataset.ask = "true"' in js
     assert 'elThreshold.dataset.ask = "false"' in js
     assert "#threshold-ask-box" in css
+    assert "width: min(32rem, calc(50vw - 1.875rem))" in css
+    assert "bottom: calc(2.25rem + var(--plate-height, 9rem))" in css
     assert "#legend-menu" in css
     assert "#thread-compass" in css
     assert "marking inhabitant ready" in js

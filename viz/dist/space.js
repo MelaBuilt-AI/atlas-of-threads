@@ -1955,7 +1955,7 @@
 
   function openComposer(kind) {
     if (!view || busy) return;
-    if (elLegendMenu.hidden) openLegendMenu();
+    if (kind !== "continuation" && elLegendMenu.hidden) openLegendMenu();
     composing = kind;
     sound.surface(kind);
     if (kind === "continuation") {
