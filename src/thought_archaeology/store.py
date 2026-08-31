@@ -117,6 +117,15 @@ class Store:
             fh.write(json.dumps(line, ensure_ascii=False) + "\n")
         _chmod_file(self.log_path)
 
+    def iter_log_entries(self) -> Iterator[dict]:
+        self._require()
+        if not self.log_path.is_file():
+            return
+            yield  # pragma: no cover
+        for line in self.log_path.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                yield json.loads(line)
+
     def init_session(self, title: str, origin: str | None = None) -> Session:
         t0 = time.perf_counter()
         if not self.exists():

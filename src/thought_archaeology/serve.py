@@ -11,6 +11,8 @@ from thought_archaeology.edits import commit, plan_fork, plan_veto
 from thought_archaeology.continuation import (
     continuation_cancellation,
     continuation_request,
+    parallel_comparison,
+    parallel_group_summaries,
 )
 from thought_archaeology.fork import ForkError
 from thought_archaeology.harness import (
@@ -410,12 +412,25 @@ def thread_payload(store: Store, session_id: str) -> dict:
         if ai_entries
         else None
     )
+    parallel_groups = parallel_group_summaries(store, session_id=session_id)
+    entries_by_graph = {entry["graph_id"]: entry for entry in entries}
+    for group in parallel_groups:
+        member_entries = [
+            entries_by_graph[graph_id]
+            for graph_id in group["graph_ids"]
+            if graph_id in entries_by_graph
+        ]
+        group["entries"] = member_entries
+        group["depth"] = min(
+            (entry["depth"] for entry in member_entries), default=0
+        )
     return {
         "session_id": session.id,
         "title": session.title,
         "head_graph_id": session.head_graph_id,
         "latest_ai_graph_id": latest_ai,
         "entries": entries,
+        "parallel_groups": parallel_groups,
     }
 
 
@@ -458,6 +473,12 @@ class InhabitHandler(BaseHTTPRequestHandler):
                 if not session_id:
                     raise StoreError("session is required")
                 self._json(200, thread_payload(self.store, session_id))
+                return
+            if path.startswith("/api/parallel/"):
+                request_id = path[len("/api/parallel/") :].strip("/")
+                if not request_id:
+                    raise StoreError("continuation request is required")
+                self._json(200, parallel_comparison(self.store, request_id))
                 return
             if path == "/api/continuations":
                 self._json(

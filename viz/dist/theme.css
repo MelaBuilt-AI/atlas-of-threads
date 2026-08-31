@@ -627,7 +627,7 @@ html, body {
 }
 
 .thread-panel {
-  width: min(52rem, 94vw);
+  width: min(58rem, 94vw);
   max-height: min(48rem, 88vh);
   overflow: auto;
   padding: clamp(1rem, 2.5vw, 1.7rem);
@@ -737,6 +737,174 @@ html, body {
   margin-top: 0.28rem;
   color: var(--mute);
   font: 0.61rem ui-monospace, Menlo, monospace;
+}
+
+.thread-parallel-group {
+  position: relative;
+  width: calc(100% - min(calc(var(--thread-depth, 0) * 1rem), 8rem));
+  margin-left: min(calc(var(--thread-depth, 0) * 1rem), 8rem);
+  border: 1px solid rgba(79, 143, 214, 0.42);
+  background: rgba(10, 18, 29, 0.46);
+}
+
+.thread-parallel-group.current {
+  box-shadow: inset 0 0 0 1px rgba(200, 242, 106, 0.2);
+}
+
+.thread-parallel-group.head::after {
+  content: "contains current head";
+  position: absolute;
+  z-index: 1;
+  top: 0.5rem;
+  right: 0.6rem;
+  color: var(--phosphor);
+  font: 0.54rem ui-monospace, Menlo, monospace;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.thread-parallel-compare {
+  display: grid;
+  width: 100%;
+  padding: 0.85rem 0.9rem;
+  border: 0;
+  border-bottom: 1px solid rgba(79, 143, 214, 0.3);
+  background: linear-gradient(90deg, rgba(79, 143, 214, 0.16), transparent 70%);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.thread-parallel-compare:hover,
+.thread-parallel-compare:focus-visible {
+  background: linear-gradient(90deg, rgba(79, 143, 214, 0.26), transparent 80%);
+  box-shadow: inset 0 0 0 1px var(--phosphor);
+  outline: none;
+}
+
+.thread-parallel-question {
+  padding-right: 7.5rem;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 0.94rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-parallel-meta,
+.thread-parallel-action {
+  margin-top: 0.32rem;
+  color: #8bbcf0;
+  font: 0.62rem ui-monospace, Menlo, monospace;
+}
+
+.thread-parallel-action { color: var(--phosphor); }
+
+.thread-parallel-members {
+  display: grid;
+  gap: 0.42rem;
+  padding: 0.6rem;
+}
+
+.thread-entry.parallel-member {
+  width: 100%;
+  margin-left: 0;
+  background: rgba(18, 16, 14, 0.42);
+}
+
+.thread-entry.parallel-member::before { display: none; }
+
+.parallel-context,
+.parallel-path {
+  border: 1px solid rgba(138, 131, 118, 0.3);
+  background: rgba(18, 16, 14, 0.52);
+}
+
+.parallel-context {
+  padding: 0.85rem 0.95rem;
+  border-left: 3px solid rgba(176, 141, 87, 0.7);
+}
+
+.parallel-context-label,
+.parallel-path-label {
+  color: var(--mute);
+  font: 0.6rem ui-monospace, Menlo, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.parallel-context p {
+  margin: 0.25rem 0 0.8rem;
+  color: var(--ink);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.parallel-context p:last-child { margin-bottom: 0; }
+
+.parallel-path {
+  padding: 0.95rem;
+  border-left: 3px solid rgba(79, 143, 214, 0.7);
+}
+
+.parallel-path.current {
+  background: rgba(42, 54, 38, 0.5);
+  box-shadow: inset 0 0 0 1px rgba(200, 242, 106, 0.22);
+}
+
+.parallel-path h3 {
+  margin: 0 0 0.72rem;
+  color: #8bbcf0;
+  font: 0.74rem ui-monospace, Menlo, monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.parallel-path-row {
+  display: grid;
+  grid-template-columns: 8.5rem minmax(0, 1fr);
+  gap: 0.8rem;
+  padding: 0.48rem 0;
+  border-top: 1px solid rgba(138, 131, 118, 0.18);
+}
+
+.parallel-path-value {
+  color: var(--ink);
+  font-size: 0.87rem;
+  line-height: 1.42;
+}
+
+.parallel-path-value ul {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.parallel-path-meta {
+  margin-top: 0.62rem;
+  color: var(--mute);
+  font: 0.59rem ui-monospace, Menlo, monospace;
+}
+
+.parallel-path-enter {
+  width: 100%;
+  margin-top: 0.7rem;
+  padding: 0.52rem 0.65rem;
+  border: 1px solid rgba(79, 143, 214, 0.65);
+  background: rgba(15, 30, 48, 0.56);
+  color: #9cc8f4;
+  font: 0.65rem ui-monospace, Menlo, monospace;
+  text-align: left;
+  cursor: pointer;
+}
+
+.parallel-path-enter:hover,
+.parallel-path-enter:focus-visible {
+  border-color: var(--phosphor);
+  color: var(--phosphor);
+  outline: none;
 }
 
 #relic-index,
@@ -1078,6 +1246,11 @@ html, body {
     width: calc(100% - min(calc(var(--thread-depth, 0) * 0.65rem), 4rem));
     margin-left: min(calc(var(--thread-depth, 0) * 0.65rem), 4rem);
   }
+
+  .thread-parallel-group {
+    width: calc(100% - min(calc(var(--thread-depth, 0) * 0.65rem), 4rem));
+    margin-left: min(calc(var(--thread-depth, 0) * 0.65rem), 4rem);
+  }
 }
 
 @media (max-width: 62.5rem) {
@@ -1100,6 +1273,16 @@ html, body {
   .thread-panel { max-height: 94vh; }
   .thread-head { display: block; }
   #thread-close { margin-top: 0.8rem; }
+  .thread-parallel-question { padding-right: 0; }
+  .thread-parallel-group.head::after {
+    position: static;
+    display: block;
+    padding: 0.45rem 0.9rem 0;
+  }
+  .parallel-path-row {
+    grid-template-columns: 1fr;
+    gap: 0.22rem;
+  }
   .control-list > div { grid-template-columns: 5.5rem minmax(0, 1fr); }
 
   .relic-index-head { display: block; }

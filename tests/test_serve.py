@@ -34,6 +34,7 @@ from thought_archaeology.store import Store
 
 from tests.helpers import FIXTURES
 from tests.test_cli import run
+from tests.test_continuation import _parallel_study
 
 
 def _compile_simple(store: Path) -> tuple[str, str]:
@@ -140,12 +141,39 @@ def test_thread_compass_is_server_authored_generation_lineage(
     assert lineage == thread_payload(store, session["id"])
     assert lineage["head_graph_id"] == child_id
     assert lineage["latest_ai_graph_id"] is None
+    assert lineage["parallel_groups"] == []
     assert [entry["kind"] for entry in lineage["entries"]] == ["origin", "veto"]
     assert lineage["entries"][1]["depth"] == 1
     assert lineage["entries"][1]["label"] == "human no"
     assert lineage["entries"][1]["reason"] == "keep this visible as a human no"
     assert lineage["entries"][1]["node_id"]
     assert "hidden_reasoning" not in body
+
+
+def test_thread_compass_and_parallel_endpoint_are_server_authored(tmp_path: Path):
+    store_path = tmp_path / "data"
+    store, source_node, request_ids = _parallel_study(store_path)
+    request = store.load_continuation_request(request_ids[0])
+    lineage = thread_payload(store, request.session_id)
+    assert len(lineage["parallel_groups"]) == 1
+    group = lineage["parallel_groups"][0]
+    assert group["completed_count"] == 5
+    assert group["source_node_id"] == source_node.id
+    assert [entry["graph_id"] for entry in group["entries"]] == group["graph_ids"]
+
+    replies = []
+    handler = object.__new__(InhabitHandler)
+    handler.store = store
+    handler._json = lambda code, body: replies.append((code, body))
+    handler.path = f"/api/parallel/{request_ids[0]}"
+    handler.do_GET()
+    assert replies[-1][0] == 200
+    comparison = replies[-1][1]
+    assert comparison["prompt"] == group["prompt"]
+    assert len(comparison["paths"]) == 5
+    assert comparison["paths"][2]["recorded_warnings"] == [
+        "policy: supports/depends_on/shapes cycle detected"
+    ]
 
 
 def test_thread_compass_and_legend_controls_are_chamber_overlays():
@@ -173,7 +201,18 @@ def test_thread_compass_and_legend_controls_are_chamber_overlays():
     assert ".thread-panel" in css
     assert ".thread-entry.current" in css
     assert 'api(`/api/thread/${view.session_id}`)' in js
+    assert 'api(`/api/parallel/${requestId}`)' in js
     assert "openThreadCompass" in js
+    assert "openParallelComparison" in js
+    assert "threadBackOrClose" in js
+    assert "Compare ${group.completed_count} paths" in js
+    assert "No vote or winner is inferred." in js
+    assert "none recorded" in js
+    assert "Recorded at compile" in js
+    assert "Current policy" in js
+    assert 'tabindex="-1"' in html
+    assert ".thread-parallel-group" in css
+    assert ".parallel-path-row" in css
     assert 'e.key === "t"' in js
     assert "openLegendMenu" in js
     assert 'e.key === "l"' in js
@@ -739,7 +778,7 @@ def test_live_companion_uses_finalized_store_heads_as_optional_doorways(tmp_path
     assert "restoreArrivalCircuit(ring, arrival)" in js
     assert "clearContinuationCircuit();" in js
     assert "updateContinuationCircuit(t)" in js
-    assert '<canvas id="c"></canvas>' in html
+    assert '<canvas id="c" tabindex="-1"></canvas>' in html
     assert 'tabindex="0"' not in html
     assert 'window.addEventListener("pointercancel", stopDragging)' in js
     assert 'window.addEventListener("blur", stopDragging)' in js

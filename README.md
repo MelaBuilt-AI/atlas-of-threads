@@ -123,6 +123,7 @@ ta fork NODE --session ID [--graph G] [--reason TEXT]
 ta veto NODE --session ID [--graph G] --reason TEXT
 ta continuation ready NODE --graph G [--prompt TEXT]
 ta continuation pending [--format table|json]
+ta continuation compare NODE --graph G [--request REQUEST] [--format table|json]
 ta continuation cancel REQUEST
 ta continuation complete REQUEST --graph G --harness NAME
 

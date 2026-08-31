@@ -81,7 +81,9 @@
   const elWorkspaceActionStatus = document.getElementById("workspace-action-status");
   const elWorkspaceHistory = document.getElementById("workspace-history");
   const elThreadCompass = document.getElementById("thread-compass");
+  const elThreadPanel = elThreadCompass.querySelector(".thread-panel");
   const elThreadClose = document.getElementById("thread-close");
+  const elThreadTitle = document.getElementById("thread-title");
   const elThreadSubtitle = document.getElementById("thread-subtitle");
   const elThreadLatest = document.getElementById("thread-latest");
   const elThreadStatus = document.getElementById("thread-status");
@@ -641,24 +643,121 @@
     else closeWorkspaceMenu();
   }
 
-  function closeThreadCompass() {
+  let threadLineage = null;
+  let threadComparison = null;
+  let threadReturnFocus = null;
+
+  function closeThreadCompass(restoreFocus = true) {
     elThreadCompass.hidden = true;
-    if (document.activeElement && document.activeElement.blur) {
-      document.activeElement.blur();
+    threadLineage = null;
+    threadComparison = null;
+    elThreadTitle.textContent = "Thread Compass";
+    elThreadClose.textContent = "close · T / esc";
+    if (restoreFocus) {
+      const target = threadReturnFocus && threadReturnFocus.isConnected
+        ? threadReturnFocus
+        : canvas;
+      target.focus({ preventScroll: true });
     }
+    threadReturnFocus = null;
     showWaitingArrivals();
   }
 
   function visitThreadEntry(entry) {
-    closeThreadCompass();
+    closeThreadCompass(false);
     inhabit(entry.graph_id, entry.node_id);
   }
 
-  function renderThreadCompass(lineage) {
+  function renderThreadEntry(entry, insideGroup = false) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "thread-entry";
+    button.dataset.kind = entry.kind;
+    button.style.setProperty(
+      "--thread-depth", String(insideGroup ? 0 : (entry.depth || 0))
+    );
+    if (insideGroup) button.classList.add("parallel-member");
+    if (entry.graph_id === view.graph_id) button.classList.add("current");
+    if (entry.graph_id === threadLineage.head_graph_id) button.classList.add("head");
+    button.disabled = !entry.node_id;
+
+    const label = document.createElement("span");
+    label.className = "thread-entry-label";
+    label.textContent = entry.label;
+    const summary = document.createElement("span");
+    summary.className = "thread-entry-summary";
+    summary.textContent = entry.summary;
+    const meta = document.createElement("span");
+    meta.className = "thread-entry-meta";
+    const details = [];
+    if (entry.graph_id === view.graph_id) details.push("you are here");
+    if (entry.prompt) details.push(`question: ${entry.prompt}`);
+    else if (entry.kind === "continuation") details.push("continued without a new question");
+    if (entry.reason) details.push(`reason: ${entry.reason}`);
+    details.push(entry.created_at.replace("T", " ").replace("Z", " UTC"));
+    meta.textContent = details.join(" · ");
+    button.append(label, summary, meta);
+    button.addEventListener("click", () => visitThreadEntry(entry));
+    return button;
+  }
+
+  function renderParallelGroup(group) {
+    const section = document.createElement("section");
+    section.className = "thread-parallel-group";
+    section.setAttribute("role", "listitem");
+    section.style.setProperty("--thread-depth", String(group.depth || 0));
+    if (group.graph_ids.includes(view.graph_id)) section.classList.add("current");
+    if (group.graph_ids.includes(threadLineage.head_graph_id)) section.classList.add("head");
+
+    const compare = document.createElement("button");
+    compare.type = "button";
+    compare.className = "thread-parallel-compare";
+    compare.dataset.requestId = group.representative_request_id;
+    const prompt = group.prompt || "continued without a new question";
+    compare.setAttribute(
+      "aria-label",
+      `Compare ${group.completed_count} same-question paths. Exact question: ${prompt}`
+    );
+    const question = document.createElement("span");
+    question.className = "thread-parallel-question";
+    question.textContent = prompt;
+    const names = group.harnesses.map((item) => item.display_name).join(" · ");
+    const meta = document.createElement("span");
+    meta.className = "thread-parallel-meta";
+    meta.textContent = `${group.completed_count} parallel continuations · ${names}`;
+    const action = document.createElement("span");
+    action.className = "thread-parallel-action";
+    action.textContent = `Compare ${group.completed_count} paths`;
+    compare.append(question, meta, action);
+    compare.addEventListener(
+      "click", () => openParallelComparison(group.representative_request_id)
+    );
+    section.append(compare);
+
+    const members = document.createElement("div");
+    members.className = "thread-parallel-members";
+    for (const entry of group.entries || []) {
+      members.append(renderThreadEntry(entry, true));
+    }
+    section.append(members);
+    return section;
+  }
+
+  function renderThreadCompass(lineage, focusRequestId = null) {
+    threadLineage = lineage;
+    threadComparison = null;
     const entries = lineage.entries || [];
+    const parallelGroups = lineage.parallel_groups || [];
+    const groupByGraph = new Map();
+    for (const group of parallelGroups) {
+      for (const graphId of group.graph_ids) groupByGraph.set(graphId, group);
+    }
+    const renderedGroups = new Set();
     const latestAi = entries.find(
       (entry) => entry.graph_id === lineage.latest_ai_graph_id
     );
+    elThreadTitle.textContent = "Thread Compass";
+    elThreadClose.textContent = "close · T / esc";
     elThreadSubtitle.textContent =
       `${lineage.title} · ${entries.length} graph ${entries.length === 1 ? "generation" : "generations"}`;
     elThreadStatus.textContent =
@@ -676,35 +775,21 @@
 
     let focusTarget = null;
     for (const entry of entries) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "thread-entry";
-      button.dataset.kind = entry.kind;
-      button.style.setProperty("--thread-depth", String(entry.depth || 0));
-      if (entry.graph_id === view.graph_id) {
-        button.classList.add("current");
-        focusTarget = button;
+      const group = groupByGraph.get(entry.graph_id);
+      if (group) {
+        if (renderedGroups.has(group.representative_request_id)) continue;
+        renderedGroups.add(group.representative_request_id);
+        const groupElement = renderParallelGroup(group);
+        elThreadList.append(groupElement);
+        const groupFocus = groupElement.querySelector(".thread-parallel-compare");
+        if (focusRequestId === group.representative_request_id) focusTarget = groupFocus;
+        else if (!focusTarget && group.graph_ids.includes(view.graph_id)) {
+          focusTarget = groupElement.querySelector(".thread-entry.current") || groupFocus;
+        }
+        continue;
       }
-      if (entry.graph_id === lineage.head_graph_id) button.classList.add("head");
-      button.disabled = !entry.node_id;
-
-      const label = document.createElement("span");
-      label.className = "thread-entry-label";
-      label.textContent = entry.label;
-      const summary = document.createElement("span");
-      summary.className = "thread-entry-summary";
-      summary.textContent = entry.summary;
-      const meta = document.createElement("span");
-      meta.className = "thread-entry-meta";
-      const details = [];
-      if (entry.graph_id === view.graph_id) details.push("you are here");
-      if (entry.prompt) details.push(`question: ${entry.prompt}`);
-      else if (entry.kind === "continuation") details.push("continued without a new question");
-      if (entry.reason) details.push(`reason: ${entry.reason}`);
-      details.push(entry.created_at.replace("T", " ").replace("Z", " UTC"));
-      meta.textContent = details.join(" · ");
-      button.append(label, summary, meta);
-      button.addEventListener("click", () => visitThreadEntry(entry));
+      const button = renderThreadEntry(entry);
+      if (!focusTarget && entry.graph_id === view.graph_id) focusTarget = button;
       elThreadList.append(button);
     }
     const firstFocus = focusTarget || (
@@ -713,10 +798,136 @@
     firstFocus.focus();
   }
 
+  function appendParallelTexts(parent, label, items, emptyText = "none recorded") {
+    const row = document.createElement("div");
+    row.className = "parallel-path-row";
+    const heading = document.createElement("div");
+    heading.className = "parallel-path-label";
+    heading.textContent = label;
+    const body = document.createElement("div");
+    body.className = "parallel-path-value";
+    if (!items.length) {
+      body.textContent = emptyText;
+    } else {
+      const list = document.createElement("ul");
+      for (const item of items) {
+        const li = document.createElement("li");
+        li.textContent = item.text;
+        list.append(li);
+      }
+      body.append(list);
+    }
+    row.append(heading, body);
+    parent.append(row);
+  }
+
+  function renderParallelComparison(comparison) {
+    threadComparison = comparison;
+    elThreadTitle.textContent = "Parallel continuations";
+    elThreadSubtitle.textContent =
+      `${comparison.completed_count} answers from the same chamber. No vote or winner is inferred.`;
+    elThreadClose.textContent = "back to lineage · esc";
+    elThreadStatus.textContent = "Each reading uses only recorded graph fields and structural checks.";
+    elThreadLatest.hidden = true;
+    elThreadList.replaceChildren();
+
+    const context = document.createElement("section");
+    context.className = "parallel-context";
+    const sourceLabel = document.createElement("div");
+    sourceLabel.className = "parallel-context-label";
+    sourceLabel.textContent = "Exact source thought";
+    const source = document.createElement("p");
+    source.textContent = comparison.source_thought.text;
+    const promptLabel = document.createElement("div");
+    promptLabel.className = "parallel-context-label";
+    promptLabel.textContent = "Exact shared question";
+    const prompt = document.createElement("p");
+    prompt.textContent = comparison.prompt || "continued without a new question";
+    context.append(sourceLabel, source, promptLabel, prompt);
+    elThreadList.append(context);
+
+    for (const path of comparison.paths || []) {
+      const article = document.createElement("article");
+      article.className = "parallel-path";
+      if (path.graph_id === view.graph_id) article.classList.add("current");
+      const heading = document.createElement("h3");
+      heading.textContent = `${path.harness_display_name} · ${path.model}`;
+      article.append(heading);
+      const entry = path.entry_node;
+      appendParallelTexts(
+        article,
+        entry && entry.kind === "claim" ? "Entry claim" : "Entry thought",
+        entry ? [entry] : []
+      );
+      appendParallelTexts(article, "Judgment", path.judgment_calls || []);
+      appendParallelTexts(article, "Uncertainty", path.uncertainties || []);
+
+      const roads = document.createElement("div");
+      roads.className = "parallel-path-row";
+      const roadsLabel = document.createElement("div");
+      roadsLabel.className = "parallel-path-label";
+      roadsLabel.textContent = "Roads not taken";
+      const roadsValue = document.createElement("div");
+      roadsValue.className = "parallel-path-value";
+      roadsValue.textContent = String((path.rejected_alternatives || []).length);
+      roads.append(roadsLabel, roadsValue);
+      article.append(roads);
+
+      const recorded = (path.recorded_warnings || []).map(
+        (text) => ({ text: `Recorded at compile · ${text}` })
+      );
+      const current = (path.current_policy_warnings || []).map(
+        (text) => ({ text: `Current policy · ${text}` })
+      );
+      appendParallelTexts(article, "Structural notes", [...recorded, ...current], "none");
+
+      const graphMeta = document.createElement("div");
+      graphMeta.className = "parallel-path-meta";
+      graphMeta.textContent =
+        `${path.node_count} nodes · ${path.edge_count} edges · ${path.created_at.replace("T", " ").replace("Z", " UTC")}`;
+      const enter = document.createElement("button");
+      enter.type = "button";
+      enter.className = "parallel-path-enter";
+      enter.textContent = "Enter this path";
+      enter.disabled = !entry;
+      enter.addEventListener("click", () => {
+        if (entry) visitThreadEntry({ graph_id: path.graph_id, node_id: entry.id });
+      });
+      article.append(graphMeta, enter);
+      elThreadList.append(article);
+    }
+    elThreadPanel.scrollTop = 0;
+    elThreadClose.focus({ preventScroll: true });
+  }
+
+  async function openParallelComparison(requestId) {
+    elThreadStatus.textContent = "reading same-question paths…";
+    elThreadList.replaceChildren();
+    try {
+      const comparison = await api(`/api/parallel/${requestId}`);
+      if (!elThreadCompass.hidden) renderParallelComparison(comparison);
+    } catch (error) {
+      elThreadStatus.textContent = String(error.message || error);
+      if (threadLineage) renderThreadCompass(threadLineage, requestId);
+    }
+  }
+
+  function threadBackOrClose() {
+    if (threadComparison && threadLineage) {
+      const requestId = threadComparison.representative_request_id;
+      renderThreadCompass(threadLineage, requestId);
+      return;
+    }
+    closeThreadCompass();
+  }
+
   async function openThreadCompass() {
     if (!view || composing || busy) return;
     if (!elLegendMenu.hidden) closeLegendMenu();
     if (!elWorkspaceMenu.hidden) closeWorkspaceMenu();
+    threadReturnFocus = document.activeElement && document.activeElement !== document.body
+      ? document.activeElement
+      : canvas;
     elThreadCompass.hidden = false;
     elThreadLatest.hidden = true;
     elThreadList.replaceChildren();
@@ -2556,14 +2767,17 @@
     if (!elWorkspaceNewForm.hidden) elWorkspaceNewPrompt.focus();
   });
   elWorkspaceNewForm.addEventListener("submit", submitWorkspaceInquiry);
-  elThreadClose.addEventListener("click", closeThreadCompass);
+  elThreadClose.addEventListener("click", threadBackOrClose);
   elThreadCompass.addEventListener("click", (event) => {
     if (event.target === elThreadCompass) closeThreadCompass();
   });
 
   window.addEventListener("keydown", (e) => {
     if (!elThreadCompass.hidden) {
-      if (e.key === "Escape" || e.key === "t" || e.key === "T") {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        threadBackOrClose();
+      } else if (e.key === "t" || e.key === "T") {
         e.preventDefault();
         closeThreadCompass();
       } else if (e.key === "l" || e.key === "L") {

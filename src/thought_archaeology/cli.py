@@ -16,6 +16,8 @@ from thought_archaeology.continuation import (
     continuation_cancellation,
     continuation_completion,
     continuation_request,
+    parallel_comparison,
+    parallel_group_summaries,
 )
 from thought_archaeology.edits import append_op_turn, commit, plan_fork, plan_veto
 from thought_archaeology.evidence import context_provenance_binding
@@ -205,6 +207,15 @@ def _parser() -> argparse.ArgumentParser:
         "pending", parents=[sub_globals], help="list requests awaiting a harness"
     )
     p_pending.add_argument("--format", choices=["table", "json"], default="table")
+    p_compare = continuation_sub.add_parser(
+        "compare",
+        parents=[sub_globals],
+        help="read exact same-question continuation paths",
+    )
+    p_compare.add_argument("node")
+    p_compare.add_argument("--graph", required=True, metavar="G")
+    p_compare.add_argument("--request", default=None, metavar="ID")
+    p_compare.add_argument("--format", choices=["table", "json"], default="table")
     p_cancel = continuation_sub.add_parser(
         "cancel", parents=[sub_globals], help="withdraw a pending continuation request"
     )
@@ -1773,6 +1784,65 @@ def cmd_continuation(args: argparse.Namespace) -> int:
             for item in requests:
                 prompt = " ".join(item.prompt.split()) or "(continue from here)"
                 print(f"{item.id:<26}  {item.graph_id:<26}  {item.node_id:<26}  {prompt}")
+        return EXIT_OK
+    if args.continuation_cmd == "compare":
+        if args.request:
+            comparison = parallel_comparison(
+                store,
+                args.request,
+                graph_id=args.graph,
+                node_id=args.node,
+            )
+            if args.format == "json":
+                print(json.dumps(comparison, ensure_ascii=False))
+                return EXIT_OK
+            prompt = comparison["prompt"] or "continued without a new question"
+            print("Parallel continuations")
+            print(f"source thought: {comparison['source_thought']['text']}")
+            print(f"shared question: {prompt}")
+            print("No vote or winner is inferred.")
+            for path in comparison["paths"]:
+                print()
+                print(f"{path['harness_display_name']} · {path['model']}")
+                entry = path["entry_node"]
+                entry_label = (
+                    "Entry claim"
+                    if entry and entry["kind"] == "claim"
+                    else "Entry thought"
+                )
+                print(f"{entry_label}: {entry['text'] if entry else 'none recorded'}")
+                judgments = path["judgment_calls"]
+                judgment_text = " | ".join(item["text"] for item in judgments)
+                print("Judgment: " + (judgment_text or "none recorded"))
+                uncertainties = path["uncertainties"]
+                uncertainty_text = " | ".join(
+                    item["text"] for item in uncertainties
+                )
+                print("Uncertainty: " + (uncertainty_text or "none recorded"))
+                print(f"Roads not taken: {len(path['rejected_alternatives'])}")
+                notes = [
+                    *(f"recorded: {item}" for item in path["recorded_warnings"]),
+                    *(f"current: {item}" for item in path["current_policy_warnings"]),
+                ]
+                print("Structural notes: " + (" | ".join(notes) or "none"))
+                print(f"Enter this path: {path['graph_id']} · {entry['id'] if entry else '-'}")
+            return EXIT_OK
+        groups = parallel_group_summaries(
+            store, graph_id=args.graph, node_id=args.node
+        )
+        if args.format == "json":
+            print(json.dumps(groups, ensure_ascii=False))
+            return EXIT_OK
+        print(f"{'paths':<5}  {'collaborators':<42}  question")
+        for group in groups:
+            names = " · ".join(
+                item["display_name"] for item in group["harnesses"]
+            )
+            prompt = " ".join(group["prompt"].split()) or (
+                "(continued without a new question)"
+            )
+            print(f"{group['completed_count']:<5}  {names:<42}  {prompt}")
+            print(f"       request {group['representative_request_id']}")
         return EXIT_OK
     if args.continuation_cmd == "cancel":
         cancellation = continuation_cancellation(args.request, source="cli")
