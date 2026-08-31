@@ -35,8 +35,11 @@ SCHEMA_NAMES = (
     "recurring-circuit.schema.json",
     "training-provenance.schema.json",
     "continuation-request.schema.json",
+    "continuation-attempt.schema.json",
     "continuation-completion.schema.json",
     "continuation-cancellation.schema.json",
+    "continuation-failure.schema.json",
+    "parallel-continuation-batch.schema.json",
 )
 
 DAG_EDGE_KINDS = frozenset({"supports", "depends_on", "shapes", "taste_of"})

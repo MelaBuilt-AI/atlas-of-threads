@@ -451,7 +451,9 @@ def inhabit(
     pending = [
         item.to_dict()
         for item in store.iter_continuation_requests(pending=True)
-        if item.graph_id == graph.id and item.node_id == node.id
+        if item.graph_id == graph.id
+        and item.node_id == node.id
+        and item.parallel_batch_id is None
     ]
     return InhabitView(
         graph=graph,

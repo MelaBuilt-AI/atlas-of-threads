@@ -11,8 +11,11 @@ from thought_archaeology.edits import commit, plan_fork, plan_veto
 from thought_archaeology.continuation import (
     continuation_cancellation,
     continuation_request,
+    parallel_batch_progress,
     parallel_comparison,
+    parallel_continuation_batch,
     parallel_group_summaries,
+    parallel_progress_for_source,
 )
 from thought_archaeology.fork import ForkError
 from thought_archaeology.harness import (
@@ -316,6 +319,93 @@ def create_workspace_inquiry(store: Store, prompt: str) -> dict:
     }
 
 
+def create_parallel_continuations(
+    store: Store,
+    *,
+    graph_id: str,
+    node_id: str,
+    prompt: str,
+    harnesses: list[str],
+) -> dict:
+    """Validate and atomically publish one terminal-chamber routed batch."""
+    prompt = prompt.strip()
+    if not prompt:
+        raise ServeError("parallel continuation requires one shared prompt")
+    if len(prompt) > 400:
+        raise ServeError("parallel continuation prompt must be 400 characters or fewer")
+    if len(harnesses) < 2 or len(set(harnesses)) != len(harnesses):
+        raise ServeError("select at least two unique collaborators")
+    registry = HarnessRegistry()
+    specs = registry.specs()
+    registered = {spec.name for spec in specs}
+    if any(name not in registered for name in harnesses):
+        raise ServeError("every selected collaborator must be registered")
+    default = registry.default_name()
+    if not default or default not in harnesses:
+        raise ServeError("the active collaborator must remain selected")
+    ordered = (default,) + tuple(
+        spec.name for spec in specs if spec.name in harnesses and spec.name != default
+    )
+    view = inhabit(store, node_id, graph_id=graph_id)
+    traversal = view.to_dict().get("read", {}).get("traversal", {})
+    if not traversal.get("terminal"):
+        raise ServeError("parallel continuation is available only at a terminal chamber")
+    batch, requests = parallel_continuation_batch(
+        view.graph,
+        view.node,
+        prompt=prompt,
+        harnesses=ordered,
+    )
+    path = store.write_parallel_batch(batch, requests)
+    store.log(
+        "parallel_continuation_ready",
+        session_id=batch.session_id,
+        graph_id=batch.graph_id,
+        node_id=batch.node_id,
+        batch_id=batch.id,
+        request_ids=[request.id for request in requests],
+        harnesses=list(ordered),
+        path=str(path),
+        warnings=[],
+    )
+    return {
+        "ok": True,
+        "batch": batch.to_dict(),
+        "requests": [request.to_dict() for request in requests],
+        "progress": parallel_batch_progress(store, batch.id),
+    }
+
+
+def cancel_parallel_continuations(store: Store, batch_id: str) -> dict:
+    """Close every still-open job; completed and failed receipts remain."""
+    batch = store.load_parallel_batch(batch_id)
+    canceled = []
+    with store.continuation_inbox_lock():
+        pending = {
+            request.id for request in store.iter_continuation_requests(pending=True)
+        }
+        for job in sorted(batch.jobs, key=lambda item: item.position):
+            if job.request_id not in pending:
+                continue
+            receipt = continuation_cancellation(job.request_id, source="workspace")
+            store.write_continuation_cancellation(receipt)
+            canceled.append(receipt)
+    store.log(
+        "parallel_continuation_cancel",
+        session_id=batch.session_id,
+        graph_id=batch.graph_id,
+        node_id=batch.node_id,
+        batch_id=batch.id,
+        request_ids=[item.request_id for item in canceled],
+        warnings=[],
+    )
+    return {
+        "ok": True,
+        "cancellations": [item.to_dict() for item in canceled],
+        "progress": parallel_batch_progress(store, batch.id),
+    }
+
+
 def thread_payload(store: Store, session_id: str) -> dict:
     """Server-authored graph-generation compass for one durable session."""
     session = store.load_session(session_id)
@@ -478,7 +568,13 @@ class InhabitHandler(BaseHTTPRequestHandler):
                 request_id = path[len("/api/parallel/") :].strip("/")
                 if not request_id:
                     raise StoreError("continuation request is required")
-                self._json(200, parallel_comparison(self.store, request_id))
+                batch_path = self.store.parallel_batches_dir / f"{request_id}.json"
+                payload = (
+                    parallel_batch_progress(self.store, request_id)
+                    if batch_path.is_file()
+                    else parallel_comparison(self.store, request_id)
+                )
+                self._json(200, payload)
                 return
             if path == "/api/continuations":
                 self._json(
@@ -489,7 +585,11 @@ class InhabitHandler(BaseHTTPRequestHandler):
                             for item in self.store.iter_continuation_requests(
                                 pending=True
                             )
-                        ]
+                        ],
+                        "parallel_batches": [
+                            parallel_batch_progress(self.store, batch.id)
+                            for batch in self.store.iter_parallel_batches()
+                        ],
                     },
                 )
                 return
@@ -520,6 +620,15 @@ class InhabitHandler(BaseHTTPRequestHandler):
                     ).get(view.continuation["id"])
                 else:
                     payload["continuation_attempt"] = None
+                payload["parallel_continuation"] = parallel_progress_for_source(
+                    self.store, view.graph.id, view.node.id
+                )
+                payload["parallel_available"] = bool(
+                    payload.get("read", {}).get("traversal", {}).get("terminal")
+                    and not list(
+                        self.store.iter_continuation_requests(pending=True)
+                    )
+                )
                 self._json(200, payload)
                 return
             self._static(path)
@@ -561,6 +670,15 @@ class InhabitHandler(BaseHTTPRequestHandler):
                 return
             if path == "/api/continuation/cancel":
                 self._continuation_cancel()
+                return
+            if path == "/api/parallel":
+                self._parallel_ready()
+                return
+            if path.startswith("/api/parallel/") and path.endswith("/cancel"):
+                batch_id = path[len("/api/parallel/") : -len("/cancel")].strip("/")
+                if not batch_id:
+                    raise ServeError("parallel batch is required")
+                self._json(200, cancel_parallel_continuations(self.store, batch_id))
                 return
             if path == "/api/workspace/harness":
                 self._workspace_harness()
@@ -698,6 +816,26 @@ class InhabitHandler(BaseHTTPRequestHandler):
             warnings=[],
         )
         self._json(200, {"ok": True, "cancellation": cancellation.to_dict()})
+
+    def _parallel_ready(self) -> None:
+        body = self._read_json()
+        graph_id = str(body.get("graph_id") or body.get("graph") or "").strip()
+        node_id = str(body.get("node_id") or body.get("node") or "").strip()
+        raw_harnesses = body.get("harnesses")
+        if not graph_id or not node_id:
+            raise ServeError("graph_id and node_id are required")
+        if not isinstance(raw_harnesses, list) or not all(
+            isinstance(item, str) and item.strip() for item in raw_harnesses
+        ):
+            raise ServeError("harnesses must be a list of collaborator names")
+        result = create_parallel_continuations(
+            self.store,
+            graph_id=graph_id,
+            node_id=node_id,
+            prompt=str(body.get("prompt") or ""),
+            harnesses=[item.strip() for item in raw_harnesses],
+        )
+        self._json(200, result)
 
     def _workspace_harness(self) -> None:
         body = self._read_json()

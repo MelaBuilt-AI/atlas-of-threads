@@ -4,7 +4,9 @@ import json
 import hashlib
 import os
 import time
+import fcntl
 from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
 
@@ -12,7 +14,9 @@ from thought_archaeology.continuation import (
     ContinuationAttempt,
     ContinuationCancellation,
     ContinuationCompletion,
+    ContinuationFailure,
     ContinuationRequest,
+    ParallelContinuationBatch,
 )
 from thought_archaeology.ids import now_iso, new_ulid
 from thought_archaeology.models import SCHEMA_VERSION, Session, ThoughtGraph, ThoughtNode, Turn
@@ -300,6 +304,39 @@ class Store:
     def continuation_cancellations_dir(self) -> Path:
         return self.root / "continuations" / "cancellations"
 
+    @property
+    def continuation_failures_dir(self) -> Path:
+        return self.root / "continuations" / "failures"
+
+    @property
+    def parallel_batches_dir(self) -> Path:
+        return self.root / "continuations" / "parallel-batches"
+
+    @property
+    def continuation_lock_path(self) -> Path:
+        return self.root / "continuations" / "inbox.lock"
+
+    @contextmanager
+    def continuation_inbox_lock(self, *, timeout: float = 5):
+        """Bounded inter-process lock shared by batch creation and dequeue."""
+        self._require()
+        _mkdir(self.root / "continuations")
+        fd = os.open(self.continuation_lock_path, os.O_CREAT | os.O_RDWR, FILE_MODE)
+        started = time.monotonic()
+        try:
+            while True:
+                try:
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    if time.monotonic() - started >= timeout:
+                        raise StoreError("continuation inbox is busy")
+                    time.sleep(0.05)
+            yield
+        finally:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+            os.close(fd)
+
     def write_continuation_request(self, request: ContinuationRequest) -> Path:
         self._require()
         graph = self.load_graph(request.graph_id)
@@ -315,6 +352,79 @@ class Store:
         _write_json(path, request.to_dict())
         return path
 
+    def write_parallel_batch(
+        self,
+        batch: ParallelContinuationBatch,
+        requests: tuple[ContinuationRequest, ...],
+    ) -> Path:
+        """Publish a complete batch while the worker is excluded from dequeue."""
+        self._require()
+        graph = self.load_graph(batch.graph_id)
+        node_ids = {node.id for node in graph.nodes}
+        if graph.session_id != batch.session_id or batch.node_id not in node_ids:
+            raise StoreError("parallel batch source does not match its graph")
+        validate_schema("parallel-continuation-batch.schema.json", batch.to_dict())
+        jobs = sorted(batch.jobs, key=lambda item: item.position)
+        if [job.position for job in jobs] != list(range(len(jobs))):
+            raise StoreError("parallel batch job positions must be contiguous")
+        if len({job.harness for job in jobs}) != len(jobs):
+            raise StoreError("parallel batch harnesses must be unique")
+        by_id = {request.id: request for request in requests}
+        if set(by_id) != {job.request_id for job in jobs}:
+            raise StoreError("parallel batch jobs and requests do not match")
+        for job in jobs:
+            request = by_id[job.request_id]
+            if (
+                request.session_id != batch.session_id
+                or request.graph_id != batch.graph_id
+                or request.node_id != batch.node_id
+                or request.prompt != batch.prompt
+                or request.source != batch.source
+                or request.parallel_batch_id != batch.id
+                or request.requested_harness != job.harness
+            ):
+                raise StoreError("parallel request does not match its batch manifest")
+            validate_schema("continuation-request.schema.json", request.to_dict())
+        with self.continuation_inbox_lock():
+            if list(self.iter_continuation_requests(pending=True)):
+                raise StoreError(
+                    "finish or cancel the current AI response before starting a parallel batch"
+                )
+            _mkdir(self.parallel_batches_dir)
+            _mkdir(self.continuation_requests_dir)
+            path = self.parallel_batches_dir / f"{batch.id}.json"
+            request_paths = [
+                self.continuation_requests_dir / f"{request.id}.json"
+                for request in requests
+            ]
+            if path.exists() or any(item.exists() for item in request_paths):
+                raise StoreError(f"parallel batch {batch.id} already exists (write-once)")
+            for request, request_path in zip(requests, request_paths, strict=True):
+                _write_json(request_path, request.to_dict())
+            # The manifest is the publication marker. A routed request without
+            # it is ignored by dequeue, so a crash cannot expose half a batch.
+            _write_json(path, batch.to_dict())
+        return path
+
+    def load_parallel_batch(self, batch_id: str) -> ParallelContinuationBatch:
+        self._require()
+        path = self.parallel_batches_dir / f"{batch_id}.json"
+        if not path.is_file():
+            raise StoreError(f"parallel continuation batch not found: {batch_id}")
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        validate_schema("parallel-continuation-batch.schema.json", raw)
+        return ParallelContinuationBatch.from_dict(raw)
+
+    def iter_parallel_batches(self) -> Iterator[ParallelContinuationBatch]:
+        self._require()
+        if not self.parallel_batches_dir.is_dir():
+            return
+            yield  # pragma: no cover
+        for path in sorted(self.parallel_batches_dir.glob("*.json")):
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            validate_schema("parallel-continuation-batch.schema.json", raw)
+            yield ParallelContinuationBatch.from_dict(raw)
+
     def load_continuation_request(self, request_id: str) -> ContinuationRequest:
         self._require()
         path = self.continuation_requests_dir / f"{request_id}.json"
@@ -326,7 +436,9 @@ class Store:
 
     def write_continuation_attempt(self, attempt: ContinuationAttempt) -> Path:
         self._require()
-        self.load_continuation_request(attempt.request_id)
+        request = self.load_continuation_request(attempt.request_id)
+        if request.requested_harness and request.requested_harness != attempt.harness:
+            raise StoreError("attempt harness does not match requested harness")
         validate_schema("continuation-attempt.schema.json", attempt.to_dict())
         _mkdir(self.continuation_attempts_dir)
         path = self.continuation_attempts_dir / f"{attempt.id}.json"
@@ -362,10 +474,15 @@ class Store:
             closed.update(
                 item.request_id for item in self.iter_continuation_cancellations()
             )
+            closed.update(item.request_id for item in self.iter_continuation_failures())
         for path in sorted(self.continuation_requests_dir.glob("*.json")):
             raw = json.loads(path.read_text(encoding="utf-8"))
             validate_schema("continuation-request.schema.json", raw)
             request = ContinuationRequest.from_dict(raw)
+            if request.parallel_batch_id and not (
+                self.parallel_batches_dir / f"{request.parallel_batch_id}.json"
+            ).is_file():
+                continue
             if request.id not in closed:
                 yield request
 
@@ -388,6 +505,13 @@ class Store:
             raise StoreError(
                 f"continuation request {cancellation.request_id} already canceled (write-once)"
             )
+        if any(
+            item.request_id == cancellation.request_id
+            for item in self.iter_continuation_failures()
+        ):
+            raise StoreError(
+                f"continuation request {cancellation.request_id} already failed"
+            )
         validate_schema(
             "continuation-cancellation.schema.json", cancellation.to_dict()
         )
@@ -408,9 +532,46 @@ class Store:
             validate_schema("continuation-cancellation.schema.json", raw)
             yield ContinuationCancellation.from_dict(raw)
 
+    def write_continuation_failure(self, failure: ContinuationFailure) -> Path:
+        self._require()
+        request = self.load_continuation_request(failure.request_id)
+        if request.parallel_batch_id is None:
+            raise StoreError("failure receipts are only for parallel requests")
+        if request.requested_harness != failure.harness:
+            raise StoreError("failure harness does not match requested harness")
+        terminal = {
+            item.request_id for item in self.iter_continuation_completions()
+        } | {
+            item.request_id for item in self.iter_continuation_cancellations()
+        } | {
+            item.request_id for item in self.iter_continuation_failures()
+        }
+        if failure.request_id in terminal:
+            raise StoreError(f"continuation request {failure.request_id} is already closed")
+        validate_schema("continuation-failure.schema.json", failure.to_dict())
+        _mkdir(self.continuation_failures_dir)
+        path = self.continuation_failures_dir / f"{failure.id}.json"
+        _write_json(path, failure.to_dict())
+        return path
+
+    def iter_continuation_failures(self) -> Iterator[ContinuationFailure]:
+        self._require()
+        if not self.continuation_failures_dir.is_dir():
+            return
+            yield  # pragma: no cover
+        for path in sorted(self.continuation_failures_dir.glob("*.json")):
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            validate_schema("continuation-failure.schema.json", raw)
+            yield ContinuationFailure.from_dict(raw)
+
     def write_continuation_completion(self, completion: ContinuationCompletion) -> Path:
         self._require()
         request = self.load_continuation_request(completion.request_id)
+        if (
+            request.requested_harness
+            and request.requested_harness != completion.harness
+        ):
+            raise StoreError("completion harness does not match requested harness")
         if any(
             item.request_id == completion.request_id
             for item in self.iter_continuation_cancellations()
@@ -418,6 +579,11 @@ class Store:
             raise StoreError(
                 f"continuation request {completion.request_id} was canceled"
             )
+        if any(
+            item.request_id == completion.request_id
+            for item in self.iter_continuation_failures()
+        ):
+            raise StoreError(f"continuation request {completion.request_id} failed")
         if completion.graph_id == request.graph_id:
             raise StoreError("continuation completion must point to a new graph")
         self.load_graph(completion.graph_id)

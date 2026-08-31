@@ -25,6 +25,8 @@
       "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
     },
     "prompt": { "type": "string", "maxLength": 400 },
-    "source": { "type": "string", "enum": ["inhabit_space", "workspace", "cli"] }
+    "source": { "type": "string", "enum": ["inhabit_space", "workspace", "cli"] },
+    "requested_harness": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "parallel_batch_id": { "type": "string", "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$" }
   }
 }

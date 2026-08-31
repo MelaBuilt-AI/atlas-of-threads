@@ -11,6 +11,7 @@
   --rejected: #8a7396;
   --uncertain: #5c8a7b;
   --analogy: #d4a0b0;
+  --new-path: #4f8fd6;
   --ink: #ece6d8;
   --mute: #8a8376;
 }
@@ -393,6 +394,75 @@ html, body {
   gap: 0.55rem;
   margin-top: 0.75rem;
 }
+
+#workspace-parallel-form {
+  margin-top: 0.75rem;
+  padding: 0.8rem;
+  border-left: 1px solid rgba(93, 245, 138, 0.62);
+}
+
+#workspace-parallel-form fieldset {
+  display: grid;
+  gap: 0.38rem;
+  margin: 0 0 0.8rem;
+  padding: 0;
+  border: 0;
+}
+
+.workspace-parallel-choice {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  color: var(--ink);
+  font: 0.68rem/1.4 ui-monospace, Menlo, monospace;
+}
+
+.workspace-parallel-choice small { color: var(--mute); }
+
+#workspace-parallel-form > label {
+  display: block;
+  margin-bottom: 0.4rem;
+  color: var(--phosphor);
+  font: 0.64rem ui-monospace, Menlo, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+#workspace-parallel-prompt {
+  width: 100%;
+  border: 1px solid var(--bronze);
+  background: rgba(18, 16, 14, 0.72);
+  color: var(--ink);
+  padding: 0.55rem 0.62rem;
+  font: 1rem "Iowan Old Style", Palatino, serif;
+  outline: none;
+}
+
+#workspace-parallel-prompt:focus { border-color: var(--phosphor); }
+
+#workspace-parallel-form button {
+  width: 100%;
+  margin-top: 0.55rem;
+  border: 1px solid rgba(176, 141, 87, 0.42);
+  background: rgba(18, 16, 14, 0.68);
+  color: var(--bronze-hot);
+  padding: 0.65rem 0.72rem;
+  text-align: left;
+  font: 0.68rem/1.4 ui-monospace, Menlo, monospace;
+  cursor: pointer;
+}
+
+#workspace-parallel-progress {
+  display: grid;
+  gap: 0.28rem;
+  margin-top: 0.65rem;
+  color: var(--mute);
+  font: 0.65rem/1.4 ui-monospace, Menlo, monospace;
+}
+
+.workspace-parallel-job[data-status="responding"] { color: var(--phosphor); }
+.workspace-parallel-job[data-status="completed"] { color: var(--new-path); }
+.workspace-parallel-job[data-status="failed"] { color: var(--uncertain); }
 
 .workspace-harness-row {
   display: grid;

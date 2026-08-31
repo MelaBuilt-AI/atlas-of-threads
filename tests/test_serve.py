@@ -221,11 +221,17 @@ def test_thread_compass_and_legend_controls_are_chamber_overlays():
     assert 'id="workspace-harnesses"' in html
     assert 'id="workspace-new-form"' in html
     assert 'id="workspace-history"' in html
+    assert 'id="workspace-parallel-form"' in html
+    assert 'id="threshold-parallel"' in html
     assert "Activate ${workspaceName(harness.name)}" in js
     assert 'refresh.textContent = "↻ Refresh"' in js
     assert 'post("/api/workspace/harness"' in js
     assert 'post("/api/workspace/harness/model"' in js
     assert 'post("/api/workspace/inquiry"' in js
+    assert 'post("/api/parallel"' in js
+    assert "cancel remaining" in html
+    assert 'e.key === "p"' in js
+    assert "continuationCircuits = new Map()" in js
     assert 'api("/api/workspace")' in js
     assert 'e.key === "m"' in js
     assert "#workspace-menu" in css
@@ -639,7 +645,7 @@ def test_space_sound_field_uses_cinematic_pack_and_is_event_bound():
     assert 'sound.setBeam("waiting"' in js
     assert 'sound.setBeam("arrival")' in js
     assert "sound.arrivalSplash()" in js
-    assert "sound.setWorking(Boolean(ready))" in js
+    assert "sound.setWorking(Boolean(ready || (batchLive && batch.counts.responding)))" in js
     assert "sound.cameraShift(overhead)" in js
     assert "sound.edit(kind)" in js
     assert "if (!elLegendMenu.hidden)" in js
@@ -693,7 +699,7 @@ def test_terminal_traversal_separates_story_and_conversation_routes():
     assert "#legend-menu" in css
     assert "#thread-compass" in css
     assert "marking inhabitant ready" in js
-    assert 'elThreshold.dataset.ready = ready ? "working" : "false"' in js
+    assert 'elThreshold.dataset.ready = ready || batchLive ? "working" : "false"' in js
     assert '"AI working…"' in js
     assert "continuation_attempt" in js
     assert "is responding from this chamber" in js
@@ -762,17 +768,17 @@ def test_live_companion_uses_finalized_store_heads_as_optional_doorways(tmp_path
     assert "visibleNeuronIndex" in js
     assert "neuronAtOrAboveMesh" in js
     assert "world.y < minimumY" in js
-    assert "visibleNeuronIndex(standingMesh)" in js
+    assert "visibleNeuronIndex(standingMesh, used)" in js
     assert "makeContinuationLightning" in js
     assert "beginContinuationCircuit(ready)" in js
-    assert "completeContinuationCircuit(ring, arrival)" in js
-    assert 'continuationCircuit.phase = "arrival"' in js
+    assert "completeContinuationCircuit(arrival.requestId, ring, arrival)" in js
+    assert 'circuit.phase = "arrival"' in js
     completed_circuit = js[
         js.index("function completeContinuationCircuit") :
         js.index("function restoreArrivalCircuit")
     ]
     assert "visibleNeuronIndex" not in completed_circuit
-    assert "neuronIndex: continuationCircuit.neuronIndex" in completed_circuit
+    assert "neuronIndex: circuit.neuronIndex" in completed_circuit
     assert "CIRCUIT_MEMORY_KEY" in js
     assert "window.localStorage" in js
     assert "restoreArrivalCircuit(ring, arrival)" in js
@@ -891,7 +897,7 @@ def test_continuation_handler_without_socket(tmp_path: Path):
 
     handler.path = "/api/continuations"
     handler.do_GET()
-    assert replies[-1] == (200, {"requests": [request]})
+    assert replies[-1] == (200, {"requests": [request], "parallel_batches": []})
 
     attempt = continuation_attempt(request["id"], "grok")
     store.write_continuation_attempt(attempt)
@@ -909,7 +915,7 @@ def test_continuation_handler_without_socket(tmp_path: Path):
 
     handler.path = "/api/continuations"
     handler.do_GET()
-    assert replies[-1] == (200, {"requests": []})
+    assert replies[-1] == (200, {"requests": [], "parallel_batches": []})
 
 
 def test_inhabit_climate_none_without_fingerprint(httpd_url: str):

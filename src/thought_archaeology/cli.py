@@ -1962,12 +1962,26 @@ def cmd_harness(args: argparse.Namespace) -> int:
         return EXIT_OK
     if args.harness_cmd == "run":
         spec = registry.get(args.harness)
+        if args.request:
+            routed = _store(args).load_continuation_request(args.request)
+            if (
+                args.harness
+                and routed.requested_harness
+                and args.harness != routed.requested_harness
+            ):
+                raise HarnessError(
+                    f"request {args.request} is routed to {routed.requested_harness!r}, "
+                    f"not {args.harness!r}"
+                )
+            if routed.requested_harness:
+                spec = registry.get(routed.requested_harness)
         describe_harness(spec, timeout=min(args.timeout, 10))
         outcome = process_continuation(
             _store(args),
             spec,
             request_id=args.request,
             timeout=args.timeout,
+            registry=registry,
         )
         print(json.dumps(outcome or {"status": "idle"}, ensure_ascii=False))
         return EXIT_OK
@@ -1984,6 +1998,7 @@ def cmd_harness(args: argparse.Namespace) -> int:
                 spec,
                 interval=args.interval,
                 timeout=args.timeout,
+                registry=registry,
             ):
                 print(json.dumps(outcome, ensure_ascii=False), flush=True)
         except KeyboardInterrupt:

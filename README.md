@@ -354,6 +354,11 @@ response, and lets any listed generation re-enter at its first chamber. It does
 not replace local doors or turn every thought-node into a minimap entry. The
 read-only endpoint is `GET /api/thread/SESSION_ID`.
 
+After two or more completions share the exact session, source graph, source
+node, and prompt, Thread Compass groups them as **Parallel continuations**. The
+comparison keeps every attributed graph separate, reports completed/failed/
+canceled/pending counts, and infers no vote, winner, or consensus.
+
 The chamber edge stays intentionally quiet: its one top line opens the
 **Legend and controls** drawer with `l`. The drawer owns the sound controls,
 contextual cut/human-no editor, complete key list, and the visual ring, beam, and
@@ -380,6 +385,22 @@ and the opening question is stored once rather than duplicated as a second user
 turn. **Historical** lists every session newest-first with generation count,
 head attribution, and a non-mutating re-entry action. `t` remains the lineage
 instrument within whichever historical session is entered.
+
+At an eligible terminal chamber with an empty inbox, press `p` or use the
+**parallel continuation** action. Workspace opens one shared-prompt composer;
+the active collaborator stays selected, and any additional registered
+collaborators can be selected without changing the default. Submission writes
+one immutable `ParallelContinuationBatch` and one routed request per selection.
+The existing single watcher invokes them sequentially, active/default first and
+then registry order, with at most one attempt per job. Successes remain direct
+siblings of the exact source and receive separately attributed blue paths.
+Failures append sanitized terminal receipts and do not prevent later jobs;
+**cancel remaining** closes only unfinished requests and discards a late active
+response. The drawer and terminal pane report only the currently active job as
+responding. Each selected request has its own canopy neuron and green beam;
+completed requests turn their retained beam blue without teleporting or
+repeatedly stealing path focus. The local endpoints are `POST /api/parallel`
+and `POST /api/parallel/BATCH_ID/cancel`.
 
 ## Harness-neutral continuation
 

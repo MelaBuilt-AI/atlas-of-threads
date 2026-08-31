@@ -4,8 +4,9 @@ Status: accepted implementation specification
 Accepted by: user and Codex  
 Date: 2026-08-31
 
-Implementation status: Phase 1 implemented and locally/live-browser verified by
-Codex on 2026-08-31; user acceptance is pending. Phase 2 remains unstarted.
+Implementation status: Phase 1 was live-accepted by the user on 2026-08-31.
+Phase 2 is implemented and deterministically verified by Codex; its required
+two-collaborator then complete-set live acceptance remains pending.
 
 ## Purpose
 

@@ -11,16 +11,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterator, Self
 
+from thought_archaeology.compile_common import CompileError
 from thought_archaeology.compile_structured import compile_structured
 from thought_archaeology.continuation import (
     ContinuationRequest,
     continuation_attempt,
     continuation_completion,
+    continuation_failure,
 )
 from thought_archaeology.ids import new_ulid, now_iso
 from thought_archaeology.inhabit import inhabit
 from thought_archaeology.models import ModelInfo, SCHEMA_VERSION, ThoughtGraph, Turn
-from thought_archaeology.schema import validate_graph
+from thought_archaeology.schema import ValidationError, validate_graph
 from thought_archaeology.store import Store
 
 HARNESS_CONFIG_VERSION = 1
@@ -391,82 +393,226 @@ def process_continuation(
     *,
     request_id: str | None = None,
     timeout: float = 900,
+    registry: HarnessRegistry | None = None,
 ) -> dict[str, Any] | None:
-    request = _select_request(store, request_id)
-    if request is None:
-        return None
-    attempt = continuation_attempt(request.id, spec.name)
-    store.write_continuation_attempt(attempt)
+    with store.continuation_inbox_lock():
+        request = _select_request(store, request_id)
+        if request is None:
+            return None
+        target_spec = spec
+        if request.requested_harness:
+            if request.parallel_batch_id is None:
+                raise HarnessError("routed continuation request has no parallel batch")
+            prior = [
+                item
+                for item in store.iter_continuation_attempts()
+                if item.request_id == request.id
+            ]
+            if prior:
+                failure = continuation_failure(
+                    request.id,
+                    request.requested_harness,
+                    "interrupted",
+                    "The watcher restarted after this job began; it was not invoked again.",
+                )
+                store.write_continuation_failure(failure)
+                return {
+                    "status": "failed",
+                    "harness": request.requested_harness,
+                    "request_id": request.id,
+                    "failure_id": failure.id,
+                    "reason_code": failure.reason_code,
+                }
+            try:
+                target_spec = (registry or HarnessRegistry()).get(
+                    request.requested_harness
+                )
+            except HarnessError:
+                failure = continuation_failure(
+                    request.id,
+                    request.requested_harness,
+                    "unavailable_harness",
+                    "The requested collaborator is no longer registered.",
+                )
+                store.write_continuation_failure(failure)
+                return {
+                    "status": "failed",
+                    "harness": request.requested_harness,
+                    "request_id": request.id,
+                    "failure_id": failure.id,
+                    "reason_code": failure.reason_code,
+                }
+        attempt = continuation_attempt(request.id, target_spec.name)
+        store.write_continuation_attempt(attempt)
     store.log(
         "harness_responding",
         session_id=request.session_id,
         graph_id=request.graph_id,
         request_id=request.id,
         attempt_id=attempt.id,
-        harness=spec.name,
+        harness=target_spec.name,
         warnings=[],
     )
-    result = _adapter_call(
-        spec,
-        "continue",
-        continuation_envelope(store, request),
-        timeout=timeout,
-    )
+    try:
+        result = _adapter_call(
+            target_spec,
+            "continue",
+            continuation_envelope(store, request),
+            timeout=timeout,
+        )
+    except HarnessError as exc:
+        if request.parallel_batch_id is None:
+            raise
+        detail = str(exc).lower()
+        reason = "timeout" if isinstance(
+            exc.__cause__, subprocess.TimeoutExpired
+        ) else (
+            "invalid_response"
+            if "invalid json" in detail
+            or "must return a json object" in detail
+            or "protocol mismatch" in detail
+            else "adapter_error"
+        )
+        summary = (
+            "The collaborator timed out before returning a usable continuation."
+            if reason == "timeout"
+            else (
+                "The collaborator returned a response that could not be compiled."
+                if reason == "invalid_response"
+                else "The collaborator could not complete this continuation."
+            )
+        )
+        failure = continuation_failure(request.id, target_spec.name, reason, summary)
+        with store.continuation_inbox_lock():
+            if not _is_pending(store, request.id):
+                return {
+                    "status": "canceled",
+                    "harness": target_spec.name,
+                    "request_id": request.id,
+                }
+            store.write_continuation_failure(failure)
+        store.log(
+            "harness_failure",
+            session_id=request.session_id,
+            graph_id=request.graph_id,
+            request_id=request.id,
+            failure_id=failure.id,
+            harness=target_spec.name,
+            reason_code=reason,
+            warnings=[],
+        )
+        return {
+            "status": "failed",
+            "harness": target_spec.name,
+            "request_id": request.id,
+            "failure_id": failure.id,
+            "reason_code": reason,
+        }
     if not _is_pending(store, request.id):
+        if request.parallel_batch_id is not None:
+            return {
+                "status": "canceled",
+                "harness": target_spec.name,
+                "request_id": request.id,
+            }
         raise HarnessError(
-            f"continuation request {request.id} closed while {spec.name!r} was responding; "
+            f"continuation request {request.id} closed while {target_spec.name!r} was responding; "
             "the response was discarded"
         )
-    response = result.get("response")
-    model_name = result.get("model_name")
-    if not isinstance(response, str) or not response.strip():
-        raise HarnessError(f"harness {spec.name!r} returned an empty response")
-    if not isinstance(model_name, str) or not model_name.strip():
-        raise HarnessError(f"harness {spec.name!r} returned an empty model_name")
-    created_at = now_iso()
-    turn_id = new_ulid()
-    graph, warnings = compile_structured(
-        response,
-        session_id=request.session_id,
-        turn_id=turn_id,
-        model=ModelInfo(
-            provider="shell",
-            name=model_name.strip(),
-            compile_mode="structured_emit",
-        ),
-        now=created_at,
-        parent_graph_id=request.graph_id,
-    )
-    validate_graph(graph)
-    if not _is_pending(store, request.id):
-        raise HarnessError(
-            f"continuation request {request.id} closed before its response could be stored; "
-            "the response was discarded"
+    try:
+        response = result.get("response")
+        model_name = result.get("model_name")
+        if not isinstance(response, str) or not response.strip():
+            raise HarnessError(
+                f"harness {target_spec.name!r} returned an empty response"
+            )
+        if not isinstance(model_name, str) or not model_name.strip():
+            raise HarnessError(
+                f"harness {target_spec.name!r} returned an empty model_name"
+            )
+        created_at = now_iso()
+        turn_id = new_ulid()
+        graph, warnings = compile_structured(
+            response,
+            session_id=request.session_id,
+            turn_id=turn_id,
+            model=ModelInfo(
+                provider="shell",
+                name=model_name.strip(),
+                compile_mode="structured_emit",
+            ),
+            now=created_at,
+            parent_graph_id=request.graph_id,
         )
-    turns = _continuation_turns(
-        store, request, graph, created_at=created_at
-    )
-    store.write_graph(graph)
-    for turn in turns:
-        store.append_turn(turn)
-    completion = continuation_completion(request.id, graph.id, spec.name)
-    completion_path = store.write_continuation_completion(completion)
-    store.update_session_head(
-        request.session_id, graph_id=graph.id, turn_id=graph.turn_id
-    )
+        validate_graph(graph)
+    except (CompileError, HarnessError, ValidationError, ValueError):
+        if request.parallel_batch_id is None:
+            raise
+        failure = continuation_failure(
+            request.id,
+            target_spec.name,
+            "invalid_response",
+            "The collaborator returned a response that could not be compiled.",
+        )
+        with store.continuation_inbox_lock():
+            if not _is_pending(store, request.id):
+                return {
+                    "status": "canceled",
+                    "harness": target_spec.name,
+                    "request_id": request.id,
+                }
+            store.write_continuation_failure(failure)
+        store.log(
+            "harness_failure",
+            request_id=request.id,
+            failure_id=failure.id,
+            harness=target_spec.name,
+            reason_code="invalid_response",
+            warnings=[],
+        )
+        return {
+            "status": "failed",
+            "harness": target_spec.name,
+            "request_id": request.id,
+            "failure_id": failure.id,
+            "reason_code": "invalid_response",
+        }
+    with store.continuation_inbox_lock():
+        if not _is_pending(store, request.id):
+            if request.parallel_batch_id is not None:
+                return {
+                    "status": "canceled",
+                    "harness": target_spec.name,
+                    "request_id": request.id,
+                }
+            raise HarnessError(
+                f"continuation request {request.id} closed before its response could be stored; "
+                "the response was discarded"
+            )
+        turns = _continuation_turns(
+            store, request, graph, created_at=created_at
+        )
+        store.write_graph(graph)
+        for turn in turns:
+            store.append_turn(turn)
+        completion = continuation_completion(request.id, graph.id, target_spec.name)
+        completion_path = store.write_continuation_completion(completion)
+        store.update_session_head(
+            request.session_id, graph_id=graph.id, turn_id=graph.turn_id
+        )
     store.log(
         "harness_continue",
         session_id=request.session_id,
         graph_id=graph.id,
         request_id=request.id,
         completion_id=completion.id,
-        harness=spec.name,
+        harness=target_spec.name,
         path=str(completion_path),
         warnings=warnings,
     )
     return {
         "status": "completed",
-        "harness": spec.name,
+        "harness": target_spec.name,
         "request_id": request.id,
         "graph_id": graph.id,
         "completion_id": completion.id,
@@ -480,11 +626,14 @@ def watch_continuations(
     *,
     interval: float = 2,
     timeout: float = 900,
+    registry: HarnessRegistry | None = None,
 ) -> Iterator[dict[str, Any]]:
     if interval <= 0:
         raise HarnessError("watch interval must be greater than zero")
     while True:
-        outcome = process_continuation(store, spec, timeout=timeout)
+        outcome = process_continuation(
+            store, spec, timeout=timeout, registry=registry
+        )
         if outcome is None:
             time.sleep(interval)
             continue

@@ -75,6 +75,13 @@
   const elWorkspaceClose = document.getElementById("workspace-close");
   const elWorkspaceHarnessStatus = document.getElementById("workspace-harness-status");
   const elWorkspaceHarnesses = document.getElementById("workspace-harnesses");
+  const elWorkspaceParallelSection = document.getElementById("workspace-parallel-section");
+  const elWorkspaceParallelForm = document.getElementById("workspace-parallel-form");
+  const elWorkspaceParallelHarnesses = document.getElementById("workspace-parallel-harnesses");
+  const elWorkspaceParallelPrompt = document.getElementById("workspace-parallel-prompt");
+  const elWorkspaceParallelSubmit = document.getElementById("workspace-parallel-submit");
+  const elWorkspaceParallelProgress = document.getElementById("workspace-parallel-progress");
+  const elWorkspaceParallelCancel = document.getElementById("workspace-parallel-cancel");
   const elWorkspaceNewToggle = document.getElementById("workspace-new-toggle");
   const elWorkspaceNewForm = document.getElementById("workspace-new-form");
   const elWorkspaceNewPrompt = document.getElementById("workspace-new-prompt");
@@ -97,6 +104,7 @@
   const elThresholdOrigin = document.getElementById("threshold-origin");
   const elThresholdContinue = document.getElementById("threshold-continue");
   const elThresholdAsk = document.getElementById("threshold-ask");
+  const elThresholdParallel = document.getElementById("threshold-parallel");
   const elThresholdAskBox = document.getElementById("threshold-ask-box");
   const elThresholdAskInput = document.getElementById("threshold-ask-input");
   const elRelicIndex = document.getElementById("relic-index");
@@ -169,17 +177,20 @@
   let layoutGeneration = 0;
   let standingMesh = null;
   const COMPANION_MEMORY_KEY = "thought-archaeology.companions.v1";
-  const CIRCUIT_MEMORY_KEY = "thought-archaeology.continuation-circuit.v1";
+  const CIRCUIT_MEMORY_KEY = "thought-archaeology.continuation-circuits.v2";
   const knownHeads = new Map();
   const sessionTitles = new Map();
   let liveArrivals = loadCompanionThoughts();
   let arrivalsDirty = false;
   let arrivingFocus = null;
-  let rememberedCircuit = loadContinuationCircuit();
-  let continuationCircuit = null;
+  let rememberedCircuits = loadContinuationCircuits();
+  const continuationCircuits = new Map();
   let companionPolling = false;
   let companionReady = false;
   let workspaceBusy = false;
+  let parallelComposerOpen = false;
+  let parallelProgress = null;
+  let workspaceState = null;
 
   function loadCompanionThoughts() {
     try {
@@ -204,24 +215,24 @@
     }
   }
 
-  function loadContinuationCircuit() {
+  function loadContinuationCircuits() {
     try {
-      const saved = JSON.parse(window.localStorage.getItem(CIRCUIT_MEMORY_KEY));
-      if (
-        !saved || !saved.requestId || !Number.isInteger(saved.neuronIndex) ||
-        (saved.phase !== "waiting" && saved.phase !== "arrival")
-      ) return null;
-      return saved;
+      const saved = JSON.parse(window.localStorage.getItem(CIRCUIT_MEMORY_KEY) || "[]");
+      if (!Array.isArray(saved)) return [];
+      return saved.filter((item) =>
+        item && item.requestId && Number.isInteger(item.neuronIndex) &&
+        (item.phase === "waiting" || item.phase === "arrival")
+      );
     } catch (_error) {
-      return null;
+      return [];
     }
   }
 
-  function saveContinuationCircuit() {
+  function saveContinuationCircuits() {
     try {
-      if (rememberedCircuit) {
+      if (rememberedCircuits.length) {
         window.localStorage.setItem(
-          CIRCUIT_MEMORY_KEY, JSON.stringify(rememberedCircuit)
+          CIRCUIT_MEMORY_KEY, JSON.stringify(rememberedCircuits)
         );
       } else {
         window.localStorage.removeItem(CIRCUIT_MEMORY_KEY);
@@ -460,7 +471,68 @@
     return name ? name.charAt(0).toUpperCase() + name.slice(1) : "Unknown";
   }
 
+  function renderParallelProgress(progress) {
+    elWorkspaceParallelProgress.replaceChildren();
+    if (!progress) {
+      elWorkspaceParallelCancel.hidden = true;
+      return;
+    }
+    for (const job of progress.jobs || []) {
+      const line = document.createElement("div");
+      line.className = "workspace-parallel-job";
+      line.dataset.status = job.status;
+      line.textContent = [
+        job.display_name || workspaceName(job.harness),
+        job.status,
+        job.public_summary,
+      ].filter(Boolean).join(" · ");
+      if (job.public_summary) line.title = job.public_summary;
+      elWorkspaceParallelProgress.append(line);
+    }
+    elWorkspaceParallelCancel.hidden = Boolean(progress.terminal);
+  }
+
+  function updateParallelSubmitCopy() {
+    const count = elWorkspaceParallelHarnesses.querySelectorAll("input:checked").length;
+    elWorkspaceParallelSubmit.disabled = workspaceBusy || count < 2;
+    elWorkspaceParallelSubmit.textContent = count < 2
+      ? "select at least one more collaborator"
+      : `send ${count} requests · uses provider quota`;
+  }
+
+  function renderParallelComposer(payload) {
+    const progress = view && view.parallel_continuation
+      ? view.parallel_continuation
+      : parallelProgress;
+    const live = progress && !progress.terminal;
+    const visible = parallelComposerOpen || live;
+    elWorkspaceParallelSection.hidden = !visible;
+    if (!visible) return;
+    elWorkspaceParallelForm.hidden = Boolean(live);
+    elWorkspaceParallelHarnesses.replaceChildren();
+    for (const harness of payload.harnesses || []) {
+      const label = document.createElement("label");
+      label.className = "workspace-parallel-choice";
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.name = "parallel-harness";
+      input.value = harness.name;
+      input.checked = Boolean(harness.selected);
+      input.disabled = Boolean(harness.selected || live || workspaceBusy);
+      input.addEventListener("change", updateParallelSubmitCopy);
+      const name = document.createElement("span");
+      name.textContent = workspaceName(harness.name);
+      const model = document.createElement("small");
+      model.textContent = harness.model || "model not refreshed";
+      label.append(input, name, model);
+      elWorkspaceParallelHarnesses.append(label);
+    }
+    updateParallelSubmitCopy();
+    renderParallelProgress(progress);
+  }
+
   function renderWorkspace(payload) {
+    workspaceState = payload;
     const service = payload.service || {};
     const watcherActive = service.active === "active" || service.active === "activating";
     const pending = payload.pending || [];
@@ -536,6 +608,62 @@
         });
       }
       elWorkspaceHistory.append(button);
+    }
+    renderParallelComposer(payload);
+  }
+
+  async function submitParallelContinuation(event) {
+    event.preventDefault();
+    if (workspaceBusy || !view) return;
+    const prompt = elWorkspaceParallelPrompt.value.trim();
+    const harnesses = [...elWorkspaceParallelHarnesses.querySelectorAll("input:checked")]
+      .map((input) => input.value);
+    if (!prompt) {
+      elWorkspaceActionStatus.textContent = "Write one shared prompt first.";
+      elWorkspaceParallelPrompt.focus();
+      return;
+    }
+    if (harnesses.length < 2) {
+      elWorkspaceActionStatus.textContent = "Select at least two collaborators.";
+      return;
+    }
+    workspaceBusy = true;
+    elWorkspaceActionStatus.textContent = "opening parallel paths…";
+    try {
+      const result = await post("/api/parallel", {
+        graph_id: view.graph_id,
+        node_id: view.node.id,
+        prompt,
+        harnesses,
+      });
+      parallelProgress = result.progress;
+      view.parallel_continuation = parallelProgress;
+      elWorkspaceParallelPrompt.value = "";
+      syncParallelProgress(parallelProgress);
+      renderParallelComposer(workspaceState || { harnesses: [] });
+      elWorkspaceActionStatus.textContent = "Parallel continuation queued in collaborator order.";
+    } catch (error) {
+      elWorkspaceActionStatus.textContent = String(error.message || error);
+    } finally {
+      workspaceBusy = false;
+    }
+  }
+
+  async function cancelParallelContinuation() {
+    const progress = (view && view.parallel_continuation) || parallelProgress;
+    if (workspaceBusy || !progress || progress.terminal) return;
+    workspaceBusy = true;
+    try {
+      const result = await post(`/api/parallel/${progress.id}/cancel`, {});
+      parallelProgress = result.progress;
+      if (view) view.parallel_continuation = parallelProgress;
+      syncParallelProgress(parallelProgress);
+      renderParallelComposer(workspaceState || { harnesses: [] });
+      elWorkspaceActionStatus.textContent = "Remaining parallel requests canceled.";
+    } catch (error) {
+      elWorkspaceActionStatus.textContent = String(error.message || error);
+    } finally {
+      workspaceBusy = false;
     }
   }
 
@@ -614,18 +742,21 @@
     elWorkspaceMenu.hidden = true;
     elWorkspaceNewForm.hidden = true;
     elWorkspaceNewToggle.setAttribute("aria-expanded", "false");
+    parallelComposerOpen = false;
+    elWorkspaceParallelSection.hidden = true;
     if (document.activeElement && document.activeElement.blur) {
       document.activeElement.blur();
     }
     showWaitingArrivals();
   }
 
-  async function openWorkspaceMenu() {
+  async function openWorkspaceMenu(parallel = false) {
     if (composing || busy) return;
     if (!elLegendMenu.hidden) closeLegendMenu();
     if (!elThreadCompass.hidden) closeThreadCompass();
     elWorkspaceScrim.hidden = false;
     elWorkspaceMenu.hidden = false;
+    parallelComposerOpen = parallel;
     elWorkspaceActionStatus.textContent = "";
     elWorkspaceHarnessStatus.textContent = "reading registered collaborators…";
     elWorkspaceHarnesses.replaceChildren();
@@ -633,6 +764,9 @@
     elWorkspaceClose.focus();
     try {
       renderWorkspace(await api("/api/workspace"));
+      if (parallel && !elWorkspaceParallelForm.hidden) {
+        elWorkspaceParallelPrompt.focus();
+      }
     } catch (error) {
       elWorkspaceHarnessStatus.textContent = String(error.message || error);
     }
@@ -724,7 +858,14 @@
     const names = group.harnesses.map((item) => item.display_name).join(" · ");
     const meta = document.createElement("span");
     meta.className = "thread-parallel-meta";
-    meta.textContent = `${group.completed_count} parallel continuations · ${names}`;
+    const counts = group.counts || {};
+    meta.textContent = [
+      `${counts.completed || 0} completed`,
+      `${counts.failed || 0} failed`,
+      `${counts.canceled || 0} canceled`,
+      `${counts.pending || 0} pending`,
+      names,
+    ].join(" · ");
     const action = document.createElement("span");
     action.className = "thread-parallel-action";
     action.textContent = `Compare ${group.completed_count} paths`;
@@ -843,7 +984,14 @@
     promptLabel.textContent = "Exact shared question";
     const prompt = document.createElement("p");
     prompt.textContent = comparison.prompt || "continued without a new question";
-    context.append(sourceLabel, source, promptLabel, prompt);
+    const counts = document.createElement("p");
+    counts.textContent = [
+      `${comparison.counts.completed} completed`,
+      `${comparison.counts.failed} failed`,
+      `${comparison.counts.canceled} canceled`,
+      `${comparison.counts.pending} pending`,
+    ].join(" · ");
+    context.append(sourceLabel, source, promptLabel, prompt, counts);
     elThreadList.append(context);
 
     for (const path of comparison.paths || []) {
@@ -1149,7 +1297,7 @@
     return world.y >= sourceTop;
   }
 
-  function visibleNeuronIndex(sourceMesh) {
+  function visibleNeuronIndex(sourceMesh, excluded = new Set()) {
     if (!neuralSky || !neuralSky.nodes.length) return -1;
     scene.updateMatrixWorld(true);
     camera.updateMatrixWorld(true);
@@ -1161,6 +1309,7 @@
       ? new THREE.Box3().setFromObject(sourceMesh).max.y
       : -Infinity;
     neuralSky.nodes.forEach((node, index) => {
+      if (excluded.has(index)) return;
       world.copy(node);
       neuralSky.group.localToWorld(world);
       if (world.y < minimumY) return;
@@ -1259,115 +1408,154 @@
     lightning.materials.forEach((material) => material.color.setHex(color));
   }
 
-  function clearContinuationCircuit() {
-    if (continuationCircuit) {
-      const lightning = continuationCircuit.lightning;
+  function disposeContinuationCircuit(circuit) {
+    if (circuit) {
+      const lightning = circuit.lightning;
       scene.remove(lightning.group);
       lightning.geometry.dispose();
       lightning.sparkGeometry.dispose();
       lightning.jointGeometry.dispose();
       lightning.materials.forEach((material) => material.dispose());
     }
-    continuationCircuit = null;
-    rememberedCircuit = null;
-    saveContinuationCircuit();
-    sound.setBeam(null);
   }
 
-  function beginContinuationCircuit(request) {
+  function clearContinuationCircuit(requestId = null) {
+    const ids = requestId ? [requestId] : [...continuationCircuits.keys()];
+    ids.forEach((id) => {
+      disposeContinuationCircuit(continuationCircuits.get(id));
+      continuationCircuits.delete(id);
+    });
+    rememberedCircuits = requestId
+      ? rememberedCircuits.filter((item) => item.requestId !== requestId)
+      : [];
+    saveContinuationCircuits();
+    if (!continuationCircuits.size) sound.setBeam(null);
+  }
+
+  function beginContinuationCircuit(request, activity = "responding") {
     if (!request || !request.id || !standingMesh || !neuralSky) return;
-    if (continuationCircuit && continuationCircuit.requestId === request.id) {
-      continuationCircuit.targetMesh = standingMesh;
+    const existing = continuationCircuits.get(request.id);
+    if (existing) {
+      existing.targetMesh = standingMesh;
+      existing.activity = activity;
       return;
     }
-    const saved = rememberedCircuit;
-    clearContinuationCircuit();
+    const saved = rememberedCircuits.find((item) => item.requestId === request.id);
+    const used = new Set(
+      [...continuationCircuits.values()].map((item) => item.neuronIndex)
+    );
     const retained = saved &&
       saved.requestId === request.id &&
       saved.phase === "waiting" &&
+      !used.has(saved.neuronIndex) &&
       neuronAtOrAboveMesh(saved.neuronIndex, standingMesh)
       ? saved.neuronIndex
       : -1;
     const neuronIndex = retained >= 0 && retained < neuralSky.nodes.length
       ? retained
-      : visibleNeuronIndex(standingMesh);
+      : visibleNeuronIndex(standingMesh, used);
     if (neuronIndex < 0) return;
-    continuationCircuit = {
+    const circuit = {
       requestId: request.id,
       sourceGraphId: request.graph_id || (view && view.graph_id),
       sourceNodeId: request.node_id || (view && view.node.id),
       neuronIndex,
       phase: "waiting",
+      activity,
+      parallel: Boolean(request.parallel),
       targetGraphId: null,
       targetNodeId: null,
       targetMesh: standingMesh,
       lightning: makeContinuationLightning(WAITING_BEAM_COLOR),
     };
-    rememberedCircuit = {
+    continuationCircuits.set(request.id, circuit);
+    const remembered = {
       requestId: request.id,
-      sourceGraphId: continuationCircuit.sourceGraphId,
-      sourceNodeId: continuationCircuit.sourceNodeId,
+      sourceGraphId: circuit.sourceGraphId,
+      sourceNodeId: circuit.sourceNodeId,
       neuronIndex,
       phase: "waiting",
+      parallel: Boolean(request.parallel),
       targetGraphId: null,
       targetNodeId: null,
     };
-    saveContinuationCircuit();
-    sound.setBeam("waiting", retained < 0);
+    rememberedCircuits = rememberedCircuits
+      .filter((item) => item.requestId !== request.id)
+      .concat(remembered);
+    saveContinuationCircuits();
+    if (continuationCircuits.size === 1) sound.setBeam("waiting", retained < 0);
   }
 
-  function completeContinuationCircuit(mesh, arrival) {
-    if (!continuationCircuit || continuationCircuit.phase !== "waiting") return;
-    continuationCircuit.phase = "arrival";
-    continuationCircuit.targetGraphId = arrival.graphId;
-    continuationCircuit.targetNodeId = arrival.nodeId;
-    continuationCircuit.targetMesh = mesh;
-    setContinuationLightningColor(
-      continuationCircuit.lightning, NEW_PATH_SELECTION_COLOR
+  function completeContinuationCircuit(requestId, mesh, arrival) {
+    const circuit = requestId
+      ? continuationCircuits.get(requestId)
+      : [...continuationCircuits.values()].find((item) => item.phase === "waiting");
+    if (!circuit || circuit.phase !== "waiting") return;
+    const firstArrival = ![...continuationCircuits.values()].some(
+      (item) => item.phase === "arrival"
     );
-    rememberedCircuit = {
-      requestId: continuationCircuit.requestId,
-      sourceGraphId: continuationCircuit.sourceGraphId,
-      sourceNodeId: continuationCircuit.sourceNodeId,
-      neuronIndex: continuationCircuit.neuronIndex,
+    circuit.phase = "arrival";
+    circuit.targetGraphId = arrival.graphId;
+    circuit.targetNodeId = arrival.nodeId;
+    circuit.targetMesh = mesh;
+    setContinuationLightningColor(
+      circuit.lightning, NEW_PATH_SELECTION_COLOR
+    );
+    const remembered = {
+      requestId: circuit.requestId,
+      sourceGraphId: circuit.sourceGraphId,
+      sourceNodeId: circuit.sourceNodeId,
+      neuronIndex: circuit.neuronIndex,
       phase: "arrival",
+      parallel: Boolean(circuit.parallel),
       targetGraphId: arrival.graphId,
       targetNodeId: arrival.nodeId,
     };
-    saveContinuationCircuit();
+    rememberedCircuits = rememberedCircuits
+      .filter((item) => item.requestId !== circuit.requestId)
+      .concat(remembered);
+    saveContinuationCircuits();
     sound.setWorking(false);
     sound.setBeam("arrival");
-    sound.arrivalSplash();
+    if (firstArrival) sound.arrivalSplash();
   }
 
   function restoreArrivalCircuit(mesh, arrival) {
-    const saved = rememberedCircuit;
-    if (
-      continuationCircuit && continuationCircuit.phase === "arrival" &&
-      continuationCircuit.targetGraphId === arrival.graphId &&
-      continuationCircuit.targetNodeId === arrival.nodeId
-    ) {
-      continuationCircuit.targetMesh = mesh;
+    const current = [...continuationCircuits.values()].find(
+      (item) => item.phase === "arrival" &&
+        item.targetGraphId === arrival.graphId && item.targetNodeId === arrival.nodeId
+    );
+    if (current) {
+      current.targetMesh = mesh;
       return;
     }
+    const saved = rememberedCircuits.find(
+      (item) => item.phase === "arrival" &&
+        item.targetGraphId === arrival.graphId && item.targetNodeId === arrival.nodeId
+    );
     if (
-      continuationCircuit || !saved || saved.phase !== "arrival" ||
-      saved.targetGraphId !== arrival.graphId ||
-      saved.targetNodeId !== arrival.nodeId ||
+      !saved || continuationCircuits.has(saved.requestId) ||
       saved.neuronIndex < 0 || saved.neuronIndex >= neuralSky.nodes.length
     ) return;
+    const used = new Set(
+      [...continuationCircuits.values()].map((item) => item.neuronIndex)
+    );
     const neuronIndex = neuronAtOrAboveMesh(saved.neuronIndex, standingMesh)
+      && !used.has(saved.neuronIndex)
       ? saved.neuronIndex
-      : visibleNeuronIndex(standingMesh);
+      : visibleNeuronIndex(standingMesh, used);
     if (neuronIndex < 0) return;
-    continuationCircuit = {
+    const circuit = {
       ...saved,
       neuronIndex,
       targetMesh: mesh,
       lightning: makeContinuationLightning(NEW_PATH_SELECTION_COLOR),
     };
-    rememberedCircuit = { ...saved, neuronIndex };
-    saveContinuationCircuit();
+    continuationCircuits.set(saved.requestId, circuit);
+    rememberedCircuits = rememberedCircuits.map((item) =>
+      item.requestId === saved.requestId ? { ...item, neuronIndex } : item
+    );
+    saveContinuationCircuits();
     sound.setBeam("arrival");
   }
 
@@ -1388,7 +1576,10 @@
   }
 
   function updateContinuationCircuit(t) {
-    const circuit = continuationCircuit;
+    continuationCircuits.forEach((circuit) => updateOneContinuationCircuit(circuit, t));
+  }
+
+  function updateOneContinuationCircuit(circuit, t) {
     if (!circuit || !circuit.targetMesh || !circuit.targetMesh.parent) return;
     neuralSky.group.updateMatrixWorld(true);
     circuitNeuron.copy(neuralSky.nodes[circuit.neuronIndex]);
@@ -1439,9 +1630,10 @@
     circuitStart.toArray(lightning.jointPositions, 0);
     circuitEnd.toArray(lightning.jointPositions, 3);
     lightning.jointGeometry.attributes.position.needsUpdate = true;
-    lightning.materials[0].opacity = 0.16 + Math.abs(Math.sin(t * 11)) * 0.2;
-    lightning.materials[1].opacity = 0.76 + Math.abs(Math.sin(t * 19)) * 0.24;
-    lightning.materials[2].opacity = 0.55 + Math.abs(Math.sin(t * 13)) * 0.4;
+    const strength = circuit.activity === "queued" ? 0.42 : 1;
+    lightning.materials[0].opacity = strength * (0.16 + Math.abs(Math.sin(t * 11)) * 0.2);
+    lightning.materials[1].opacity = strength * (0.76 + Math.abs(Math.sin(t * 19)) * 0.24);
+    lightning.materials[2].opacity = strength * (0.55 + Math.abs(Math.sin(t * 13)) * 0.4);
   }
 
   function stoneMat(color, opacity) {
@@ -1737,12 +1929,18 @@
     });
     root.add(ring);
     portals.push(ring);
-    if (autoFocus) completeContinuationCircuit(ring, arrival);
-    const retainedArrival = rememberedCircuit &&
-      rememberedCircuit.phase === "arrival" &&
-      rememberedCircuit.targetGraphId === arrival.graphId &&
-      rememberedCircuit.targetNodeId === arrival.nodeId;
-    if (retainedArrival && arrival.seen) clearContinuationCircuit();
+    if (arrival.requestId) {
+      completeContinuationCircuit(arrival.requestId, ring, arrival);
+    } else if (autoFocus) {
+      completeContinuationCircuit(null, ring, arrival);
+    }
+    const retainedArrival = rememberedCircuits.find((item) =>
+      item.phase === "arrival" && item.targetGraphId === arrival.graphId &&
+      item.targetNodeId === arrival.nodeId
+    );
+    if (retainedArrival && arrival.seen) {
+      clearContinuationCircuit(retainedArrival.requestId);
+    }
     else if (retainedArrival) restoreArrivalCircuit(ring, arrival);
     addClockChoice(ring, {
       via,
@@ -2038,6 +2236,60 @@
     applyClimate(payload.climate);
   }
 
+  function syncParallelProgress(progress) {
+    parallelProgress = progress || null;
+    const anchored = Boolean(
+      progress && view && progress.graph_id === view.graph_id &&
+      progress.node_id === view.node.id
+    );
+    if (!anchored) {
+      [...continuationCircuits.values()]
+        .filter((item) => item.parallel)
+        .forEach((item) => clearContinuationCircuit(item.requestId));
+      return;
+    }
+    let addedArrival = false;
+    for (const job of progress.jobs || []) {
+      if (job.status === "queued" || job.status === "responding") {
+        beginContinuationCircuit(
+          {
+            id: job.request_id,
+            graph_id: progress.graph_id,
+            node_id: progress.node_id,
+            parallel: true,
+          },
+          job.status
+        );
+      } else if (job.status === "failed" || job.status === "canceled") {
+        clearContinuationCircuit(job.request_id);
+      }
+      if (job.status !== "completed" || !job.arrival) continue;
+      const arrival = {
+        sessionId: progress.session_id,
+        graphId: job.arrival.graph_id,
+        nodeId: job.arrival.node_id,
+        anchorGraphId: progress.graph_id,
+        kind: job.arrival.node.kind,
+        text: job.arrival.node.text,
+        title: `${job.display_name} parallel path`,
+        harness: job.harness,
+        modelName: job.arrival.model && job.arrival.model.name,
+        requestId: job.request_id,
+        seen: false,
+      };
+      const existed = liveArrivals.some(
+        (item) => item.graphId === arrival.graphId &&
+          item.nodeId === arrival.nodeId && item.anchorGraphId === arrival.anchorGraphId
+      );
+      rememberCompanion(arrival);
+      if (!existed) addedArrival = true;
+    }
+    if (addedArrival) arrivalsDirty = true;
+    if (!elWorkspaceMenu.hidden && parallelComposerOpen) {
+      renderParallelProgress(progress);
+    }
+  }
+
   function renderThreshold(payload) {
     const traversal = (payload.read && payload.read.traversal) || {};
     if (!traversal.terminal) {
@@ -2046,32 +2298,43 @@
       requestAnimationFrame(resize);
       return;
     }
+    syncParallelProgress(payload.parallel_continuation || null);
+    const batch = payload.parallel_continuation || null;
+    const batchLive = Boolean(batch && !batch.terminal);
     const ready = payload.continuation || null;
     if (ready) beginContinuationCircuit(ready);
-    sound.setWorking(Boolean(ready));
+    sound.setWorking(Boolean(ready || (batchLive && batch.counts.responding)));
     const attempt = payload.continuation_attempt || null;
     const harness = attempt && attempt.harness
       ? attempt.harness.charAt(0).toUpperCase() + attempt.harness.slice(1)
       : null;
     const workingLabel = "AI working…";
     elThreshold.hidden = false;
-    elThreshold.dataset.ready = ready ? "working" : "false";
+    elThreshold.dataset.ready = ready || batchLive ? "working" : "false";
     elThresholdKind.textContent = ready
       ? `${workingLabel}${harness ? ` · ${harness}` : ""}`
+      : batchLive
+        ? "parallel continuation"
       : "end of this graph path";
     elThresholdText.textContent = ready
       ? harness
         ? `${harness} is responding from this chamber. The new path will arrive automatically.`
         : "The continuation is queued. This chamber will update when a harness begins responding."
-      : traversal.state_line;
+      : batchLive
+        ? `${batch.counts.responding} responding · ${batch.counts.queued} queued · ${batch.counts.completed} completed · ${batch.counts.failed} failed · ${batch.counts.canceled} canceled`
+        : traversal.state_line;
     elThresholdOrigin.disabled = Boolean(
       payload.origin && payload.origin.id === payload.node.id
     );
-    elThresholdContinue.disabled = false;
-    elThresholdAsk.disabled = Boolean(ready);
+    elThresholdContinue.disabled = batchLive;
+    elThresholdAsk.disabled = Boolean(ready || batchLive);
+    elThresholdParallel.disabled = Boolean(ready || !payload.parallel_available);
+    elThresholdParallel.textContent = batchLive
+      ? "parallel progress · p"
+      : "parallel continuation · p";
     elThresholdContinue.textContent = ready
       ? "cancel response · q"
-      : "ready for continuation · q";
+      : batchLive ? "parallel batch in progress" : "ready for continuation · q";
     requestAnimationFrame(resize);
   }
 
@@ -2084,12 +2347,11 @@
     if (graphId) q.set("graph", graphId);
     const payload = await api(`/api/inhabit/${nodeId}?${q.toString()}`);
     const next = { graphId: payload.graph_id, nodeId: payload.node.id };
-    if (
-      continuationCircuit &&
-      continuationCircuit.phase === "arrival" &&
-      continuationCircuit.targetGraphId === next.graphId &&
-      continuationCircuit.targetNodeId === next.nodeId
-    ) clearContinuationCircuit();
+    const enteredCircuit = [...continuationCircuits.values()].find(
+      (item) => item.phase === "arrival" && item.targetGraphId === next.graphId &&
+        item.targetNodeId === next.nodeId
+    );
+    if (enteredCircuit) clearContinuationCircuit(enteredCircuit.requestId);
     const prev = view
       ? { graphId: view.graph_id, nodeId: view.node.id }
       : null;
@@ -2222,7 +2484,7 @@
   }
 
   async function refreshContinuationState() {
-    if (!view || !view.continuation) return;
+    if (!view) return;
     const graphId = view.graph_id;
     const nodeId = view.node.id;
     const q = new URLSearchParams({ graph: graphId });
@@ -2236,6 +2498,9 @@
     if (!companionReady || companionPolling) return;
     companionPolling = true;
     try {
+      if (view && view.parallel_continuation) {
+        await refreshContinuationState();
+      }
       const state = await api("/api/sessions");
       let added = false;
       for (const session of state.sessions || []) {
@@ -2281,7 +2546,7 @@
       if (added) {
         arrivalsDirty = true;
       }
-      if (!added && view && view.continuation) {
+      if (!added && view) {
         await refreshContinuationState();
       }
     } catch (_error) {
@@ -2754,6 +3019,7 @@
   elThresholdOrigin.addEventListener("click", walkOrigin);
   elThresholdContinue.addEventListener("click", toggleContinuationReady);
   elThresholdAsk.addEventListener("click", toggleContinuationComposer);
+  elThresholdParallel.addEventListener("click", () => openWorkspaceMenu(true));
   elLegendTrigger.addEventListener("click", toggleLegendMenu);
   elLegendClose.addEventListener("click", closeLegendMenu);
   elLegendScrim.addEventListener("click", closeLegendMenu);
@@ -2767,6 +3033,8 @@
     if (!elWorkspaceNewForm.hidden) elWorkspaceNewPrompt.focus();
   });
   elWorkspaceNewForm.addEventListener("submit", submitWorkspaceInquiry);
+  elWorkspaceParallelForm.addEventListener("submit", submitParallelContinuation);
+  elWorkspaceParallelCancel.addEventListener("click", cancelParallelContinuation);
   elThreadClose.addEventListener("click", threadBackOrClose);
   elThreadCompass.addEventListener("click", (event) => {
     if (event.target === elThreadCompass) closeThreadCompass();
@@ -2869,6 +3137,14 @@
       openWorkspaceMenu();
       return;
     }
+    if (e.key === "p" || e.key === "P") {
+      const traversal = view && view.read && view.read.traversal;
+      if (traversal && traversal.terminal && view.parallel_available) {
+        e.preventDefault();
+        openWorkspaceMenu(true);
+      }
+      return;
+    }
     if (e.key === "e" || e.key === "E") {
       e.preventDefault();
       openEvidenceDescent();
@@ -2924,7 +3200,9 @@
     }
     if (e.key === "q" || e.key === "Q") {
       const traversal = view && view.read && view.read.traversal;
-      if (traversal && traversal.terminal) {
+      const batchLive = view && view.parallel_continuation &&
+        !view.parallel_continuation.terminal;
+      if (traversal && traversal.terminal && !batchLive) {
         e.preventDefault();
         toggleContinuationReady();
       }

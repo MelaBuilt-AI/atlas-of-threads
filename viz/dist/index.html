@@ -24,6 +24,7 @@
       <button id="threshold-origin" type="button">return to graph origin · o</button>
       <button id="threshold-continue" type="button">ready for continuation · q</button>
       <button id="threshold-ask" type="button" aria-pressed="false">ask from here…</button>
+      <button id="threshold-parallel" type="button">parallel continuation · p</button>
     </div>
     <div id="threshold-ask-box" hidden>
       <input id="threshold-ask-input" type="text" maxlength="400" autocomplete="off" spellcheck="false" placeholder="question or invitation for the next AI turn" />
@@ -44,6 +45,19 @@
       <div class="menu-section-label">active collaborator</div>
       <p class="menu-empty" id="workspace-harness-status">reading registered collaborators…</p>
       <div id="workspace-harnesses"></div>
+    </section>
+
+    <section class="menu-section" id="workspace-parallel-section" hidden>
+      <div class="menu-section-label">parallel continuation request</div>
+      <p class="menu-empty">Send one exact prompt from this terminal chamber. The single watcher visits each selected collaborator in order; every selected request uses that provider's quota.</p>
+      <form id="workspace-parallel-form">
+        <fieldset id="workspace-parallel-harnesses"></fieldset>
+        <label for="workspace-parallel-prompt">shared prompt</label>
+        <input id="workspace-parallel-prompt" type="text" maxlength="400" autocomplete="off" spellcheck="false" placeholder="What should each collaborator continue from here?" />
+        <button id="workspace-parallel-submit" type="submit">select at least one more collaborator</button>
+      </form>
+      <div id="workspace-parallel-progress" aria-live="polite"></div>
+      <button id="workspace-parallel-cancel" class="workspace-action" type="button" hidden>cancel remaining</button>
     </section>
 
     <section class="menu-section">
@@ -98,6 +112,7 @@
       <dl class="control-list">
         <div><dt>T</dt><dd>open the Thread Compass</dd></div>
         <div><dt>M</dt><dd>open Workspace controls</dd></div>
+        <div><dt>P</dt><dd>request parallel continuations at a path ending</dd></div>
         <div><dt>L</dt><dd>open or close this legend</dd></div>
         <div><dt>← / →</dt><dd>cycle counterclockwise / clockwise</dd></div>
         <div><dt>Enter / ↑</dt><dd>walk the selected / north path</dd></div>
