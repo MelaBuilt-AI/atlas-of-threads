@@ -18,6 +18,7 @@ dev = ["pytest>=8.0"]
 
 [project.scripts]
 ta = "thought_archaeology.cli:main"
+ta-harness-claude = "thought_archaeology.adapters.claude:main"
 ta-harness-codex = "thought_archaeology.adapters.codex:main"
 ta-harness-grok = "thought_archaeology.adapters.grok:main"
 

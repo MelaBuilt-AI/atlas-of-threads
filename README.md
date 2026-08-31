@@ -444,10 +444,10 @@ the existing completion receipt, and advances the session head. If the request
 is canceled while the model is responding, the result is discarded before any
 graph is written.
 
-Run one watcher per store in this first implementation. The initial staged
-adapter targets are Grok, Codex, Claude Code, OpenCode, and Prime Agent; they
-will be installed and exercised locally one at a time against the same
-contract. See [`docs/HARNESS_ADAPTERS.md`](docs/HARNESS_ADAPTERS.md).
+Run one watcher per store in this first implementation. Grok, Codex, and Claude
+Code adapters are implemented; OpenCode and Prime Agent remain staged targets
+to exercise locally against the same contract. See
+[`docs/HARNESS_ADAPTERS.md`](docs/HARNESS_ADAPTERS.md).
 
 On systemd Linux, `ta harness service install` writes one user-owned
 `thought-archaeology-harness.service` bound to the resolved store and selected
@@ -494,6 +494,23 @@ ta harness run --harness codex
 `TA_CODEX_BIN`, `TA_CODEX_MODEL`, and `TA_CODEX_TIMEOUT` provide the same
 executable/model/timeout controls for this adapter. Codex authentication stays
 inside the Codex CLI; the TA core and harness registry receive no credentials.
+
+The third staged adapter ships as `ta-harness-claude`. It runs the authenticated
+official Claude Code CLI in safe non-interactive mode from an empty temporary
+directory, with tools, MCP servers, skills, hooks, project instructions, Chrome,
+prompt suggestions, and session persistence disabled. Claude Code's JSON result
+supplies both the final response and exact canonical serving model:
+
+```bash
+ta harness register claude --adapter "$(command -v ta-harness-claude)"
+ta harness doctor claude
+ta harness run --harness claude
+```
+
+`TA_CLAUDE_BIN`, `TA_CLAUDE_MODEL`, and `TA_CLAUDE_TIMEOUT` are the bounded
+adapter controls. Without a model override, Claude Code chooses its configured
+default and the adapter records the model actually reported after completion.
+Authentication remains owned by Claude Code.
 
 Thought Archaeology owns the durable boundary and graph compilation; the
 harness owns credentials, model invocation, and provider-specific prompt

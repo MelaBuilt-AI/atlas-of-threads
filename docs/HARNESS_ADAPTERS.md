@@ -120,7 +120,7 @@ harness can be tested against the same protocol before the next is added:
 |---|---|
 | Grok | implemented as `ta-harness-grok`; deterministic CLI-contract coverage complete |
 | Codex | implemented as `ta-harness-codex`; deterministic CLI-contract coverage complete |
-| Claude Code | planned |
+| Claude Code | implemented as `ta-harness-claude`; deterministic CLI-contract coverage complete |
 | OpenCode | planned |
 | Prime Agent | planned |
 
@@ -193,4 +193,43 @@ Registering the adapter does not start it:
 ta harness register codex --adapter "$(command -v ta-harness-codex)"
 ta harness doctor codex
 ta harness run --harness codex
+```
+
+## Claude Code
+
+`ta-harness-claude` requires an authenticated official `claude` executable.
+`describe` reads only `claude --version` and does not inspect user settings to
+guess a default model. Unless `TA_CLAUDE_MODEL` pins a model or alias, the
+adapter lets Claude Code select its default and records the exact canonical
+serving model from the completed JSON result's `modelUsage` field.
+
+Each continuation runs in a private empty temporary directory with safe mode,
+an empty tool set, an empty strict MCP configuration, disabled slash commands
+and Chrome integration, no session persistence or prompt suggestions, and a
+replacement system prompt. The public TA envelope is supplied on stdin and the
+adapter accepts only Claude Code's final JSON result. API failures are rejected
+through the result's `is_error` field even when the CLI exits zero.
+
+```text
+claude --print --input-format text --output-format json --safe-mode \
+  --strict-mcp-config --mcp-config '{"mcpServers":{}}' --tools "" \
+  --disable-slash-commands --no-chrome --no-session-persistence \
+  --permission-mode dontAsk --prompt-suggestions false \
+  --system-prompt SYSTEM_PROMPT [--model MODEL]
+```
+
+Optional process environment:
+
+- `TA_CLAUDE_BIN` — alternate Claude Code executable;
+- `TA_CLAUDE_MODEL` — explicit model id or alias; exact graph attribution still
+  comes from Claude Code's completed result;
+- `TA_CLAUDE_TIMEOUT` — positive model-call timeout in seconds (default 840).
+
+Claude authentication remains wherever the official CLI keeps it. Registering
+the adapter does not start it:
+
+```bash
+ta harness register claude --adapter "$(command -v ta-harness-claude)"
+ta harness doctor claude
+ta harness run --harness claude
 ```
