@@ -20,6 +20,7 @@ from thought_archaeology.serve import (
     _continuation_source,
     bootstrap_payload,
     make_server,
+    thread_payload,
     viz_dist_path,
 )
 from thought_archaeology.store import Store
@@ -103,6 +104,71 @@ def test_health_and_static_shell(httpd_url: str):
     assert "Inhabit Space" in body
     assert "not a circuit trace" in body
     assert "dashboard" not in body.lower() or "not a dashboard" in body.lower()
+
+
+def test_thread_compass_is_server_authored_generation_lineage(
+    httpd_url: str, tmp_path: Path
+):
+    store = Store(tmp_path / "data")
+    sessions = json.loads(_get(httpd_url + "/api/sessions")[1])
+    session = sessions["sessions"][0]
+    graph = store.load_graph(session["head_graph_id"])
+    target = graph.nodes[0]
+    code, body = _post(
+        httpd_url + "/api/veto",
+        {
+            "node": target.id,
+            "graph": graph.id,
+            "session": session["id"],
+            "reason": "keep this visible as a human no",
+        },
+    )
+    assert code == 200, body
+    child_id = json.loads(body)["graph_id"]
+
+    code, body, ctype = _get(httpd_url + f"/api/thread/{session['id']}")
+    assert code == 200
+    assert ctype == "application/json"
+    lineage = json.loads(body)
+    assert lineage == thread_payload(store, session["id"])
+    assert lineage["head_graph_id"] == child_id
+    assert lineage["latest_ai_graph_id"] is None
+    assert [entry["kind"] for entry in lineage["entries"]] == ["origin", "veto"]
+    assert lineage["entries"][1]["depth"] == 1
+    assert lineage["entries"][1]["label"] == "human no"
+    assert lineage["entries"][1]["reason"] == "keep this visible as a human no"
+    assert lineage["entries"][1]["node_id"]
+    assert "hidden_reasoning" not in body
+
+
+def test_thread_compass_and_legend_controls_are_chamber_overlays():
+    dist = viz_dist_path()
+    html = (dist / "index.html").read_text(encoding="utf-8")
+    css = (dist / "theme.css").read_text(encoding="utf-8")
+    js = (dist / "space.js").read_text(encoding="utf-8")
+
+    assert 'id="legend-trigger"' in html
+    assert "press L for Legend and controls" in html
+    assert 'id="banner"' not in html
+    assert 'id="help"' not in html
+    assert 'id="legend-menu"' in html
+    assert html.index('id="legend-menu"') < html.index('id="sound-controls"')
+    assert html.index('id="legend-menu"') < html.index('id="threshold"')
+    assert "Blue ring" in html and "new AI path" in html
+    assert "Red ring" in html and "return to conversation origin" in html
+    assert "Green beam" in html and "AI request in flight" in html
+    assert "Blue beam" in html and "completed path waiting for entry" in html
+
+    assert 'id="thread-compass"' in html
+    assert "Thread Compass" in html
+    assert "backdrop-filter: blur(10px)" in css
+    assert ".thread-panel" in css
+    assert ".thread-entry.current" in css
+    assert 'api(`/api/thread/${view.session_id}`)' in js
+    assert "openThreadCompass" in js
+    assert 'e.key === "t"' in js
+    assert "openLegendMenu" in js
+    assert 'e.key === "l"' in js
 
 
 def test_inhabit_json_matches_cli(httpd_url: str, tmp_path: Path):
@@ -264,13 +330,15 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     code, body, _ = _get(httpd_url + "/")
     assert code == 200
     assert "counterclockwise" in body
-    assert "counterclockwise through all paths" in body
-    assert "walk north shortcut" in body
+    assert "cycle counterclockwise / clockwise" in body
+    assert "walk the selected / north path" in body
     assert "overhead" in body
-    assert "shift+c home" in body
+    assert "overhead view / camera home" in body
     assert "human no" in body
-    assert "s sound" in body
+    assert "mute or wake chamber sound" in body
     assert 'id="topbar"' in body
+    assert 'id="legend-menu"' in body
+    assert 'id="thread-compass"' in body
     assert 'id="sound-controls"' in body
     assert 'id="sound-toggle"' in body
     assert 'id="sound-volume"' in body
@@ -299,7 +367,6 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert "overSun" in js
     assert "shiftKey" in js
     assert "--plate-height" in js
-    assert "--threshold-stack-height" in js
     assert "RelicGLBLoader.load" in js
     assert "EVIDENCE_RELIC" in js
     assert "openRelicIndex" in js
@@ -449,7 +516,8 @@ def test_terminal_traversal_separates_story_and_conversation_routes():
     assert 'elThreshold.dataset.ask = "true"' in js
     assert 'elThreshold.dataset.ask = "false"' in js
     assert "#threshold-ask-box" in css
-    assert "var(--threshold-stack-height, 0px)" in css
+    assert "#legend-menu" in css
+    assert "#thread-compass" in css
     assert "marking inhabitant ready" in js
     assert 'elThreshold.dataset.ready = ready ? "working" : "false"' in js
     assert '"AI working…"' in js

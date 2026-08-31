@@ -345,6 +345,24 @@ conversation origin.” A terminal chamber explicitly offers
 return to the graph origin or a continuation request. This is a turn-level
 companion for completed answers, not token-level hidden-thought streaming.
 
+As a session accumulates generations, press `t` for the centered **Thread
+Compass**. Its blurred overlay reads the durable server-authored generation tree,
+marks the inhabited graph and current session head separately, pins the latest AI
+response, and lets any listed generation re-enter at its first chamber. It does
+not replace local doors or turn every thought-node into a minimap entry. The
+read-only endpoint is `GET /api/thread/SESSION_ID`.
+
+The chamber edge stays intentionally quiet: its one top line opens the
+**Legend and controls** drawer with `l`. The drawer owns the sound controls,
+contextual continuation/edit actions, complete key list, and the visual ring,
+beam, and ghost-relic legend. The bottom plate remains descriptive rather than
+repeating controls.
+
+A separate future workspace menu is reserved for explicit state-changing
+operations: activate a registered harness such as Codex or Grok, start a new
+blank graph/session, and browse historical sessions for re-entry. Those actions
+are not placeholders in the current Legend or Thread Compass.
+
 ## Harness-neutral continuation
 
 “Ready for continuation” is an append-only handoff, not an embedded model

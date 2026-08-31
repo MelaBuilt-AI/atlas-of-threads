@@ -111,6 +111,107 @@ def bootstrap_payload(store: Store) -> dict:
     return {"sessions": sessions}
 
 
+def thread_payload(store: Store, session_id: str) -> dict:
+    """Server-authored graph-generation compass for one durable session."""
+    session = store.load_session(session_id)
+    graphs = {graph.id: graph for graph in store.iter_graphs(session_id)}
+    turns = {turn.id: turn for turn in store.iter_turns(session_id)}
+    continuations = {}
+    for completion in store.iter_continuation_completions():
+        if completion.graph_id not in graphs:
+            continue
+        request = store.load_continuation_request(completion.request_id)
+        if request.session_id == session_id:
+            continuations[completion.graph_id] = (completion, request)
+
+    children: dict[str | None, list] = {}
+    for graph in graphs.values():
+        parent = graph.parent_graph_id if graph.parent_graph_id in graphs else None
+        children.setdefault(parent, []).append(graph)
+    for group in children.values():
+        group.sort(key=lambda graph: (graph.created_at, graph.id))
+
+    entries = []
+    visited: set[str] = set()
+
+    def visit(graph, depth: int) -> None:
+        if graph.id in visited:
+            return
+        visited.add(graph.id)
+        spawn = entry_node(graph)
+        turn = turns.get(graph.turn_id)
+        continuation = continuations.get(graph.id)
+        if continuation:
+            completion, request = continuation
+            kind = "continuation"
+            label = " · ".join(
+                part
+                for part in (
+                    completion.harness.capitalize(),
+                    graph.model.name if graph.model.name != "unknown" else "",
+                )
+                if part
+            )
+        elif turn and turn.role == "human_edit":
+            vetoed = any(
+                node.source == "human" and node.status == "vetoed"
+                for node in graph.nodes
+            )
+            kind = "veto" if vetoed else "cut"
+            label = "human no" if vetoed else "human cut"
+            request = None
+        elif graph.parent_graph_id:
+            kind = "fork" if graph.fork else "revision"
+            label = "regenerated fork" if graph.fork else "graph revision"
+            request = None
+        else:
+            kind = "origin"
+            label = "conversation origin"
+            request = None
+        entries.append(
+            {
+                "graph_id": graph.id,
+                "parent_graph_id": graph.parent_graph_id,
+                "node_id": spawn.id if spawn else None,
+                "created_at": graph.created_at,
+                "depth": depth,
+                "kind": kind,
+                "label": label,
+                "summary": spawn.text if spawn else "empty graph",
+                "model": graph.model.to_dict(),
+                "turn_role": turn.role if turn else None,
+                "reason": graph.fork.reason if graph.fork else "",
+                "prompt": request.prompt if request else "",
+                "source_graph_id": request.graph_id if request else None,
+                "source_node_id": request.node_id if request else None,
+            }
+        )
+        for child in children.get(graph.id, []):
+            visit(child, depth + 1)
+
+    for root in children.get(None, []):
+        visit(root, 0)
+    for graph in sorted(graphs.values(), key=lambda item: (item.created_at, item.id)):
+        if graph.id not in visited:
+            visit(graph, 0)
+
+    ai_entries = [entry for entry in entries if entry["kind"] == "continuation"]
+    latest_ai = (
+        max(ai_entries, key=lambda entry: (entry["created_at"], entry["graph_id"]))[
+            "graph_id"
+        ]
+        if ai_entries
+        else None
+    )
+    return {
+        "session_id": session.id,
+        "title": session.title,
+        "head_graph_id": session.head_graph_id,
+        "latest_ai_graph_id": latest_ai,
+        "entries": entries,
+    }
+
+
 class InhabitHandler(BaseHTTPRequestHandler):
     store: Store
     dist: Path
@@ -141,6 +242,12 @@ class InhabitHandler(BaseHTTPRequestHandler):
                 return
             if path == "/api/sessions":
                 self._json(200, bootstrap_payload(self.store))
+                return
+            if path.startswith("/api/thread/"):
+                session_id = path[len("/api/thread/") :].strip("/")
+                if not session_id:
+                    raise StoreError("session is required")
+                self._json(200, thread_payload(self.store, session_id))
                 return
             if path == "/api/continuations":
                 self._json(

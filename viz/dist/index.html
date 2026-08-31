@@ -9,13 +9,7 @@
 <body>
   <canvas id="c"></canvas>
   <div id="topbar">
-    <div id="banner">story graph · not a circuit trace</div>
-    <div id="help">← counterclockwise through all paths · → clockwise through all paths · enter walk selected (or north if clear) · ↑ walk north shortcut · ↓ / b retrace · o graph origin · q mark an ending ready · e evidence · c overhead · shift+c home · r relic index · f cut · v human no · s sound · h help</div>
-    <div id="sound-controls" aria-label="Chamber sound controls">
-      <button id="sound-toggle" type="button" aria-pressed="false">sound asleep · interact to awaken</button>
-      <input id="sound-volume" type="range" min="0" max="100" step="1" value="58" aria-label="Chamber sound volume" />
-      <output id="sound-volume-value" for="sound-volume">58%</output>
-    </div>
+    <button id="legend-trigger" type="button">press L for Legend and controls</button>
   </div>
   <div id="plate">
     <div class="kind" id="kind"></div>
@@ -23,23 +17,95 @@
     <div class="here" id="here"></div>
     <div class="meta" id="meta"></div>
   </div>
-  <div id="composer" hidden>
-    <div class="kind" id="composer-label">fork</div>
-    <input id="composer-input" type="text" maxlength="400" autocomplete="off" spellcheck="false" />
-    <div class="hint">enter commits · esc cancels</div>
-  </div>
-  <div id="threshold" hidden aria-live="polite">
-    <div class="kind" id="threshold-kind">end of this graph path</div>
-    <p id="threshold-text"></p>
-    <div class="threshold-actions">
-      <button id="threshold-origin" type="button">return to graph origin · o</button>
-      <button id="threshold-continue" type="button">ready for continuation · q</button>
-      <button id="threshold-ask" type="button" aria-pressed="false">ask from here…</button>
-    </div>
-    <div id="threshold-ask-box" hidden>
-      <input id="threshold-ask-input" type="text" maxlength="400" autocomplete="off" spellcheck="false" placeholder="question or invitation for the next AI turn" />
-      <div class="hint">enter marks ready with this question · esc or ask from here cancels</div>
-    </div>
+  <div id="legend-scrim" hidden></div>
+  <aside id="legend-menu" hidden aria-label="Legend and controls">
+    <header class="menu-head">
+      <div>
+        <div class="menu-kicker">orientation instrument</div>
+        <h2>Legend and controls</h2>
+      </div>
+      <button id="legend-close" type="button">close · L / esc</button>
+    </header>
+
+    <section class="menu-section" id="context-menu-section">
+      <div class="menu-section-label">actions at this chamber</div>
+      <p class="menu-empty">Continuation and edit controls appear here when they are available.</p>
+      <div id="composer" hidden>
+        <div class="kind" id="composer-label">fork</div>
+        <input id="composer-input" type="text" maxlength="400" autocomplete="off" spellcheck="false" />
+        <div class="hint">enter commits · esc cancels</div>
+      </div>
+      <div id="threshold" hidden aria-live="polite">
+        <div class="kind" id="threshold-kind">end of this graph path</div>
+        <p id="threshold-text"></p>
+        <div class="threshold-actions">
+          <button id="threshold-origin" type="button">return to graph origin · o</button>
+          <button id="threshold-continue" type="button">ready for continuation · q</button>
+          <button id="threshold-ask" type="button" aria-pressed="false">ask from here…</button>
+        </div>
+        <div id="threshold-ask-box" hidden>
+          <input id="threshold-ask-input" type="text" maxlength="400" autocomplete="off" spellcheck="false" placeholder="question or invitation for the next AI turn" />
+          <div class="hint">enter marks ready with this question · esc or ask from here cancels</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="menu-section">
+      <div class="menu-section-label">sound field</div>
+      <div id="sound-controls" aria-label="Chamber sound controls">
+        <button id="sound-toggle" type="button" aria-pressed="false">sound asleep · interact to awaken</button>
+        <input id="sound-volume" type="range" min="0" max="100" step="1" value="58" aria-label="Chamber sound volume" />
+        <output id="sound-volume-value" for="sound-volume">58%</output>
+      </div>
+    </section>
+
+    <section class="menu-section">
+      <div class="menu-section-label">controls</div>
+      <dl class="control-list">
+        <div><dt>T</dt><dd>open the Thread Compass</dd></div>
+        <div><dt>L</dt><dd>open or close this legend</dd></div>
+        <div><dt>← / →</dt><dd>cycle counterclockwise / clockwise</dd></div>
+        <div><dt>Enter / ↑</dt><dd>walk the selected / north path</dd></div>
+        <div><dt>↓ / B</dt><dd>retrace your walk</dd></div>
+        <div><dt>O</dt><dd>return to this graph's origin</dd></div>
+        <div><dt>Q</dt><dd>mark an ending ready or cancel it</dd></div>
+        <div><dt>F / V</dt><dd>cut / inscribe a human no</dd></div>
+        <div><dt>E / R</dt><dd>evidence descent / relic index</dd></div>
+        <div><dt>C / shift+C</dt><dd>overhead view / camera home</dd></div>
+        <div><dt>S</dt><dd>mute or wake chamber sound</dd></div>
+        <div><dt>Esc</dt><dd>close the active surface or selection</dd></div>
+        <div><dt>drag</dt><dd>look around, or pan overhead</dd></div>
+      </dl>
+    </section>
+
+    <section class="menu-section">
+      <div class="menu-section-label">legend</div>
+      <ul class="legend-list">
+        <li><span class="legend-mark blue-ring"></span><span><strong>Blue ring</strong> · new AI path</span></li>
+        <li><span class="legend-mark red-ring"></span><span><strong>Red ring</strong> · return to conversation origin</span></li>
+        <li><span class="legend-mark bronze-ring"></span><span><strong>Bronze ring</strong> · graph continuation or fork</span></li>
+        <li><span class="legend-mark violet-ring"></span><span><strong>Violet ring</strong> · back to the cut</span></li>
+        <li><span class="legend-mark green-beam"></span><span><strong>Green beam</strong> · AI request in flight</span></li>
+        <li><span class="legend-mark blue-beam"></span><span><strong>Blue beam</strong> · completed path waiting for entry</span></li>
+        <li><span class="legend-mark ghost-relic"></span><span><strong>Ghosted relic</strong> · rejected road or path not taken</span></li>
+      </ul>
+    </section>
+  </aside>
+
+  <div id="thread-compass" hidden>
+    <section class="thread-panel" role="dialog" aria-modal="true" aria-labelledby="thread-title">
+      <header class="thread-head">
+        <div>
+          <div class="menu-kicker">durable session lineage</div>
+          <h2 id="thread-title">Thread Compass</h2>
+          <p id="thread-subtitle">One generation per graph. Story graph, not a circuit trace.</p>
+        </div>
+        <button id="thread-close" type="button">close · T / esc</button>
+      </header>
+      <button id="thread-latest" type="button" hidden></button>
+      <div id="thread-status" role="status">reading the session lineage…</div>
+      <div id="thread-list" role="list"></div>
+    </section>
   </div>
   <div id="relic-index" hidden aria-label="Relic index">
     <div class="relic-index-head">

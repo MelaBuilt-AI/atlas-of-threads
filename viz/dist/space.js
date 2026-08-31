@@ -60,14 +60,22 @@
   };
 
   const canvas = document.getElementById("c");
-  const elBanner = document.getElementById("banner");
   const elKind = document.getElementById("kind");
   const elText = document.getElementById("text");
   const elHere = document.getElementById("here");
   const elMeta = document.getElementById("meta");
   const elPlate = document.getElementById("plate");
   const elEmpty = document.getElementById("empty");
-  const elHelp = document.getElementById("help");
+  const elLegendTrigger = document.getElementById("legend-trigger");
+  const elLegendScrim = document.getElementById("legend-scrim");
+  const elLegendMenu = document.getElementById("legend-menu");
+  const elLegendClose = document.getElementById("legend-close");
+  const elThreadCompass = document.getElementById("thread-compass");
+  const elThreadClose = document.getElementById("thread-close");
+  const elThreadSubtitle = document.getElementById("thread-subtitle");
+  const elThreadLatest = document.getElementById("thread-latest");
+  const elThreadStatus = document.getElementById("thread-status");
+  const elThreadList = document.getElementById("thread-list");
   const elComposer = document.getElementById("composer");
   const elComposerLabel = document.getElementById("composer-label");
   const elComposerInput = document.getElementById("composer-input");
@@ -138,7 +146,6 @@
   let pitch = HOME_PITCH;
   let overheadLook = { x: 0, z: 0 };
   let climateFog = 0.045;
-  let helpOn = true;
   let composing = null;
   let busy = false;
   let risers = [];
@@ -382,12 +389,6 @@
     document.documentElement.style.setProperty(
       "--plate-height", `${Math.ceil(elPlate.getBoundingClientRect().height)}px`
     );
-    const thresholdHeight = elThreshold.hidden
-      ? 0
-      : Math.ceil(elThreshold.getBoundingClientRect().height) + 12;
-    document.documentElement.style.setProperty(
-      "--threshold-stack-height", `${thresholdHeight}px`
-    );
   }
   window.addEventListener("resize", resize);
   resize();
@@ -417,6 +418,122 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
+  }
+
+  function openLegendMenu() {
+    if (!elThreadCompass.hidden) closeThreadCompass();
+    elLegendScrim.hidden = false;
+    elLegendMenu.hidden = false;
+    elLegendClose.focus();
+  }
+
+  function closeLegendMenu() {
+    if (composing) closeComposer();
+    elLegendScrim.hidden = true;
+    elLegendMenu.hidden = true;
+    if (document.activeElement && document.activeElement.blur) {
+      document.activeElement.blur();
+    }
+    showWaitingArrivals();
+  }
+
+  function toggleLegendMenu() {
+    if (elLegendMenu.hidden) openLegendMenu();
+    else closeLegendMenu();
+  }
+
+  function closeThreadCompass() {
+    elThreadCompass.hidden = true;
+    if (document.activeElement && document.activeElement.blur) {
+      document.activeElement.blur();
+    }
+    showWaitingArrivals();
+  }
+
+  function visitThreadEntry(entry) {
+    closeThreadCompass();
+    inhabit(entry.graph_id, entry.node_id);
+  }
+
+  function renderThreadCompass(lineage) {
+    const entries = lineage.entries || [];
+    const latestAi = entries.find(
+      (entry) => entry.graph_id === lineage.latest_ai_graph_id
+    );
+    elThreadSubtitle.textContent =
+      `${lineage.title} · ${entries.length} graph ${entries.length === 1 ? "generation" : "generations"}`;
+    elThreadStatus.textContent =
+      "Select any generation to re-enter its first chamber. The graph store remains unchanged.";
+    elThreadList.replaceChildren();
+
+    if (latestAi && latestAi.node_id && latestAi.graph_id !== view.graph_id) {
+      elThreadLatest.hidden = false;
+      elThreadLatest.textContent = `jump to latest AI response · ${latestAi.label}`;
+      elThreadLatest.onclick = () => visitThreadEntry(latestAi);
+    } else {
+      elThreadLatest.hidden = true;
+      elThreadLatest.onclick = null;
+    }
+
+    let focusTarget = null;
+    for (const entry of entries) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "thread-entry";
+      button.dataset.kind = entry.kind;
+      button.style.setProperty("--thread-depth", String(entry.depth || 0));
+      if (entry.graph_id === view.graph_id) {
+        button.classList.add("current");
+        focusTarget = button;
+      }
+      if (entry.graph_id === lineage.head_graph_id) button.classList.add("head");
+      button.disabled = !entry.node_id;
+
+      const label = document.createElement("span");
+      label.className = "thread-entry-label";
+      label.textContent = entry.label;
+      const summary = document.createElement("span");
+      summary.className = "thread-entry-summary";
+      summary.textContent = entry.summary;
+      const meta = document.createElement("span");
+      meta.className = "thread-entry-meta";
+      const details = [];
+      if (entry.graph_id === view.graph_id) details.push("you are here");
+      if (entry.prompt) details.push(`question: ${entry.prompt}`);
+      else if (entry.kind === "continuation") details.push("continued without a new question");
+      if (entry.reason) details.push(`reason: ${entry.reason}`);
+      details.push(entry.created_at.replace("T", " ").replace("Z", " UTC"));
+      meta.textContent = details.join(" · ");
+      button.append(label, summary, meta);
+      button.addEventListener("click", () => visitThreadEntry(entry));
+      elThreadList.append(button);
+    }
+    const firstFocus = focusTarget || (
+      elThreadLatest.hidden ? elThreadList.firstElementChild : elThreadLatest
+    ) || elThreadClose;
+    firstFocus.focus();
+  }
+
+  async function openThreadCompass() {
+    if (!view || composing || busy) return;
+    if (!elLegendMenu.hidden) closeLegendMenu();
+    elThreadCompass.hidden = false;
+    elThreadLatest.hidden = true;
+    elThreadList.replaceChildren();
+    elThreadStatus.textContent = "reading the session lineage…";
+    elThreadClose.focus();
+    try {
+      const lineage = await api(`/api/thread/${view.session_id}`);
+      if (!elThreadCompass.hidden) renderThreadCompass(lineage);
+    } catch (error) {
+      elThreadStatus.textContent =
+        "Thread Compass is unavailable from the running server · restart ta serve, then press T again";
+    }
+  }
+
+  function toggleThreadCompass() {
+    if (elThreadCompass.hidden) openThreadCompass();
+    else closeThreadCompass();
   }
 
   function ambientTexture() {
@@ -1446,9 +1563,6 @@
     const read = payload.read || {};
     const traversal = read.traversal || {};
     const attribution = graphAttribution(payload);
-    elBanner.textContent = attribution
-      ? `${attribution} · story graph · not a circuit trace`
-      : "story graph · not a circuit trace";
     elKind.textContent = read.kind_line || `${n.kind} · ${n.status}`;
     elText.textContent = n.text;
     const hereBits = [
@@ -1473,18 +1587,14 @@
           ? `${c.via} · ${kind} — ${c.text}`
           : `path ${focusIndex + 1}/${choices.length} · ${c.via} · ${kind} — ${c.text}`
       );
-      bits.push("spotlit preview · enter inhabits and makes this the key light · esc clears");
+      bits.push("spotlit preview");
     } else {
-      if (traversal.look_line || read.look_line) {
-        bits.push(traversal.look_line || read.look_line);
-      }
-      if (read.evidence_action_line) bits.push(read.evidence_action_line);
       const shownRelic = RELIC_BY_KEY[manualRelicKey || mappedRelicKey];
       if (shownRelic) {
         bits.push(
           manualRelicKey
-            ? `relic preview: ${shownRelic.name} · esc restores mapped form`
-            : `form: ${shownRelic.name} · r opens relic index`
+            ? `relic preview: ${shownRelic.name}`
+            : `form: ${shownRelic.name}`
         );
       }
       const storyCount =
@@ -1495,8 +1605,6 @@
         (payload.vetoes || []).length;
       if (storyCount) bits.push(`${storyCount} direct story ${storyCount === 1 ? "path" : "paths"} ahead`);
       if (sideCount) bits.push(`${sideCount} ${sideCount === 1 ? "road" : "roads"} not taken to the left`);
-      if ((payload.fork_children || []).length) bits.push("bronze ring: continuation");
-      if (payload.parent && payload.parent.graph_id) bits.push("violet ring: back to the cut");
       const nearbyArrivals = visibleArrivals(payload);
       const atOrigin = payload.origin && payload.origin.id === payload.node.id;
       const atThreshold = Boolean(traversal.terminal || atOrigin);
@@ -1512,9 +1620,8 @@
       } else if (nearbyArrivals.length) {
         bits.push("conversation doors wait at the graph origin or a path ending");
       }
-      if (trail.length) bits.push("b retraces your walk");
     }
-    if (overhead) bits.push("drag to pan · c behind · shift+c home");
+    if (overhead) bits.push("overhead view");
     elMeta.textContent = bits.join("  ·  ");
     requestAnimationFrame(resize);
     applyClimate(payload.climate);
@@ -1848,6 +1955,7 @@
 
   function openComposer(kind) {
     if (!view || busy) return;
+    if (elLegendMenu.hidden) openLegendMenu();
     composing = kind;
     sound.surface(kind);
     if (kind === "continuation") {
@@ -2234,9 +2342,26 @@
   elThresholdOrigin.addEventListener("click", walkOrigin);
   elThresholdContinue.addEventListener("click", toggleContinuationReady);
   elThresholdAsk.addEventListener("click", toggleContinuationComposer);
+  elLegendTrigger.addEventListener("click", toggleLegendMenu);
+  elLegendClose.addEventListener("click", closeLegendMenu);
+  elLegendScrim.addEventListener("click", closeLegendMenu);
+  elThreadClose.addEventListener("click", closeThreadCompass);
+  elThreadCompass.addEventListener("click", (event) => {
+    if (event.target === elThreadCompass) closeThreadCompass();
+  });
 
   window.addEventListener("keydown", (e) => {
-    if (elSoundControls.contains(e.target)) return;
+    if (!elThreadCompass.hidden) {
+      if (e.key === "Escape" || e.key === "t" || e.key === "T") {
+        e.preventDefault();
+        closeThreadCompass();
+      } else if (e.key === "l" || e.key === "L") {
+        e.preventDefault();
+        closeThreadCompass();
+        openLegendMenu();
+      }
+      return;
+    }
     if (composing) {
       if (e.key === "Escape") {
         e.preventDefault();
@@ -2245,6 +2370,17 @@
       if (e.key === "Enter") {
         e.preventDefault();
         commitGesture();
+      }
+      return;
+    }
+    if (!elLegendMenu.hidden) {
+      if (e.key === "Escape" || e.key === "l" || e.key === "L") {
+        e.preventDefault();
+        closeLegendMenu();
+      } else if (e.key === "t" || e.key === "T") {
+        e.preventDefault();
+        closeLegendMenu();
+        openThreadCompass();
       }
       return;
     }
@@ -2260,6 +2396,16 @@
         e.preventDefault();
         closeRelicIndex();
       }
+      return;
+    }
+    if (e.key === "t" || e.key === "T") {
+      e.preventDefault();
+      openThreadCompass();
+      return;
+    }
+    if (e.key === "l" || e.key === "L") {
+      e.preventDefault();
+      openLegendMenu();
       return;
     }
     if (e.key === "e" || e.key === "E") {
@@ -2302,10 +2448,6 @@
     if (e.key === "s" || e.key === "S") {
       e.preventDefault();
       sound.toggleMuted();
-    }
-    if (e.key === "h") {
-      helpOn = !helpOn;
-      elHelp.style.opacity = helpOn ? "1" : "0";
     }
     if (e.key === "f") {
       e.preventDefault();
