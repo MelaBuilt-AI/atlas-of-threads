@@ -383,7 +383,7 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert 'id="threshold"' in body
     css = _get(httpd_url + "/theme.css")[1]
     assert "width: min(31rem, 92vw)" in css
-    assert "grid-template-columns: max-content minmax(0, 1fr) max-content" in css
+    assert "grid-template-columns: 6.4rem minmax(0, 1fr)" in css
     assert "cycleChoice" in js
     assert "if (focusIndex < 0)" in js
     assert "walkDeeper();" in js
