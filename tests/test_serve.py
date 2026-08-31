@@ -384,11 +384,14 @@ def test_space_sound_field_uses_cinematic_pack_and_is_event_bound():
     assert 'volume.addEventListener("keydown"' in sound
     assert "arrivalSplash" in sound
     assert "cameraShift" in sound
-    assert 'gain: 0.3375, submerged: true' in sound
-    assert 'gain: 0.435, submerged: true' in sound
-    assert sound.count("submerged: true") == 4
+    assert 'gain: 0.253125, submerged: true' in sound
+    assert 'gain: 0.32625, submerged: true' in sound
+    assert 'red-return-activate.ogg", gain: 0.3375, submerged: true' in sound
+    assert sound.count("submerged: true") == 5
     assert "function connectSubmerged" in sound
-    assert 'lowpass.frequency.value = 720' in sound
+    assert 'lowpass.frequency.value = 420' in sound
+    assert 'firstDelay.delayTime.value = 0.24' in sound
+    assert 'secondDelay.delayTime.value = 0.48' in sound
     assert {path.name for path in audio.glob("*.ogg")} == expected
     for name in expected:
         assert (audio / name).read_bytes().startswith(b"OggS")
