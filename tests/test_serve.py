@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import threading
 from pathlib import Path
 from urllib.error import HTTPError
@@ -14,6 +15,11 @@ from thought_archaeology.continuation import (
     continuation_request,
 )
 from thought_archaeology.inhabit import inhabit
+from thought_archaeology.harness import HarnessRegistry
+from thought_archaeology.harness_service import (
+    harness_service_options,
+    install_harness_service,
+)
 from thought_archaeology.serve import (
     InhabitHandler,
     ServeError,
@@ -22,6 +28,7 @@ from thought_archaeology.serve import (
     make_server,
     thread_payload,
     viz_dist_path,
+    workspace_payload,
 )
 from thought_archaeology.store import Store
 
@@ -171,6 +178,17 @@ def test_thread_compass_and_legend_controls_are_chamber_overlays():
     assert "openLegendMenu" in js
     assert 'e.key === "l"' in js
     assert 'if (kind !== "continuation" && elLegendMenu.hidden)' in js
+    assert 'id="workspace-menu"' in html
+    assert 'id="workspace-harnesses"' in html
+    assert 'id="workspace-new-form"' in html
+    assert 'id="workspace-history"' in html
+    assert "Activate ${workspaceName(harness.name)}" in js
+    assert 'post("/api/workspace/harness"' in js
+    assert 'post("/api/workspace/inquiry"' in js
+    assert 'api("/api/workspace")' in js
+    assert 'e.key === "m"' in js
+    assert "#workspace-menu" in css
+    assert "left: 0" in css
 
 
 def test_inhabit_json_matches_cli(httpd_url: str, tmp_path: Path):
@@ -247,6 +265,82 @@ def test_inhabit_json_carries_evidence_without_javascript_inference(
 def test_unknown_post_rejected(httpd_url: str):
     code, body = _post(httpd_url + "/api/sessions", {})
     assert code == 405
+
+
+def test_workspace_switches_future_harness_and_preserves_watcher_timing(
+    monkeypatch, tmp_path: Path
+):
+    store_path = tmp_path / "data"
+    _compile_simple(store_path)
+    store = Store(store_path)
+    config = tmp_path / "config" / "harnesses.json"
+    unit = tmp_path / "config" / "thought-archaeology-harness.service"
+    systemctl = tmp_path / "systemctl"
+    calls = tmp_path / "systemctl.log"
+    fake_adapter = Path(__file__).with_name("fake_harness_adapter.py")
+    systemctl.write_text(
+        "#!/bin/sh\n"
+        'printf "%s\\n" "$*" >> "$TA_TEST_SYSTEMCTL_LOG"\n'
+        'if [ "$2" = "is-enabled" ]; then echo enabled; fi\n'
+        'if [ "$2" = "is-active" ]; then echo active; fi\n',
+        encoding="utf-8",
+    )
+    systemctl.chmod(0o700)
+    monkeypatch.setenv("TA_HARNESS_CONFIG", str(config))
+    monkeypatch.setenv("TA_HARNESS_SERVICE", str(unit))
+    monkeypatch.setenv("TA_SYSTEMCTL", str(systemctl))
+    monkeypatch.setenv("TA_TEST_SYSTEMCTL_LOG", str(calls))
+    registry = HarnessRegistry()
+    codex = registry.register(
+        "codex",
+        sys.executable,
+        args=(str(fake_adapter),),
+        make_default=True,
+    )
+    registry.register("grok", sys.executable, args=(str(fake_adapter),))
+    install_harness_service(
+        store, codex, interval=3.5, timeout=77, path=unit
+    )
+    calls.write_text("", encoding="utf-8")
+
+    replies = []
+    handler = object.__new__(InhabitHandler)
+    handler.store = store
+    handler._read_json = lambda: {"harness": "grok"}
+    handler._json = lambda code, body: replies.append((code, body))
+    handler._workspace_harness()
+
+    assert replies[-1][0] == 200
+    assert registry.default_name() == "grok"
+    assert harness_service_options(unit) == {"interval": 3.5, "timeout": 77.0}
+    unit_text = unit.read_text(encoding="utf-8")
+    assert '"--harness" "grok"' in unit_text
+    assert calls.read_text(encoding="utf-8").splitlines()[:3] == [
+        "--user daemon-reload",
+        "--user enable --now thought-archaeology-harness.service",
+        "--user restart thought-archaeology-harness.service",
+    ]
+    workspace = replies[-1][1]["workspace"]
+    assert workspace == workspace_payload(store)
+    assert workspace["active_harness"] == "grok"
+    assert workspace["service"]["active"] == "active"
+    assert workspace["history"][0]["spawn"]
+
+    graph = store.load_graph(workspace["history"][0]["head_graph_id"])
+    request = continuation_request(graph, graph.nodes[0], source="inhabit_space")
+    store.write_continuation_request(request)
+    handler._read_json = lambda: {"harness": "codex"}
+    handler._workspace_harness()
+    assert replies[-1] == (
+        409,
+        {
+            "error": (
+                "finish or cancel the current AI response before changing "
+                "collaborators"
+            )
+        },
+    )
+    assert registry.default_name() == "grok"
 
 
 def test_fork_from_space_keeps_g0(httpd_url: str, tmp_path: Path):

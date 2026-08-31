@@ -70,6 +70,16 @@
   const elLegendScrim = document.getElementById("legend-scrim");
   const elLegendMenu = document.getElementById("legend-menu");
   const elLegendClose = document.getElementById("legend-close");
+  const elWorkspaceScrim = document.getElementById("workspace-scrim");
+  const elWorkspaceMenu = document.getElementById("workspace-menu");
+  const elWorkspaceClose = document.getElementById("workspace-close");
+  const elWorkspaceHarnessStatus = document.getElementById("workspace-harness-status");
+  const elWorkspaceHarnesses = document.getElementById("workspace-harnesses");
+  const elWorkspaceNewToggle = document.getElementById("workspace-new-toggle");
+  const elWorkspaceNewForm = document.getElementById("workspace-new-form");
+  const elWorkspaceNewPrompt = document.getElementById("workspace-new-prompt");
+  const elWorkspaceActionStatus = document.getElementById("workspace-action-status");
+  const elWorkspaceHistory = document.getElementById("workspace-history");
   const elThreadCompass = document.getElementById("thread-compass");
   const elThreadClose = document.getElementById("thread-close");
   const elThreadSubtitle = document.getElementById("thread-subtitle");
@@ -167,6 +177,7 @@
   let continuationCircuit = null;
   let companionPolling = false;
   let companionReady = false;
+  let workspaceBusy = false;
 
   function loadCompanionThoughts() {
     try {
@@ -422,6 +433,7 @@
 
   function openLegendMenu() {
     if (!elThreadCompass.hidden) closeThreadCompass();
+    if (!elWorkspaceMenu.hidden) closeWorkspaceMenu();
     elLegendScrim.hidden = false;
     elLegendMenu.hidden = false;
     elLegendClose.focus();
@@ -440,6 +452,151 @@
   function toggleLegendMenu() {
     if (elLegendMenu.hidden) openLegendMenu();
     else closeLegendMenu();
+  }
+
+  function workspaceName(name) {
+    return name ? name.charAt(0).toUpperCase() + name.slice(1) : "Unknown";
+  }
+
+  function renderWorkspace(payload) {
+    const service = payload.service || {};
+    const watcherActive = service.active === "active" || service.active === "activating";
+    const pending = payload.pending || [];
+    const active = payload.active_harness;
+    if (!active) {
+      elWorkspaceHarnessStatus.textContent = "No collaborator is registered.";
+    } else if (pending.length) {
+      const responding = pending.find((item) => item.harness);
+      elWorkspaceHarnessStatus.textContent = responding
+        ? `${workspaceName(responding.harness)} is responding now · switching waits until it finishes`
+        : `A continuation is queued for ${workspaceName(active)} · switching waits until it finishes`;
+    } else if (watcherActive) {
+      elWorkspaceHarnessStatus.textContent =
+        `${workspaceName(active)} will author future continuations. Existing graphs keep their recorded authorship.`;
+    } else {
+      elWorkspaceHarnessStatus.textContent =
+        `${workspaceName(active)} is selected, but the background watcher is ${service.active || "not active"}.`;
+    }
+    if (service.error) {
+      elWorkspaceHarnessStatus.textContent += ` ${service.error}`;
+    }
+
+    elWorkspaceHarnesses.replaceChildren();
+    for (const harness of payload.harnesses || []) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "workspace-harness";
+      const isActive = harness.selected && watcherActive;
+      if (isActive) button.classList.add("active");
+      button.textContent = isActive
+        ? `${workspaceName(harness.name)} · active`
+        : `Activate ${workspaceName(harness.name)}`;
+      button.disabled = workspaceBusy || isActive || pending.length > 0;
+      button.addEventListener("click", () => activateWorkspaceHarness(harness.name));
+      elWorkspaceHarnesses.append(button);
+    }
+
+    elWorkspaceNewToggle.disabled = workspaceBusy || pending.length > 0 || !active;
+    elWorkspaceHistory.replaceChildren();
+    for (const session of payload.history || []) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "workspace-history-entry";
+      if (view && session.id === view.session_id) button.classList.add("current");
+      button.disabled = !session.spawn;
+      const title = document.createElement("strong");
+      title.textContent = session.title;
+      const meta = document.createElement("small");
+      const updated = session.updated_at.replace("T", " ").replace("Z", " UTC");
+      meta.textContent = `${session.graph_count} ${session.graph_count === 1 ? "generation" : "generations"} · ${session.author_label} · ${updated}`;
+      button.append(title, meta);
+      if (session.spawn) {
+        button.addEventListener("click", () => {
+          closeWorkspaceMenu();
+          inhabit(session.spawn.graph_id, session.spawn.node_id);
+        });
+      }
+      elWorkspaceHistory.append(button);
+    }
+  }
+
+  async function activateWorkspaceHarness(name) {
+    if (workspaceBusy) return;
+    workspaceBusy = true;
+    elWorkspaceActionStatus.textContent = `activating ${workspaceName(name)}…`;
+    for (const button of elWorkspaceHarnesses.querySelectorAll("button")) {
+      button.disabled = true;
+    }
+    try {
+      const result = await post("/api/workspace/harness", { harness: name });
+      elWorkspaceActionStatus.textContent = `${workspaceName(name)} is active for future continuations.`;
+      workspaceBusy = false;
+      renderWorkspace(result.workspace);
+    } catch (error) {
+      elWorkspaceActionStatus.textContent = String(error.message || error);
+      workspaceBusy = false;
+      const payload = await api("/api/workspace").catch(() => null);
+      if (payload) renderWorkspace(payload);
+    } finally {
+      workspaceBusy = false;
+    }
+  }
+
+  async function submitWorkspaceInquiry(event) {
+    event.preventDefault();
+    if (workspaceBusy) return;
+    const prompt = elWorkspaceNewPrompt.value.trim();
+    if (!prompt) {
+      elWorkspaceActionStatus.textContent = "Write an opening inquiry first.";
+      elWorkspaceNewPrompt.focus();
+      return;
+    }
+    workspaceBusy = true;
+    elWorkspaceActionStatus.textContent = "opening a clean graph…";
+    try {
+      const result = await post("/api/workspace/inquiry", { prompt });
+      elWorkspaceNewPrompt.value = "";
+      closeWorkspaceMenu();
+      await inhabit(result.stand.graph_id, result.stand.node_id);
+    } catch (error) {
+      elWorkspaceActionStatus.textContent = String(error.message || error);
+    } finally {
+      workspaceBusy = false;
+    }
+  }
+
+  function closeWorkspaceMenu() {
+    elWorkspaceScrim.hidden = true;
+    elWorkspaceMenu.hidden = true;
+    elWorkspaceNewForm.hidden = true;
+    elWorkspaceNewToggle.setAttribute("aria-expanded", "false");
+    if (document.activeElement && document.activeElement.blur) {
+      document.activeElement.blur();
+    }
+    showWaitingArrivals();
+  }
+
+  async function openWorkspaceMenu() {
+    if (composing || busy) return;
+    if (!elLegendMenu.hidden) closeLegendMenu();
+    if (!elThreadCompass.hidden) closeThreadCompass();
+    elWorkspaceScrim.hidden = false;
+    elWorkspaceMenu.hidden = false;
+    elWorkspaceActionStatus.textContent = "";
+    elWorkspaceHarnessStatus.textContent = "reading registered collaborators…";
+    elWorkspaceHarnesses.replaceChildren();
+    elWorkspaceHistory.replaceChildren();
+    elWorkspaceClose.focus();
+    try {
+      renderWorkspace(await api("/api/workspace"));
+    } catch (error) {
+      elWorkspaceHarnessStatus.textContent = String(error.message || error);
+    }
+  }
+
+  function toggleWorkspaceMenu() {
+    if (elWorkspaceMenu.hidden) openWorkspaceMenu();
+    else closeWorkspaceMenu();
   }
 
   function closeThreadCompass() {
@@ -517,6 +674,7 @@
   async function openThreadCompass() {
     if (!view || composing || busy) return;
     if (!elLegendMenu.hidden) closeLegendMenu();
+    if (!elWorkspaceMenu.hidden) closeWorkspaceMenu();
     elThreadCompass.hidden = false;
     elThreadLatest.hidden = true;
     elThreadList.replaceChildren();
@@ -1768,6 +1926,7 @@
       !arrivalsDirty ||
       !view ||
       composing ||
+      !elWorkspaceMenu.hidden ||
       !elRelicIndex.hidden ||
       !elEvidenceDescent.hidden
     ) return;
@@ -2345,6 +2504,16 @@
   elLegendTrigger.addEventListener("click", toggleLegendMenu);
   elLegendClose.addEventListener("click", closeLegendMenu);
   elLegendScrim.addEventListener("click", closeLegendMenu);
+  elWorkspaceClose.addEventListener("click", closeWorkspaceMenu);
+  elWorkspaceScrim.addEventListener("click", closeWorkspaceMenu);
+  elWorkspaceNewToggle.addEventListener("click", () => {
+    elWorkspaceNewForm.hidden = !elWorkspaceNewForm.hidden;
+    elWorkspaceNewToggle.setAttribute(
+      "aria-expanded", String(!elWorkspaceNewForm.hidden)
+    );
+    if (!elWorkspaceNewForm.hidden) elWorkspaceNewPrompt.focus();
+  });
+  elWorkspaceNewForm.addEventListener("submit", submitWorkspaceInquiry);
   elThreadClose.addEventListener("click", closeThreadCompass);
   elThreadCompass.addEventListener("click", (event) => {
     if (event.target === elThreadCompass) closeThreadCompass();
@@ -2359,6 +2528,10 @@
         e.preventDefault();
         closeThreadCompass();
         openLegendMenu();
+      } else if (e.key === "m" || e.key === "M") {
+        e.preventDefault();
+        closeThreadCompass();
+        openWorkspaceMenu();
       }
       return;
     }
@@ -2373,6 +2546,21 @@
       }
       return;
     }
+    if (!elWorkspaceMenu.hidden) {
+      if (e.key === "Escape" || e.key === "m" || e.key === "M") {
+        e.preventDefault();
+        closeWorkspaceMenu();
+      } else if (e.key === "l" || e.key === "L") {
+        e.preventDefault();
+        closeWorkspaceMenu();
+        openLegendMenu();
+      } else if (e.key === "t" || e.key === "T") {
+        e.preventDefault();
+        closeWorkspaceMenu();
+        openThreadCompass();
+      }
+      return;
+    }
     if (!elLegendMenu.hidden) {
       if (e.key === "Escape" || e.key === "l" || e.key === "L") {
         e.preventDefault();
@@ -2381,6 +2569,10 @@
         e.preventDefault();
         closeLegendMenu();
         openThreadCompass();
+      } else if (e.key === "m" || e.key === "M") {
+        e.preventDefault();
+        closeLegendMenu();
+        openWorkspaceMenu();
       }
       return;
     }
@@ -2388,6 +2580,10 @@
       if (e.key === "Escape" || e.key === "e" || e.key === "E") {
         e.preventDefault();
         closeEvidenceDescent();
+      } else if (e.key === "m" || e.key === "M") {
+        e.preventDefault();
+        closeEvidenceDescent();
+        openWorkspaceMenu();
       }
       return;
     }
@@ -2395,6 +2591,10 @@
       if (e.key === "Escape" || e.key === "r" || e.key === "R") {
         e.preventDefault();
         closeRelicIndex();
+      } else if (e.key === "m" || e.key === "M") {
+        e.preventDefault();
+        closeRelicIndex();
+        openWorkspaceMenu();
       }
       return;
     }
@@ -2406,6 +2606,11 @@
     if (e.key === "l" || e.key === "L") {
       e.preventDefault();
       openLegendMenu();
+      return;
+    }
+    if (e.key === "m" || e.key === "M") {
+      e.preventDefault();
+      openWorkspaceMenu();
       return;
     }
     if (e.key === "e" || e.key === "E") {

@@ -9,7 +9,16 @@ import pytest
 
 import thought_archaeology.harness as harness_module
 from thought_archaeology.continuation import continuation_cancellation
-from thought_archaeology.harness import HarnessError, HarnessRegistry
+from thought_archaeology.harness import (
+    HarnessError,
+    HarnessRegistry,
+    process_continuation,
+)
+from thought_archaeology.serve import (
+    create_workspace_inquiry,
+    thread_payload,
+    workspace_payload,
+)
 from thought_archaeology.store import Store
 
 from tests.helpers import FIXTURES
@@ -226,6 +235,58 @@ def test_ready_without_prompt_does_not_invent_a_user_turn(
     assert after[-1].role == "assistant"
     assert after[-1].parent_turn_id == graph.turn_id
     assert after[-1].graph_id == outcome["graph_id"]
+
+
+def test_workspace_new_inquiry_reuses_harness_without_duplicate_user_turn(
+    monkeypatch, tmp_path: Path
+):
+    store_path = tmp_path / "data"
+    _register(monkeypatch, tmp_path, store_path)
+    unit = tmp_path / "thought-archaeology-harness.service"
+    unit.write_text("[Service]\nExecStart=/bin/true\n", encoding="utf-8")
+    systemctl = tmp_path / "systemctl"
+    systemctl.write_text(
+        "#!/bin/sh\n"
+        'if [ "$2" = "is-enabled" ]; then echo enabled; fi\n'
+        'if [ "$2" = "is-active" ]; then echo active; fi\n',
+        encoding="utf-8",
+    )
+    systemctl.chmod(0o700)
+    monkeypatch.setenv("TA_HARNESS_SERVICE", str(unit))
+    monkeypatch.setenv("TA_SYSTEMCTL", str(systemctl))
+
+    store = Store(store_path)
+    opening = "How should a synthetic mind preserve disagreement?"
+    created = create_workspace_inquiry(store, opening)
+    request = store.load_continuation_request(created["request"]["id"])
+    seed = store.load_graph(created["graph_id"])
+    assert request.source == "workspace"
+    assert request.prompt == opening
+    assert seed.parent_graph_id is None
+    assert [(node.kind, node.agent, node.text) for node in seed.nodes] == [
+        ("uncertainty", "human", opening)
+    ]
+    assert thread_payload(store, created["session_id"])["entries"][0]["label"] == (
+        "opening inquiry"
+    )
+
+    outcome = process_continuation(
+        store, HarnessRegistry().get(), request_id=request.id
+    )
+    assert outcome is not None
+    response = store.load_graph(outcome["graph_id"])
+    assert response.parent_graph_id == seed.id
+    turns = list(store.iter_turns(created["session_id"]))
+    assert [turn.role for turn in turns] == ["user", "assistant"]
+    assert [turn.prose for turn in turns].count(opening) == 1
+
+    workspace = workspace_payload(store)
+    assert workspace["active_harness"] == "fake"
+    assert workspace["pending"] == []
+    assert workspace["history"][0]["id"] == created["session_id"]
+    assert workspace["history"][0]["graph_count"] == 2
+    assert workspace["history"][0]["harness"] == "fake"
+    assert workspace["history"][0]["author_label"] == "Fake · fake-model"
 
 
 def test_harness_service_is_explicit_and_bound_to_store(

@@ -359,10 +359,21 @@ contextual cut/human-no editor, complete key list, and the visual ring, beam, an
 ghost-relic legend. Terminal continuation actions remain a spatial event in the
 main chamber. The bottom plate remains descriptive rather than repeating controls.
 
-A separate future workspace menu is reserved for explicit state-changing
-operations: activate a registered harness such as Codex or Grok, start a new
-blank graph/session, and browse historical sessions for re-entry. Those actions
-are not placeholders in the current Legend or Thread Compass.
+Press `m` for the separate left-side **Workspace** drawer. It exposes only
+registered collaborators, marks the harness that will author future
+continuations, and changes the explicit background watcher with one action while
+preserving its polling interval and timeout. Switching is refused while a
+continuation is pending, so an in-flight response is never interrupted or
+reattributed. Existing graphs always retain their recorded harness and model.
+
+**New Graph** expands a clean opening-inquiry composer. Submission creates a new
+session with one human-authored uncertainty as its origin, queues the ordinary
+provider-neutral continuation request on that terminal chamber, and enters it
+while the active collaborator responds. No earlier graph is copied or deleted,
+and the opening question is stored once rather than duplicated as a second user
+turn. **Historical** lists every session newest-first with generation count,
+head attribution, and a non-mutating re-entry action. `t` remains the lineage
+instrument within whichever historical session is entered.
 
 ## Harness-neutral continuation
 

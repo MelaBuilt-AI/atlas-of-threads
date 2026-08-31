@@ -284,6 +284,7 @@ html, body {
 }
 
 #legend-scrim,
+#workspace-scrim,
 #thread-compass {
   position: absolute;
   inset: 0;
@@ -295,15 +296,25 @@ html, body {
   backdrop-filter: blur(2px);
 }
 
-#legend-menu {
+#workspace-scrim {
+  z-index: 5;
+  background: rgba(3, 5, 12, 0.42);
+  backdrop-filter: blur(2px);
+}
+
+#legend-menu,
+#workspace-menu {
   position: absolute;
   z-index: 6;
   top: 0;
-  right: 0;
   bottom: 0;
   width: min(31rem, 92vw);
   overflow: auto;
   padding: 1.3rem 1.2rem 2rem;
+}
+
+#legend-menu {
+  right: 0;
   background:
     linear-gradient(135deg, rgba(42, 54, 38, 0.18), transparent 24rem),
     rgba(8, 9, 12, 0.96);
@@ -311,8 +322,20 @@ html, body {
   box-shadow: -1.2rem 0 4rem rgba(0, 0, 0, 0.48);
 }
 
+#workspace-menu {
+  left: 0;
+  width: min(34rem, 94vw);
+  background:
+    linear-gradient(225deg, rgba(34, 52, 70, 0.2), transparent 26rem),
+    rgba(8, 9, 12, 0.97);
+  border-right: 1px solid rgba(176, 141, 87, 0.48);
+  box-shadow: 1.2rem 0 4rem rgba(0, 0, 0, 0.5);
+}
+
 #legend-scrim[hidden],
 #legend-menu[hidden],
+#workspace-scrim[hidden],
+#workspace-menu[hidden],
 #thread-compass[hidden] { display: none; }
 
 .menu-head,
@@ -340,6 +363,7 @@ html, body {
 }
 
 #legend-close,
+#workspace-close,
 #thread-close,
 #thread-latest {
   border: 1px solid rgba(176, 141, 87, 0.45);
@@ -352,6 +376,8 @@ html, body {
 
 #legend-close:hover,
 #legend-close:focus-visible,
+#workspace-close:hover,
+#workspace-close:focus-visible,
 #thread-close:hover,
 #thread-close:focus-visible,
 #thread-latest:hover,
@@ -359,6 +385,108 @@ html, body {
   border-color: var(--phosphor);
   color: var(--phosphor);
   outline: none;
+}
+
+#workspace-harnesses,
+#workspace-history {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.75rem;
+}
+
+.workspace-harness,
+.workspace-history-entry,
+.workspace-action,
+#workspace-new-form button {
+  width: 100%;
+  border: 1px solid rgba(176, 141, 87, 0.42);
+  background: rgba(18, 16, 14, 0.68);
+  color: var(--bronze-hot);
+  padding: 0.65rem 0.72rem;
+  text-align: left;
+  font: 0.68rem/1.4 ui-monospace, Menlo, monospace;
+  cursor: pointer;
+}
+
+.workspace-harness:hover,
+.workspace-harness:focus-visible,
+.workspace-history-entry:hover,
+.workspace-history-entry:focus-visible,
+.workspace-action:hover,
+.workspace-action:focus-visible,
+#workspace-new-form button:hover,
+#workspace-new-form button:focus-visible {
+  border-color: var(--phosphor);
+  color: var(--phosphor);
+  outline: none;
+}
+
+.workspace-harness.active,
+.workspace-history-entry.current {
+  border-color: rgba(200, 242, 106, 0.58);
+  background: rgba(42, 54, 38, 0.42);
+  color: var(--phosphor);
+}
+
+.workspace-harness:disabled,
+.workspace-history-entry:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.workspace-history-entry strong,
+.workspace-history-entry small {
+  display: block;
+}
+
+.workspace-history-entry strong {
+  font: 500 0.94rem/1.35 "Iowan Old Style", Palatino, serif;
+}
+
+.workspace-history-entry small {
+  margin-top: 0.3rem;
+  color: var(--mute);
+  font-size: 0.62rem;
+}
+
+#workspace-new-toggle { margin-top: 0.75rem; }
+
+#workspace-new-form {
+  margin-top: 0.7rem;
+  padding: 0.8rem;
+  border-left: 1px solid rgba(92, 138, 123, 0.72);
+}
+
+#workspace-new-form[hidden] { display: none; }
+
+#workspace-new-form label {
+  display: block;
+  margin-bottom: 0.4rem;
+  color: var(--phosphor);
+  font: 0.64rem ui-monospace, Menlo, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+#workspace-new-prompt {
+  width: 100%;
+  border: 1px solid var(--bronze);
+  background: rgba(18, 16, 14, 0.72);
+  color: var(--ink);
+  padding: 0.55rem 0.62rem;
+  font: 1rem "Iowan Old Style", Palatino, serif;
+  outline: none;
+}
+
+#workspace-new-prompt:focus { border-color: var(--phosphor); }
+
+#workspace-new-form button { margin-top: 0.55rem; }
+
+#workspace-action-status {
+  min-height: 1.1rem;
+  margin-top: 0.55rem;
+  color: var(--uncertain);
+  font: 0.65rem/1.4 ui-monospace, Menlo, monospace;
 }
 
 .menu-section {
@@ -934,6 +1062,7 @@ html, body {
   #threshold { bottom: calc(1.75rem + var(--plate-height, 9rem)); }
 
   #legend-menu { width: 100vw; }
+  #workspace-menu { width: 100vw; }
   #thread-compass { padding: 0.55rem; }
   .thread-panel { max-height: 94vh; }
   .thread-head { display: block; }

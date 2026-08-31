@@ -4,6 +4,7 @@ import json
 import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from types import MappingProxyType
 from urllib.parse import parse_qs, urlparse
 
 from thought_archaeology.edits import commit, plan_fork, plan_veto
@@ -12,7 +13,23 @@ from thought_archaeology.continuation import (
     continuation_request,
 )
 from thought_archaeology.fork import ForkError
+from thought_archaeology.harness import HarnessError, HarnessRegistry
+from thought_archaeology.harness_service import (
+    control_harness_service,
+    harness_service_options,
+    harness_service_status,
+    install_harness_service,
+    resolve_harness_service_path,
+)
+from thought_archaeology.ids import new_ulid, now_iso
 from thought_archaeology.inhabit import entry_node, inhabit
+from thought_archaeology.models import (
+    ModelInfo,
+    SCHEMA_VERSION,
+    ThoughtGraph,
+    ThoughtNode,
+    Turn,
+)
 from thought_archaeology.schema import ValidationError
 from thought_archaeology.store import Store, StoreError
 
@@ -111,6 +128,183 @@ def bootstrap_payload(store: Store) -> dict:
     return {"sessions": sessions}
 
 
+def workspace_payload(store: Store) -> dict:
+    """Registered collaborators and non-mutating cross-session re-entry data."""
+    registry = HarnessRegistry()
+    default = registry.default_name()
+    service_path = resolve_harness_service_path()
+    try:
+        service = harness_service_status(service_path)
+    except HarnessError as exc:
+        service = {
+            "installed": service_path.is_file(),
+            "enabled": "unknown",
+            "active": "unknown",
+            "error": str(exc),
+        }
+    harnesses = [
+        {"name": spec.name, "selected": spec.name == default}
+        for spec in registry.specs()
+    ]
+    completions = {
+        completion.graph_id: completion.harness
+        for completion in store.iter_continuation_completions()
+    }
+    history = []
+    for session_id in store.iter_session_ids():
+        session = store.load_session(session_id)
+        graphs = list(store.iter_graphs(session_id))
+        spawn = None
+        model = None
+        harness = None
+        author_label = "no completed graph"
+        if session.head_graph_id:
+            graph = next(
+                (item for item in graphs if item.id == session.head_graph_id), None
+            )
+            if graph is not None:
+                node = entry_node(graph)
+                model = graph.model.to_dict()
+                harness = completions.get(graph.id)
+                turn = next(
+                    (
+                        item
+                        for item in store.iter_turns(session.id)
+                        if item.id == graph.turn_id
+                    ),
+                    None,
+                )
+                if harness:
+                    author_label = f"{harness.capitalize()} · {graph.model.name}"
+                elif turn and turn.role == "human_edit":
+                    author_label = "Human edit"
+                elif graph.metadata.get("workspace_origin"):
+                    author_label = "Human inquiry"
+                else:
+                    author_label = graph.model.name
+                if node is not None:
+                    spawn = {"graph_id": graph.id, "node_id": node.id}
+        history.append(
+            {
+                "id": session.id,
+                "title": session.title,
+                "created_at": session.created_at,
+                "updated_at": session.updated_at,
+                "head_graph_id": session.head_graph_id,
+                "graph_count": len(graphs),
+                "model": model,
+                "harness": harness,
+                "author_label": author_label,
+                "spawn": spawn,
+            }
+        )
+    history.sort(key=lambda item: (item["updated_at"], item["id"]), reverse=True)
+    pending = list(store.iter_continuation_requests(pending=True))
+    attempts = _attempt_by_request(store)
+    return {
+        "active_harness": default,
+        "harnesses": harnesses,
+        "service": {
+            key: service.get(key)
+            for key in ("installed", "enabled", "active", "error")
+            if key in service
+        },
+        "pending": [
+            {
+                "request_id": request.id,
+                "session_id": request.session_id,
+                "harness": (attempts.get(request.id) or {}).get("harness"),
+            }
+            for request in pending
+        ],
+        "history": history,
+    }
+
+
+def create_workspace_inquiry(store: Store, prompt: str) -> dict:
+    """Create an independent human-origin graph and queue its first AI response."""
+    prompt = prompt.strip()
+    if not prompt:
+        raise ServeError("new graph requires an opening inquiry")
+    if len(prompt) > 400:
+        raise ServeError("opening inquiry must be 400 characters or fewer")
+    if store.exists() and list(store.iter_continuation_requests(pending=True)):
+        raise ServeError(
+            "finish or cancel the current AI response before starting a new graph"
+        )
+    registry = HarnessRegistry()
+    registry.get()
+    service = harness_service_status()
+    if not service["installed"] or service["active"] not in {"active", "activating"}:
+        raise ServeError("activate a collaborator before starting a new graph")
+
+    title = prompt.splitlines()[0].strip()
+    if len(title) > 80:
+        title = title[:77].rstrip() + "…"
+    session = store.init_session(title, origin="inhabit-space:new-inquiry")
+    created_at = now_iso()
+    turn_id = new_ulid()
+    graph_id = new_ulid()
+    node = ThoughtNode(
+        id=new_ulid(),
+        kind="uncertainty",
+        text=prompt,
+        status="uncertain",
+        agent="human",
+        created_at=created_at,
+        source="human",
+        notes="opening inquiry",
+    )
+    graph = ThoughtGraph(
+        schema_version=SCHEMA_VERSION,
+        id=graph_id,
+        session_id=session.id,
+        turn_id=turn_id,
+        created_at=created_at,
+        prose=prompt,
+        nodes=(node,),
+        edges=(),
+        model=ModelInfo("none", "human inquiry", "posthoc"),
+        metadata=MappingProxyType({"workspace_origin": True}),
+    )
+    turn = Turn(
+        schema_version=SCHEMA_VERSION,
+        id=turn_id,
+        session_id=session.id,
+        seq=0,
+        role="user",
+        created_at=created_at,
+        prose=prompt,
+        graph_id=graph.id,
+        parent_turn_id=None,
+        fork_of_node_id=None,
+        provider="none",
+    )
+    store.write_graph(graph)
+    store.append_turn(turn)
+    store.update_session_head(session.id, graph_id=graph.id, turn_id=turn.id)
+    request = continuation_request(
+        graph, node, prompt=prompt, source="workspace"
+    )
+    path = store.write_continuation_request(request)
+    store.log(
+        "workspace_new_graph",
+        session_id=session.id,
+        graph_id=graph.id,
+        node_id=node.id,
+        request_id=request.id,
+        path=str(path),
+        warnings=[],
+    )
+    return {
+        "ok": True,
+        "session_id": session.id,
+        "graph_id": graph.id,
+        "stand": {"graph_id": graph.id, "node_id": node.id},
+        "request": request.to_dict(),
+    }
+
+
 def thread_payload(store: Store, session_id: str) -> dict:
     """Server-authored graph-generation compass for one durable session."""
     session = store.load_session(session_id)
@@ -163,6 +357,10 @@ def thread_payload(store: Store, session_id: str) -> dict:
         elif graph.parent_graph_id:
             kind = "fork" if graph.fork else "revision"
             label = "regenerated fork" if graph.fork else "graph revision"
+            request = None
+        elif graph.metadata.get("workspace_origin"):
+            kind = "origin"
+            label = "opening inquiry"
             request = None
         else:
             kind = "origin"
@@ -243,6 +441,9 @@ class InhabitHandler(BaseHTTPRequestHandler):
             if path == "/api/sessions":
                 self._json(200, bootstrap_payload(self.store))
                 return
+            if path == "/api/workspace":
+                self._json(200, workspace_payload(self.store))
+                return
             if path.startswith("/api/thread/"):
                 session_id = path[len("/api/thread/") :].strip("/")
                 if not session_id:
@@ -296,6 +497,8 @@ class InhabitHandler(BaseHTTPRequestHandler):
             self._json(404, {"error": str(exc)})
         except StoreError as exc:
             self._json(404, {"error": str(exc)})
+        except HarnessError as exc:
+            self._json(400, {"error": str(exc)})
         except FileNotFoundError as exc:
             self._json(404, {"error": str(exc)})
         except OSError as exc:
@@ -329,6 +532,12 @@ class InhabitHandler(BaseHTTPRequestHandler):
             if path == "/api/continuation/cancel":
                 self._continuation_cancel()
                 return
+            if path == "/api/workspace/harness":
+                self._workspace_harness()
+                return
+            if path == "/api/workspace/inquiry":
+                self._workspace_inquiry()
+                return
             self._json(405, {"error": "unknown write"})
         except ServeError as exc:
             self._json(400, {"error": str(exc)})
@@ -336,6 +545,8 @@ class InhabitHandler(BaseHTTPRequestHandler):
             self._json(404, {"error": str(exc)})
         except StoreError as exc:
             self._json(404, {"error": str(exc)})
+        except HarnessError as exc:
+            self._json(400, {"error": str(exc)})
         except ValidationError as exc:
             self._json(400, {"error": "; ".join(exc.messages)})
         except json.JSONDecodeError as exc:
@@ -454,6 +665,59 @@ class InhabitHandler(BaseHTTPRequestHandler):
             warnings=[],
         )
         self._json(200, {"ok": True, "cancellation": cancellation.to_dict()})
+
+    def _workspace_harness(self) -> None:
+        body = self._read_json()
+        name = str(body.get("harness") or "").strip()
+        if not name:
+            raise ServeError("harness is required")
+        pending = list(self.store.iter_continuation_requests(pending=True))
+        if pending:
+            self._json(
+                409,
+                {
+                    "error": (
+                        "finish or cancel the current AI response before changing "
+                        "collaborators"
+                    )
+                },
+            )
+            return
+        registry = HarnessRegistry()
+        spec = registry.get(name)
+        previous = registry.default_name()
+        registry.use(name)
+        unit_path = resolve_harness_service_path()
+        installed = unit_path.is_file()
+        options = harness_service_options(unit_path)
+        try:
+            install_harness_service(
+                self.store,
+                spec,
+                interval=options["interval"],
+                timeout=options["timeout"],
+                path=unit_path,
+            )
+            if installed:
+                control_harness_service("restart", path=unit_path)
+        except HarnessError:
+            if previous and previous != name:
+                registry.use(previous)
+            raise
+        self.store.log(
+            "workspace_harness",
+            harness=name,
+            path=str(unit_path),
+            warnings=[],
+        )
+        self._json(200, {"ok": True, "workspace": workspace_payload(self.store)})
+
+    def _workspace_inquiry(self) -> None:
+        body = self._read_json()
+        result = create_workspace_inquiry(
+            self.store, str(body.get("prompt") or "")
+        )
+        self._json(200, result)
 
     def do_PUT(self) -> None:  # noqa: N802
         self._json(405, {"error": "PUT is not a gesture"})

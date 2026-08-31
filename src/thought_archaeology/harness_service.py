@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -153,6 +154,35 @@ def harness_service_status(path: Path | None = None) -> dict[str, Any]:
         "installed": True,
         "enabled": enabled.stdout.strip() or "unknown",
         "active": active.stdout.strip() or "unknown",
+    }
+
+
+def harness_service_options(path: Path | None = None) -> dict[str, float]:
+    """Read the watcher timing from the installed unit before switching adapters."""
+    unit_path = path or resolve_harness_service_path()
+    if not unit_path.is_file():
+        return {"interval": 2.0, "timeout": 900.0}
+    exec_line = next(
+        (
+            line.removeprefix("ExecStart=")
+            for line in unit_path.read_text(encoding="utf-8").splitlines()
+            if line.startswith("ExecStart=")
+        ),
+        "",
+    )
+    argv = shlex.split(exec_line)
+
+    def value(flag: str, default: float) -> float:
+        if flag not in argv or argv.index(flag) + 1 >= len(argv):
+            return default
+        try:
+            return float(argv[argv.index(flag) + 1])
+        except ValueError as exc:
+            raise HarnessError(f"installed service has invalid {flag} value") from exc
+
+    return {
+        "interval": value("--interval", 2.0),
+        "timeout": value("--timeout", 900.0),
     }
 
 

@@ -308,7 +308,7 @@ def _continuation_turns(
     seq = len(existing)
     parent_turn_id = store.load_graph(request.graph_id).turn_id
     turns: list[Turn] = []
-    if request.prompt:
+    if request.prompt and request.source != "workspace":
         prompt_turn = Turn(
             schema_version=SCHEMA_VERSION,
             id=new_ulid(),

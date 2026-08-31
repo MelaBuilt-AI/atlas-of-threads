@@ -6,7 +6,7 @@ from typing import Literal, Self
 from thought_archaeology.ids import new_ulid, now_iso
 from thought_archaeology.models import SCHEMA_VERSION, ThoughtGraph, ThoughtNode
 
-ContinuationSource = Literal["inhabit_space", "cli"]
+ContinuationSource = Literal["inhabit_space", "workspace", "cli"]
 
 
 @dataclass(frozen=True)

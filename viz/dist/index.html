@@ -30,6 +30,40 @@
       <div class="hint">enter marks ready with this question · esc or ask from here cancels</div>
     </div>
   </div>
+  <div id="workspace-scrim" hidden></div>
+  <aside id="workspace-menu" hidden aria-label="Workspace">
+    <header class="menu-head">
+      <div>
+        <div class="menu-kicker">medium controls</div>
+        <h2>Workspace</h2>
+      </div>
+      <button id="workspace-close" type="button">close · M / esc</button>
+    </header>
+
+    <section class="menu-section">
+      <div class="menu-section-label">active collaborator</div>
+      <p class="menu-empty" id="workspace-harness-status">reading registered collaborators…</p>
+      <div id="workspace-harnesses"></div>
+    </section>
+
+    <section class="menu-section">
+      <div class="menu-section-label">new graph</div>
+      <p class="menu-empty">Begin a clean inquiry. Existing archaeology remains intact.</p>
+      <button id="workspace-new-toggle" class="workspace-action" type="button" aria-expanded="false">New Graph</button>
+      <form id="workspace-new-form" hidden>
+        <label for="workspace-new-prompt">opening inquiry</label>
+        <input id="workspace-new-prompt" type="text" maxlength="400" autocomplete="off" spellcheck="false" placeholder="What should this new graph investigate?" />
+        <button type="submit">begin with active collaborator</button>
+      </form>
+      <p id="workspace-action-status" role="status"></p>
+    </section>
+
+    <section class="menu-section">
+      <div class="menu-section-label">historical</div>
+      <p class="menu-empty">Re-enter another session without changing its graph data.</p>
+      <div id="workspace-history"></div>
+    </section>
+  </aside>
   <div id="legend-scrim" hidden></div>
   <aside id="legend-menu" hidden aria-label="Legend and controls">
     <header class="menu-head">
@@ -63,6 +97,7 @@
       <div class="menu-section-label">controls</div>
       <dl class="control-list">
         <div><dt>T</dt><dd>open the Thread Compass</dd></div>
+        <div><dt>M</dt><dd>open Workspace controls</dd></div>
         <div><dt>L</dt><dd>open or close this legend</dd></div>
         <div><dt>← / →</dt><dd>cycle counterclockwise / clockwise</dd></div>
         <div><dt>Enter / ↑</dt><dd>walk the selected / north path</dd></div>
