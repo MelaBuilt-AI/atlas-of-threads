@@ -591,7 +591,7 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert "walkDeeper();" in js
     assert "clockwiseChoices" in js
     assert "Math.atan2(position.x, -position.z)" in js
-    assert js.count("addClockChoice(") == 6
+    assert js.count("addClockChoice(") == 7
     assert "sparkColors" in js
     assert "inhabit(view.graph_id, cycle[" not in js
 
