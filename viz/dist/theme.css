@@ -329,6 +329,169 @@ html, body {
   font: 0.78rem/1.5 ui-monospace, Menlo, monospace;
 }
 
+#onboarding-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 32;
+  overflow: auto;
+  padding: clamp(1rem, 4vw, 3rem);
+  background:
+    radial-gradient(circle at 76% 18%, rgba(79, 143, 214, 0.2), transparent 30%),
+    radial-gradient(circle at 18% 84%, rgba(176, 120, 55, 0.15), transparent 30%),
+    rgba(2, 4, 9, 0.97);
+  backdrop-filter: blur(14px);
+}
+
+#onboarding-menu[hidden] { display: none; }
+
+.onboarding-panel {
+  width: min(68rem, 100%);
+  margin: 0 auto;
+  padding: clamp(1.3rem, 3.5vw, 2.5rem);
+  border: 1px solid rgba(92, 138, 123, 0.54);
+  background: linear-gradient(145deg, rgba(17, 21, 25, 0.97), rgba(6, 8, 13, 0.98));
+  box-shadow: 0 0 5rem rgba(79, 143, 214, 0.15), inset 0 0 3rem rgba(226, 196, 138, 0.035);
+}
+
+.onboarding-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.onboarding-panel h1 {
+  margin: 0.38rem 0 0.5rem;
+  color: var(--ink);
+  font: 400 clamp(1.8rem, 4vw, 3rem) "Iowan Old Style", Palatino, serif;
+}
+
+#onboarding-close {
+  border: 1px solid rgba(176, 141, 87, 0.45);
+  background: rgba(18, 16, 14, 0.72);
+  color: var(--bronze-hot);
+  padding: 0.48rem 0.62rem;
+  font: 0.64rem ui-monospace, Menlo, monospace;
+  cursor: pointer;
+}
+
+#onboarding-status {
+  margin: 0 0 1.5rem;
+  color: var(--mute);
+  font: 0.72rem/1.5 ui-monospace, Menlo, monospace;
+}
+
+.onboarding-step {
+  padding: 1.15rem 0;
+  border-top: 1px solid rgba(138, 131, 118, 0.23);
+}
+
+.onboarding-step-label {
+  margin-bottom: 0.75rem;
+  color: var(--phosphor);
+  font: 0.62rem ui-monospace, Menlo, monospace;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.onboarding-step > p {
+  max-width: 52rem;
+  margin: -0.2rem 0 0.8rem;
+  color: var(--mute);
+  font: 0.7rem/1.55 ui-monospace, Menlo, monospace;
+}
+
+.onboarding-modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7rem;
+}
+
+.onboarding-modes button,
+.onboarding-collaborator,
+.onboarding-first-choice,
+#onboarding-start {
+  border: 1px solid rgba(176, 141, 87, 0.42);
+  background: rgba(18, 16, 14, 0.68);
+  color: var(--ink);
+  padding: 0.82rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.onboarding-modes button { min-height: 5.7rem; }
+.onboarding-modes button.selected {
+  border-color: rgba(200, 242, 106, 0.62);
+  background: rgba(42, 54, 38, 0.42);
+}
+.onboarding-modes button:disabled { cursor: default; opacity: 0.38; }
+.onboarding-modes strong,
+.onboarding-modes small { display: block; }
+.onboarding-modes strong { color: var(--bronze-hot); font: 600 0.75rem ui-monospace, Menlo, monospace; letter-spacing: 0.08em; text-transform: uppercase; }
+.onboarding-modes small { margin-top: 0.45rem; color: var(--mute); font: 0.68rem/1.45 ui-monospace, Menlo, monospace; }
+
+#onboarding-harnesses {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.onboarding-collaborator {
+  display: grid;
+  align-content: space-between;
+  min-height: 8.5rem;
+}
+
+.onboarding-collaborator strong,
+.onboarding-collaborator small { display: block; }
+.onboarding-collaborator strong { color: var(--bronze-hot); font: 0.72rem ui-monospace, Menlo, monospace; }
+.onboarding-collaborator small { margin-top: 0.35rem; color: var(--mute); font: 0.59rem/1.45 ui-monospace, Menlo, monospace; }
+.onboarding-collaborator.connected { border-color: rgba(79, 143, 214, 0.56); }
+.onboarding-collaborator:disabled { cursor: default; opacity: 0.55; }
+
+.onboarding-first-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.55rem;
+}
+
+.onboarding-first-choice.active {
+  border-color: var(--phosphor);
+  background: rgba(42, 54, 38, 0.42);
+  color: var(--phosphor);
+}
+
+.onboarding-first-choice:disabled,
+#onboarding-start:disabled { cursor: default; opacity: 0.42; }
+.onboarding-empty { color: var(--mute); font: 0.7rem/1.5 ui-monospace, Menlo, monospace; }
+
+#onboarding-inquiry-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.55rem; }
+#onboarding-inquiry-form label { grid-column: 1 / -1; color: var(--bronze-hot); font: 0.65rem ui-monospace, Menlo, monospace; }
+#onboarding-inquiry {
+  min-width: 0;
+  border: 1px solid var(--bronze);
+  background: rgba(18, 16, 14, 0.72);
+  color: var(--ink);
+  padding: 0.68rem 0.72rem;
+  font: 1rem "Iowan Old Style", Palatino, serif;
+  outline: none;
+}
+#onboarding-inquiry:focus { border-color: var(--phosphor); }
+#onboarding-start { width: auto; min-width: 12rem; color: var(--bronze-hot); font: 0.68rem ui-monospace, Menlo, monospace; text-align: center; }
+
+.onboarding-collaborator:hover:not(:disabled),
+.onboarding-collaborator:focus-visible,
+.onboarding-first-choice:hover:not(:disabled),
+.onboarding-first-choice:focus-visible,
+#onboarding-close:hover,
+#onboarding-close:focus-visible,
+#onboarding-start:hover:not(:disabled),
+#onboarding-start:focus-visible {
+  border-color: var(--phosphor);
+  color: var(--phosphor);
+  outline: none;
+}
+
 @keyframes field-note-float {
   0%, 100% { transform: translate(-50%, 0) rotate(-0.15deg); }
   50% { transform: translate(-50%, -0.55rem) rotate(0.15deg); }
@@ -1741,6 +1904,7 @@ html, body {
 
 @media (max-width: 62.5rem) {
   #topbar { right: 0.75rem; }
+  #onboarding-harnesses { grid-template-columns: repeat(3, 1fr); }
 }
 
 @media (max-width: 38rem) {
@@ -1759,6 +1923,12 @@ html, body {
   }
   .start-actions { grid-template-columns: 1fr; }
   .start-actions button { min-height: 0; }
+  .onboarding-head { display: block; }
+  #onboarding-close { margin-top: 0.6rem; }
+  .onboarding-modes,
+  #onboarding-inquiry-form { grid-template-columns: 1fr; }
+  #onboarding-harnesses { grid-template-columns: 1fr 1fr; }
+  #onboarding-start { width: 100%; }
   #plate,
   #topbar,
   #threshold {

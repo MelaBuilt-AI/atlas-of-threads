@@ -456,14 +456,23 @@ It does not activate the collaborator, restart the watcher, or change an existin
 graph. The adapter reads the provider setting again when it handles a future
 request, and the completed graph keeps the model actually reported for that run.
 
-**New Graph** expands a clean opening-inquiry composer. Submission creates a new
-session with one human-authored uncertainty as its origin, queues the ordinary
-provider-neutral continuation request on that terminal chamber, and enters it
-while the active collaborator responds. No earlier graph is copied or deleted,
-and the opening question is stored once rather than duplicated as a second user
-turn. **Historical** lists every session newest-first with generation count,
-head attribution, and a non-mutating re-entry action. `t` remains the lineage
-instrument within whichever historical session is entered.
+On first run, the browser leads with **Local** storage; **Online** is shown only
+as a disabled future scaffold. It can detect and test the five packaged harness
+bridges, register a chosen collaborator without accepting credentials or an
+arbitrary executable path, and let the inhabitant choose who opens the first
+path. **Start a Threadwalk** creates the private local store when needed, binds
+the user watcher to it, queues the opening inquiry, and enters its first chamber.
+Provider installation and sign-in remain in each provider's official CLI. The
+same setup surface remains available from Workspace.
+
+**Start a Threadwalk** expands a clean opening-inquiry composer. Submission
+creates a new session with one human-authored uncertainty as its origin, queues
+the ordinary provider-neutral continuation request on that terminal chamber,
+and enters it while the active collaborator responds. No earlier graph is copied
+or deleted, and the opening question is stored once rather than duplicated as a
+second user turn. **Historical** lists every session newest-first with generation
+count, head attribution, and a non-mutating re-entry action. `t` remains the
+lineage instrument within whichever historical session is entered.
 
 At an eligible terminal chamber with an empty inbox, press `p` or use the
 **parallel continuation** action. Workspace opens one shared-prompt composer;

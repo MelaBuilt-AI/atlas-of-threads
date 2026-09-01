@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
+import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import MappingProxyType
@@ -59,6 +61,50 @@ from thought_archaeology.store import Store, StoreError
 
 DEFAULT_PORT = 7462
 DEFAULT_BIND = "127.0.0.1"
+
+KNOWN_HARNESS_ADAPTERS = (
+    {
+        "name": "codex",
+        "display_name": "Codex",
+        "executable": "ta-harness-codex",
+        "setup_hint": "Install and sign in through the official Codex CLI, then connect here.",
+    },
+    {
+        "name": "claude",
+        "display_name": "Claude",
+        "executable": "ta-harness-claude",
+        "setup_hint": "Install and sign in through the official Claude Code CLI, then connect here.",
+    },
+    {
+        "name": "grok",
+        "display_name": "Grok",
+        "executable": "ta-harness-grok",
+        "setup_hint": "Install and sign in through the official Grok CLI, then connect here.",
+    },
+    {
+        "name": "opencode",
+        "display_name": "OpenCode",
+        "executable": "ta-harness-opencode",
+        "setup_hint": "Install and configure OpenCode, then connect here.",
+    },
+    {
+        "name": "prime-agent",
+        "display_name": "Prime Agent",
+        "executable": "ta-harness-prime-agent",
+        "setup_hint": "Install and sign in through Prime Agent, then connect here.",
+    },
+)
+
+
+def _packaged_harness_executable(name: str) -> str | None:
+    """Find a bundled adapter even when its virtualenv is not on PATH."""
+    found = shutil.which(name)
+    if found:
+        return found
+    sibling = Path(sys.executable).parent / name
+    if sibling.is_file() and os.access(sibling, os.X_OK):
+        return str(sibling.absolute())
+    return None
 
 
 class ServeError(Exception):
@@ -119,6 +165,8 @@ def _continuation_source(store: Store, graph_id: str) -> dict | None:
 
 
 def bootstrap_payload(store: Store) -> dict:
+    if not store.exists():
+        return {"sessions": []}
     harness_by_graph = _harness_by_graph(store)
     sessions = []
     for sid in store.iter_session_ids():
@@ -175,12 +223,31 @@ def workspace_payload(store: Store) -> dict:
         }
         for spec in registry.specs()
     ]
-    completions = {
-        completion.graph_id: completion.harness
-        for completion in store.iter_continuation_completions()
-    }
+    registered = {item["name"]: item for item in harnesses}
+    available_harnesses = [
+        {
+            "name": item["name"],
+            "display_name": item["display_name"],
+            "adapter_available": _packaged_harness_executable(item["executable"])
+            is not None,
+            "registered": item["name"] in registered,
+            "selected": bool(registered.get(item["name"], {}).get("selected")),
+            "model": registered.get(item["name"], {}).get("model"),
+            "setup_hint": item["setup_hint"],
+        }
+        for item in KNOWN_HARNESS_ADAPTERS
+    ]
+    completions = (
+        {
+            completion.graph_id: completion.harness
+            for completion in store.iter_continuation_completions()
+        }
+        if store.exists()
+        else {}
+    )
     history = []
-    for session_id in store.iter_session_ids():
+    session_ids = store.iter_session_ids() if store.exists() else ()
+    for session_id in session_ids:
         session = store.load_session(session_id)
         graphs = list(store.iter_graphs(session_id))
         spawn = None
@@ -228,11 +295,16 @@ def workspace_payload(store: Store) -> dict:
             }
         )
     history.sort(key=lambda item: (item["updated_at"], item["id"]), reverse=True)
-    pending = list(store.iter_continuation_requests(pending=True))
-    attempts = _attempt_by_request(store)
+    pending = (
+        list(store.iter_continuation_requests(pending=True))
+        if store.exists()
+        else []
+    )
+    attempts = _attempt_by_request(store) if store.exists() else {}
     return {
         "active_harness": default,
         "harnesses": harnesses,
+        "available_harnesses": available_harnesses,
         "service": {
             key: service.get(key)
             for key in ("installed", "enabled", "active", "error")
@@ -262,9 +334,25 @@ def create_workspace_inquiry(store: Store, prompt: str) -> dict:
             "finish or cancel the current AI response before starting a new graph"
         )
     registry = HarnessRegistry()
-    registry.get()
+    spec = registry.get()
+    if not store.exists():
+        store.initialize()
+    has_sessions = any(store.iter_session_ids())
     service = harness_service_status()
-    if not service["installed"] or service["active"] not in {"active", "activating"}:
+    if not has_sessions:
+        unit_path = resolve_harness_service_path()
+        installed = unit_path.is_file()
+        options = harness_service_options(unit_path)
+        install_harness_service(
+            store,
+            spec,
+            interval=options["interval"],
+            timeout=options["timeout"],
+            path=unit_path,
+        )
+        if installed:
+            control_harness_service("restart", path=unit_path)
+    elif not service["installed"] or service["active"] not in {"active", "activating"}:
         raise ServeError("activate a collaborator before starting a new graph")
 
     title = prompt.splitlines()[0].strip()
@@ -828,6 +916,9 @@ class InhabitHandler(BaseHTTPRequestHandler):
             if path == "/api/workspace/harness":
                 self._workspace_harness()
                 return
+            if path == "/api/onboarding/harness":
+                self._onboarding_harness()
+                return
             if path == "/api/workspace/harness/model":
                 self._workspace_harness_model()
                 return
@@ -1129,7 +1220,11 @@ class InhabitHandler(BaseHTTPRequestHandler):
         name = str(body.get("harness") or "").strip()
         if not name:
             raise ServeError("harness is required")
-        pending = list(self.store.iter_continuation_requests(pending=True))
+        pending = (
+            list(self.store.iter_continuation_requests(pending=True))
+            if self.store.exists()
+            else []
+        )
         if pending:
             self._json(
                 409,
@@ -1148,26 +1243,61 @@ class InhabitHandler(BaseHTTPRequestHandler):
         unit_path = resolve_harness_service_path()
         installed = unit_path.is_file()
         options = harness_service_options(unit_path)
-        try:
-            install_harness_service(
-                self.store,
-                spec,
-                interval=options["interval"],
-                timeout=options["timeout"],
-                path=unit_path,
+        if self.store.exists():
+            try:
+                install_harness_service(
+                    self.store,
+                    spec,
+                    interval=options["interval"],
+                    timeout=options["timeout"],
+                    path=unit_path,
+                )
+                if installed:
+                    control_harness_service("restart", path=unit_path)
+            except HarnessError:
+                if previous and previous != name:
+                    registry.use(previous)
+                raise
+            self.store.log(
+                "workspace_harness",
+                harness=name,
+                path=str(unit_path),
+                warnings=[],
             )
-            if installed:
-                control_harness_service("restart", path=unit_path)
-        except HarnessError:
-            if previous and previous != name:
-                registry.use(previous)
-            raise
-        self.store.log(
-            "workspace_harness",
-            harness=name,
-            path=str(unit_path),
-            warnings=[],
+        self._json(200, {"ok": True, "workspace": workspace_payload(self.store)})
+
+    def _onboarding_harness(self) -> None:
+        body = self._read_json()
+        name = str(body.get("harness") or "").strip()
+        known = next(
+            (item for item in KNOWN_HARNESS_ADAPTERS if item["name"] == name),
+            None,
         )
+        if known is None:
+            raise ServeError("choose one of the packaged collaborators")
+        registry = HarnessRegistry()
+        if name in {spec.name for spec in registry.specs()}:
+            raise ServeError(f"collaborator {name!r} is already connected")
+        executable = _packaged_harness_executable(known["executable"])
+        if executable is None:
+            raise ServeError(
+                f"packaged adapter {known['executable']!r} is unavailable; "
+                "reinstall Atlas of Threads, then try again"
+            )
+        spec = registry.register(name, executable)
+        try:
+            description = describe_harness(spec, timeout=10)
+        except HarnessError:
+            registry.remove(name)
+            raise
+        model = description.get("default_model")
+        cli_version = description.get("cli_version")
+        if isinstance(model, str) and model.strip():
+            registry.record_model(
+                name,
+                model,
+                cli_version=cli_version if isinstance(cli_version, str) else None,
+            )
         self._json(200, {"ok": True, "workspace": workspace_payload(self.store)})
 
     def _workspace_harness_model(self) -> None:

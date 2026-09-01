@@ -121,6 +121,15 @@
   const elStartHead = document.getElementById("start-head");
   const elStartHeadDetail = document.getElementById("start-head-detail");
   const elStartHome = document.getElementById("start-home");
+  const elOnboardingMenu = document.getElementById("onboarding-menu");
+  const elOnboardingClose = document.getElementById("onboarding-close");
+  const elOnboardingStatus = document.getElementById("onboarding-status");
+  const elOnboardingHarnesses = document.getElementById("onboarding-harnesses");
+  const elOnboardingFirstCollaborator = document.getElementById("onboarding-first-collaborator");
+  const elOnboardingInquiryForm = document.getElementById("onboarding-inquiry-form");
+  const elOnboardingInquiry = document.getElementById("onboarding-inquiry");
+  const elOnboardingStart = document.getElementById("onboarding-start");
+  const elWorkspaceOnboarding = document.getElementById("workspace-onboarding");
   const elRelicIndex = document.getElementById("relic-index");
   const elRelicGrid = document.getElementById("relic-grid");
   const elRelicClose = document.getElementById("relic-close");
@@ -206,6 +215,8 @@
   let capsuleConstruction = null;
   let capsuleFlight = null;
   let startupState = null;
+  let onboardingState = null;
+  let onboardingBusy = false;
   let eligibilityKey = null;
   let capsuleEligibilityKey = null;
   const COMPANION_MEMORY_KEY = "thought-archaeology.companions.v1";
@@ -581,6 +592,190 @@
     }
   }
 
+  function onboardingWatcherActive(payload) {
+    const service = payload.service || {};
+    return service.active === "active" || service.active === "activating";
+  }
+
+  function renderOnboarding(payload) {
+    workspaceState = payload;
+    const watcherActive = onboardingWatcherActive(payload);
+    const pending = payload.pending || [];
+    const firstRun = !(payload.history || []).length;
+    const firstCollaboratorReady = Boolean(
+      payload.active_harness && (watcherActive || firstRun) &&
+      onboardingState && onboardingState.choiceConfirmed
+    );
+    elOnboardingHarnesses.replaceChildren();
+    for (const harness of payload.available_harnesses || []) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "onboarding-collaborator";
+      if (harness.registered) button.classList.add("connected");
+      const copy = document.createElement("span");
+      const name = document.createElement("strong");
+      name.textContent = harness.display_name || workspaceName(harness.name);
+      const detail = document.createElement("small");
+      detail.textContent = harness.registered
+        ? harness.model || "connected · model refresh available in Workspace"
+        : harness.adapter_available
+          ? "packaged bridge found"
+          : "packaged bridge unavailable";
+      copy.append(name, detail);
+      const action = document.createElement("small");
+      action.textContent = harness.registered
+        ? "Connected"
+        : harness.adapter_available
+          ? "Connect and test"
+          : harness.setup_hint;
+      button.append(copy, action);
+      button.title = harness.setup_hint;
+      button.disabled = onboardingBusy || harness.registered || !harness.adapter_available;
+      if (!harness.registered) {
+        button.addEventListener("click", () => connectOnboardingHarness(harness.name));
+      }
+      elOnboardingHarnesses.append(button);
+    }
+
+    elOnboardingFirstCollaborator.replaceChildren();
+    if (!(payload.harnesses || []).length) {
+      elOnboardingFirstCollaborator.className = "onboarding-empty";
+      elOnboardingFirstCollaborator.textContent = "Connect at least one collaborator first.";
+    } else {
+      elOnboardingFirstCollaborator.className = "onboarding-first-list";
+      for (const harness of payload.harnesses) {
+        const active = Boolean(
+          harness.selected && (watcherActive || firstRun) &&
+          onboardingState && onboardingState.choiceConfirmed
+        );
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "onboarding-first-choice";
+        if (active) button.classList.add("active");
+        button.textContent = active
+          ? `${workspaceName(harness.name)} · ${watcherActive ? "ready" : "chosen"} for the first path`
+          : harness.selected
+            ? `Activate ${workspaceName(harness.name)} for the first path`
+            : `Choose ${workspaceName(harness.name)} for the first path`;
+        button.disabled = onboardingBusy || active || pending.length > 0;
+        button.addEventListener("click", () => activateOnboardingHarness(harness.name));
+        elOnboardingFirstCollaborator.append(button);
+      }
+    }
+
+    elOnboardingStart.disabled = onboardingBusy || !firstCollaboratorReady || pending.length > 0;
+    if (pending.length) {
+      elOnboardingStatus.textContent = "A collaborator is already responding. Finish or cancel that path before starting another Threadwalk.";
+    } else if (firstCollaboratorReady) {
+      elOnboardingStatus.textContent = watcherActive
+        ? `${workspaceName(payload.active_harness)} is ready. Write the inquiry that should open your first chamber.`
+        : `${workspaceName(payload.active_harness)} will open the first path. Starting the Threadwalk will activate its local worker.`;
+    } else if ((payload.harnesses || []).length) {
+      elOnboardingStatus.textContent = "Choose one connected collaborator to open the first path.";
+    } else {
+      elOnboardingStatus.textContent = "Connect one locally installed collaborator. Provider credentials remain outside Atlas of Threads.";
+    }
+  }
+
+  function showOnboarding(bootState, resume, workspace, returnToWorkspace = false) {
+    onboardingState = {
+      boot: bootState,
+      resume,
+      returnToWorkspace,
+      choiceConfirmed: false,
+    };
+    elStartMenu.hidden = true;
+    elOnboardingMenu.hidden = false;
+    renderOnboarding(workspace);
+    const firstAction = elOnboardingHarnesses.querySelector("button:not(:disabled)");
+    (firstAction || elOnboardingClose).focus();
+  }
+
+  async function connectOnboardingHarness(name) {
+    if (onboardingBusy) return;
+    onboardingBusy = true;
+    renderOnboarding(workspaceState || { available_harnesses: [], harnesses: [] });
+    elOnboardingStatus.textContent = `Connecting and testing ${workspaceName(name)}…`;
+    try {
+      const result = await post("/api/onboarding/harness", { harness: name });
+      onboardingBusy = false;
+      renderOnboarding(result.workspace);
+    } catch (error) {
+      onboardingBusy = false;
+      const payload = await api("/api/workspace").catch(() => workspaceState);
+      if (payload) renderOnboarding(payload);
+      elOnboardingStatus.textContent = String(error.message || error);
+    }
+  }
+
+  async function activateOnboardingHarness(name) {
+    if (onboardingBusy) return;
+    onboardingBusy = true;
+    renderOnboarding(workspaceState || { available_harnesses: [], harnesses: [] });
+    elOnboardingStatus.textContent = `Preparing ${workspaceName(name)} for the first path…`;
+    try {
+      const result = await post("/api/workspace/harness", { harness: name });
+      onboardingBusy = false;
+      if (onboardingState) onboardingState.choiceConfirmed = true;
+      renderOnboarding(result.workspace);
+      elOnboardingInquiry.focus();
+    } catch (error) {
+      onboardingBusy = false;
+      const payload = await api("/api/workspace").catch(() => workspaceState);
+      if (payload) renderOnboarding(payload);
+      elOnboardingStatus.textContent = String(error.message || error);
+    }
+  }
+
+  async function submitOnboardingInquiry(event) {
+    event.preventDefault();
+    if (onboardingBusy || elOnboardingStart.disabled) return;
+    const prompt = elOnboardingInquiry.value.trim();
+    if (!prompt) {
+      elOnboardingStatus.textContent = "Write the inquiry that should open this Threadwalk.";
+      elOnboardingInquiry.focus();
+      return;
+    }
+    onboardingBusy = true;
+    elOnboardingStart.disabled = true;
+    elOnboardingStatus.textContent = "Opening your first chamber…";
+    try {
+      const result = await post("/api/workspace/inquiry", { prompt });
+      elOnboardingInquiry.value = "";
+      elOnboardingMenu.hidden = true;
+      onboardingState = null;
+      await inhabit(result.stand.graph_id, result.stand.node_id);
+    } catch (error) {
+      onboardingBusy = false;
+      if (workspaceState) renderOnboarding(workspaceState);
+      elOnboardingStatus.textContent = String(error.message || error);
+    } finally {
+      onboardingBusy = false;
+    }
+  }
+
+  function closeOnboarding() {
+    if (!onboardingState || onboardingBusy) return;
+    const state = onboardingState;
+    onboardingState = null;
+    elOnboardingMenu.hidden = true;
+    if (state.returnToWorkspace) {
+      openWorkspaceMenu();
+    } else {
+      showStartup(state.boot, state.resume);
+    }
+  }
+
+  async function openOnboardingFromWorkspace() {
+    if (workspaceBusy || onboardingBusy) return;
+    const [bootState, workspace] = await Promise.all([
+      api("/api/sessions"),
+      api("/api/workspace"),
+    ]);
+    closeWorkspaceMenu();
+    showOnboarding(bootState, loadLastStand(), workspace, true);
+  }
+
   async function api(path, opts) {
     const res = await fetch(path, opts || {});
     if (!res.ok) {
@@ -622,7 +817,14 @@
   }
 
   function workspaceName(name) {
-    return name ? name.charAt(0).toUpperCase() + name.slice(1) : "Unknown";
+    const names = {
+      codex: "Codex",
+      claude: "Claude",
+      grok: "Grok",
+      opencode: "OpenCode",
+      "prime-agent": "Prime Agent",
+    };
+    return names[name] || (name ? name.charAt(0).toUpperCase() + name.slice(1) : "Unknown");
   }
 
   function renderParallelProgress(progress) {
@@ -4338,7 +4540,10 @@
 
   async function boot() {
     try {
-      const boot = await api("/api/sessions");
+      const [boot, workspace] = await Promise.all([
+        api("/api/sessions"),
+        api("/api/workspace"),
+      ]);
       for (const session of boot.sessions || []) {
         knownHeads.set(session.id, session.head_graph_id || null);
         sessionTitles.set(session.id, session.title || "untitled thought");
@@ -4370,9 +4575,14 @@
         }
         return;
       }
-      showStartup(boot, fromHash && lastStand
+      const resume = fromHash && lastStand
         ? { ...lastStand, graphId: fromHash.graphId, nodeId: fromHash.nodeId }
-        : lastStand);
+        : lastStand;
+      if (!(workspace.harnesses || []).length || !(boot.sessions || []).length) {
+        showOnboarding(boot, resume, workspace);
+      } else {
+        showStartup(boot, resume);
+      }
     } catch (err) {
       elEmpty.classList.add("visible");
       elEmpty.querySelector("p").textContent = String(err.message || err);
@@ -5042,6 +5252,9 @@
   elFieldNoteEligible.addEventListener("click", openEligibleFieldNoteComposer);
   elKnowledgeCapsuleEligible.addEventListener("click", constructKnowledgeCapsule);
   elKnowledgeCapsuleReady.addEventListener("click", launchReadyCapsule);
+  elOnboardingClose.addEventListener("click", closeOnboarding);
+  elOnboardingInquiryForm.addEventListener("submit", submitOnboardingInquiry);
+  elWorkspaceOnboarding.addEventListener("click", openOnboardingFromWorkspace);
   elStartResume.addEventListener("click", () => {
     if (startupState && startupState.resume) chooseStartup(startupState.resume);
   });
@@ -5083,6 +5296,14 @@
   }
 
   window.addEventListener("keydown", (e) => {
+    if (!elOnboardingMenu.hidden) {
+      if (textEntryOwnsKey(e.target) && e.key !== "Escape") return;
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeOnboarding();
+      }
+      return;
+    }
     if (!elStartMenu.hidden) return;
     if (!elThreadCompass.hidden) {
       if (textEntryOwnsKey(e.target) && e.key !== "Escape") return;

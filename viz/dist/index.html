@@ -65,6 +65,52 @@
       </div>
     </section>
   </div>
+  <div id="onboarding-menu" hidden>
+    <section class="onboarding-panel" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
+      <header class="onboarding-head">
+        <div>
+          <div class="menu-kicker">Atlas of Threads · first Threadwalk</div>
+          <h1 id="onboarding-title">Begin in your own Atlas.</h1>
+        </div>
+        <button id="onboarding-close" type="button">setup later</button>
+      </header>
+      <p id="onboarding-status">Reading this local installation…</p>
+
+      <section class="onboarding-step">
+        <div class="onboarding-step-label">01 · where will your Atlas live?</div>
+        <div class="onboarding-modes">
+          <button type="button" class="selected" aria-pressed="true">
+            <strong>Local</strong>
+            <small>Available now · private store on this machine</small>
+          </button>
+          <button type="button" disabled>
+            <strong>Online</strong>
+            <small>Coming later · no shared Atlas is implied yet</small>
+          </button>
+        </div>
+      </section>
+
+      <section class="onboarding-step">
+        <div class="onboarding-step-label">02 · connect collaborators</div>
+        <p>Atlas of Threads stores no provider credentials. Install and sign in through each collaborator's official CLI; this local screen registers and tests the packaged bridge.</p>
+        <div id="onboarding-harnesses"></div>
+      </section>
+
+      <section class="onboarding-step">
+        <div class="onboarding-step-label">03 · choose who opens the first path</div>
+        <div id="onboarding-first-collaborator" class="onboarding-empty">Connect at least one collaborator first.</div>
+      </section>
+
+      <section class="onboarding-step">
+        <div class="onboarding-step-label">04 · start a Threadwalk</div>
+        <form id="onboarding-inquiry-form">
+          <label for="onboarding-inquiry">What do you want to explore?</label>
+          <input id="onboarding-inquiry" type="text" maxlength="400" autocomplete="off" spellcheck="false" placeholder="Ask the question that should open your first chamber." />
+          <button id="onboarding-start" type="submit" disabled>Start a Threadwalk</button>
+        </form>
+      </section>
+    </section>
+  </div>
   <div id="workspace-scrim" hidden></div>
   <aside id="workspace-menu" hidden aria-label="Workspace">
     <header class="menu-head">
@@ -79,6 +125,7 @@
       <div class="menu-section-label">active collaborator</div>
       <p class="menu-empty" id="workspace-harness-status">reading registered collaborators…</p>
       <div id="workspace-harnesses"></div>
+      <button id="workspace-onboarding" class="workspace-action" type="button">Set up collaborators</button>
     </section>
 
     <section class="menu-section" id="workspace-parallel-section" hidden>
@@ -95,13 +142,13 @@
     </section>
 
     <section class="menu-section">
-      <div class="menu-section-label">new graph</div>
+      <div class="menu-section-label">new Threadwalk</div>
       <p class="menu-empty">Begin a clean inquiry. Existing archaeology remains intact.</p>
-      <button id="workspace-new-toggle" class="workspace-action" type="button" aria-expanded="false">New Graph</button>
+      <button id="workspace-new-toggle" class="workspace-action" type="button" aria-expanded="false">Start a Threadwalk</button>
       <form id="workspace-new-form" hidden>
         <label for="workspace-new-prompt">opening inquiry</label>
         <input id="workspace-new-prompt" type="text" maxlength="400" autocomplete="off" spellcheck="false" placeholder="What should this new graph investigate?" />
-        <button type="submit">begin with active collaborator</button>
+        <button type="submit">start with active collaborator</button>
       </form>
       <p id="workspace-action-status" role="status"></p>
     </section>

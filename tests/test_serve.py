@@ -15,7 +15,7 @@ from thought_archaeology.continuation import (
     continuation_request,
 )
 from thought_archaeology.inhabit import inhabit
-from thought_archaeology.harness import HarnessRegistry
+from thought_archaeology.harness import HarnessError, HarnessRegistry
 from thought_archaeology.harness_service import (
     harness_service_options,
     install_harness_service,
@@ -227,10 +227,15 @@ def test_thread_compass_and_legend_controls_are_chamber_overlays():
     assert 'id="workspace-new-form"' in html
     assert 'id="workspace-history"' in html
     assert 'id="workspace-parallel-form"' in html
+    assert 'id="onboarding-menu"' in html
+    assert "Start a Threadwalk" in html
+    assert "Online" in html
+    assert "Coming later" in html
     assert 'id="threshold-parallel"' in html
     assert "Activate ${workspaceName(harness.name)}" in js
     assert 'refresh.textContent = "↻ Refresh"' in js
     assert 'post("/api/workspace/harness"' in js
+    assert 'post("/api/onboarding/harness"' in js
     assert 'post("/api/workspace/harness/model"' in js
     assert 'post("/api/workspace/inquiry"' in js
     assert 'post("/api/parallel"' in js
@@ -244,6 +249,10 @@ def test_thread_compass_and_legend_controls_are_chamber_overlays():
     assert "view.graph_id === circuit.sourceGraphId" in js
     assert "liveArrivals.slice(-240)" in js
     assert 'api("/api/workspace")' in js
+    assert "showOnboarding" in js
+    assert "connectOnboardingHarness" in js
+    assert "#onboarding-menu" in css
+    assert ".onboarding-collaborator" in css
     assert 'e.key === "m"' in js
     assert "function textEntryOwnsKey(target)" in js
     assert '"/api/field-notes"' in js
@@ -423,6 +432,71 @@ def test_workspace_switches_future_harness_and_preserves_watcher_timing(
         },
     )
     assert registry.default_name() == "grok"
+
+
+def test_onboarding_connects_only_a_known_packaged_harness(
+    monkeypatch, tmp_path: Path
+):
+    store = Store(tmp_path / "data")
+    config = tmp_path / "config" / "harnesses.json"
+    adapter = tmp_path / "ta-harness-codex"
+    adapter.write_text(
+        "#!/bin/sh\n"
+        "printf '%s\\n' '{\"protocol_version\":\"1\",\"name\":\"codex\",\"capabilities\":[\"continue\"],\"default_model\":\"test-model\",\"cli_version\":\"test-cli 1\"}'\n",
+        encoding="utf-8",
+    )
+    adapter.chmod(0o700)
+    monkeypatch.setenv("TA_HARNESS_CONFIG", str(config))
+    monkeypatch.setattr(
+        "thought_archaeology.serve.shutil.which",
+        lambda name: str(adapter) if name == "ta-harness-codex" else None,
+    )
+
+    replies = []
+    handler = object.__new__(InhabitHandler)
+    handler.store = store
+    handler._read_json = lambda: {"harness": "codex"}
+    handler._json = lambda code, body: replies.append((code, body))
+    handler._onboarding_harness()
+
+    assert replies[-1][0] == 200
+    registry = HarnessRegistry(config)
+    assert registry.default_name() == "codex"
+    assert registry.get().model == "test-model"
+    catalog = replies[-1][1]["workspace"]["available_harnesses"]
+    codex = next(item for item in catalog if item["name"] == "codex")
+    assert codex["registered"] is True
+    assert codex["selected"] is True
+    assert codex["model"] == "test-model"
+
+    handler._read_json = lambda: {"harness": "arbitrary-command"}
+    with pytest.raises(ServeError, match="packaged collaborators"):
+        handler._onboarding_harness()
+
+
+def test_onboarding_rolls_back_a_harness_that_fails_its_health_check(
+    monkeypatch, tmp_path: Path
+):
+    store = Store(tmp_path / "data")
+    config = tmp_path / "config" / "harnesses.json"
+    adapter = tmp_path / "ta-harness-grok"
+    adapter.write_text(
+        "#!/bin/sh\necho 'sign in through the official CLI' >&2\nexit 2\n",
+        encoding="utf-8",
+    )
+    adapter.chmod(0o700)
+    monkeypatch.setenv("TA_HARNESS_CONFIG", str(config))
+    monkeypatch.setattr(
+        "thought_archaeology.serve.shutil.which",
+        lambda name: str(adapter) if name == "ta-harness-grok" else None,
+    )
+
+    handler = object.__new__(InhabitHandler)
+    handler.store = store
+    handler._read_json = lambda: {"harness": "grok"}
+    with pytest.raises(HarnessError, match="sign in through the official CLI"):
+        handler._onboarding_harness()
+    assert HarnessRegistry(config).specs() == ()
 
 
 def test_workspace_refreshes_harness_model_without_switching(monkeypatch, tmp_path: Path):

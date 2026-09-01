@@ -265,6 +265,10 @@ def test_workspace_new_inquiry_reuses_harness_without_duplicate_user_turn(
     store = Store(store_path)
     opening = "How should a synthetic mind preserve disagreement?"
     created = create_workspace_inquiry(store, opening)
+    assert store.exists()
+    unit_text = unit.read_text(encoding="utf-8")
+    assert f'"--store" "{store.root}"' in unit_text
+    assert '"--harness" "fake"' in unit_text
     request = store.load_continuation_request(created["request"]["id"])
     seed = store.load_graph(created["graph_id"])
     assert request.source == "workspace"

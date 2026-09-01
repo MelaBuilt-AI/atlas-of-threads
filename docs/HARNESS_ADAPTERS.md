@@ -27,6 +27,17 @@ The directory is mode `0700`; the file is mode `0600`. Registration resolves
 the executable to an absolute path. TA stores an argv array and invokes it with
 `shell=False`. Cloning or opening a project never launches an adapter.
 
+Inhabit Space also offers a local-first browser setup for the five packaged
+bridges. It discovers only their installed `ta-harness-*` entry points, accepts
+only the built-in collaborator names, writes the same user-owned registry, and
+runs `describe` as a health check. A failed check removes the new registration.
+Provider installation and sign-in still happen in the provider's official CLI;
+the browser never accepts credentials or arbitrary adapter paths. Choosing the
+first collaborator is separate from connecting it. Starting the first
+Threadwalk then initializes the private store if needed and installs the
+store-bound systemd user watcher. The disabled Online choice is presentation
+scaffolding only and performs no networking.
+
 ## Operations
 
 TA appends one operation argument to the registered argv.

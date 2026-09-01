@@ -140,6 +140,13 @@ class Store:
         if not self.log_path.exists():
             _write_text(self.log_path, "")
 
+    def initialize(self) -> None:
+        """Create an empty local store for browser-led first-run setup."""
+        if self.exists():
+            self._require()
+        else:
+            self._create_root()
+
     def log(self, op: str, **fields: object) -> None:
         line = {
             "ts": now_iso(),
