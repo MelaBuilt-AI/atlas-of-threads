@@ -977,6 +977,203 @@ html, body {
   outline: none;
 }
 
+.field-note-list {
+  display: grid;
+  gap: 0.48rem;
+  padding: 0.78rem;
+  border: 1px solid rgba(200, 242, 106, 0.28);
+  background: rgba(25, 31, 20, 0.42);
+}
+
+.field-note-list h3,
+.field-note-path legend,
+.field-note-kinds legend,
+.field-note-review-label,
+.field-note-text-label {
+  color: var(--phosphor);
+  font: 0.64rem ui-monospace, Menlo, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.field-note-card,
+.field-note-write,
+.field-note-enter,
+.field-note-actions button {
+  border: 1px solid rgba(200, 242, 106, 0.45);
+  background: rgba(30, 39, 24, 0.55);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.field-note-card {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.72rem 0.78rem;
+  text-align: left;
+}
+
+.field-note-card:hover,
+.field-note-card:focus-visible,
+.field-note-write:hover,
+.field-note-write:focus-visible,
+.field-note-enter:hover,
+.field-note-enter:focus-visible,
+.field-note-actions button:hover,
+.field-note-actions button:focus-visible {
+  border-color: var(--phosphor);
+  outline: none;
+}
+
+.field-note-label {
+  color: var(--phosphor);
+  font: 0.62rem ui-monospace, Menlo, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.field-note-card-text {
+  color: var(--ink);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.field-note-meta,
+.field-note-integrity,
+.field-note-selection-status {
+  color: var(--mute);
+  font: 0.61rem ui-monospace, Menlo, monospace;
+}
+
+.field-note-write {
+  width: 100%;
+  padding: 0.68rem 0.8rem;
+  color: var(--phosphor);
+  font: 0.68rem ui-monospace, Menlo, monospace;
+  text-align: left;
+}
+
+.field-note-reading,
+.field-note-reference {
+  padding: 0.95rem;
+  border: 1px solid rgba(200, 242, 106, 0.28);
+  border-left: 3px solid rgba(200, 242, 106, 0.68);
+  background: rgba(25, 31, 20, 0.46);
+}
+
+.field-note-reading p,
+.field-note-reference p {
+  margin-top: 0.5rem;
+  color: var(--ink);
+  font-size: 0.94rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.field-note-reference .field-note-meta { margin-top: 0.4rem; }
+.field-note-integrity { margin-top: 0.55rem; color: var(--phosphor-dim); }
+
+.field-note-enter {
+  width: 100%;
+  margin-top: 0.7rem;
+  padding: 0.52rem 0.65rem;
+  color: var(--phosphor);
+  font: 0.65rem ui-monospace, Menlo, monospace;
+  text-align: left;
+}
+
+.field-note-enter:disabled,
+.field-note-actions button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.field-note-form { display: grid; gap: 0.72rem; }
+
+.field-note-path,
+.field-note-kinds {
+  display: grid;
+  gap: 0.42rem;
+  padding: 0.78rem;
+  border: 1px solid rgba(79, 143, 214, 0.34);
+  background: rgba(10, 18, 29, 0.38);
+}
+
+.field-note-path legend,
+.field-note-kinds legend { padding: 0 0.35rem; color: #8bbcf0; }
+
+.field-note-thought {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.62rem;
+  align-items: start;
+  padding: 0.56rem;
+  border: 1px solid rgba(138, 131, 118, 0.22);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.field-note-thought:has(input:checked) {
+  border-color: var(--phosphor);
+  background: rgba(42, 54, 38, 0.52);
+}
+
+.field-note-thought input { margin-top: 0.2rem; accent-color: var(--phosphor); }
+.field-note-thought > span { display: grid; gap: 0.24rem; line-height: 1.4; }
+
+.field-note-thought-kind {
+  color: var(--mute);
+  font: 0.58rem ui-monospace, Menlo, monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.field-note-kinds {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-color: rgba(200, 242, 106, 0.28);
+}
+
+.field-note-kinds label {
+  display: flex;
+  gap: 0.42rem;
+  align-items: center;
+  color: var(--ink);
+  font-size: 0.85rem;
+}
+
+.field-note-kinds input { accent-color: var(--phosphor); }
+
+.field-note-text-label { display: grid; gap: 0.42rem; }
+
+.field-note-text-label textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 0.72rem;
+  border: 1px solid rgba(200, 242, 106, 0.38);
+  background: rgba(7, 10, 8, 0.82);
+  color: var(--ink);
+  font: 0.93rem/1.48 "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+}
+
+.field-note-text-label textarea:focus { border-color: var(--phosphor); outline: none; }
+
+.field-note-review {
+  display: grid;
+  gap: 0.34rem;
+  padding-left: 1.3rem;
+  color: var(--ink);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.field-note-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+
+.field-note-actions button {
+  padding: 0.62rem 0.7rem;
+  color: var(--phosphor);
+  font: 0.64rem ui-monospace, Menlo, monospace;
+}
+
 #relic-index,
 #evidence-descent {
   position: absolute;
@@ -1353,6 +1550,8 @@ html, body {
     grid-template-columns: 1fr;
     gap: 0.22rem;
   }
+  .field-note-kinds,
+  .field-note-actions { grid-template-columns: 1fr; }
   .control-list > div { grid-template-columns: 5.5rem minmax(0, 1fr); }
 
   .relic-index-head { display: block; }

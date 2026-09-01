@@ -675,6 +675,7 @@ def parallel_comparison(
                 "model": graph.model.name,
                 "created_at": completion.created_at,
                 "entry_node": _node_read(entry) if entry else None,
+                "selectable_thoughts": [_node_read(node) for node in graph.nodes],
                 "judgment_calls": [
                     _node_read(node)
                     for node in graph.nodes
@@ -696,4 +697,12 @@ def parallel_comparison(
                 "current_policy_warnings": policy_warnings(graph),
             }
         )
-    return {**summary, "paths": readings}
+    from thought_archaeology.field_notes import field_notes_for_graphs
+
+    return {
+        **summary,
+        "paths": readings,
+        "field_notes": field_notes_for_graphs(
+            store, {item["graph_id"] for item in readings}
+        ),
+    }

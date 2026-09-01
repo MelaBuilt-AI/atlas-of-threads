@@ -21,6 +21,7 @@ from thought_archaeology.continuation import (
 )
 from thought_archaeology.edits import append_op_turn, commit, plan_fork, plan_veto
 from thought_archaeology.evidence import context_provenance_binding
+from thought_archaeology.field_notes import create_field_note, field_note_read
 from thought_archaeology.fingerprint import DEFAULT_MIN_SESSIONS, Fingerprint, fingerprint
 from thought_archaeology.fork import (
     ForkError,
@@ -226,6 +227,50 @@ def _parser() -> argparse.ArgumentParser:
     p_complete.add_argument("request")
     p_complete.add_argument("--graph", required=True, metavar="G")
     p_complete.add_argument("--harness", required=True, metavar="NAME")
+
+    p_field_note = sub.add_parser(
+        "field-note",
+        parents=[sub_globals],
+        help="write and revisit immutable human Field Notes",
+    )
+    field_note_sub = p_field_note.add_subparsers(
+        dest="field_note_cmd", required=True
+    )
+    p_field_note_create = field_note_sub.add_parser(
+        "create", parents=[sub_globals], help="write a note from one parallel comparison"
+    )
+    p_field_note_create.add_argument(
+        "--kind",
+        required=True,
+        choices=["conclusion", "unresolved_question", "observation"],
+    )
+    p_field_note_create.add_argument(
+        "--comparison", required=True, metavar="REQUEST"
+    )
+    p_field_note_create.add_argument(
+        "--reference",
+        required=True,
+        action="append",
+        metavar="SESSION/GRAPH/NODE",
+    )
+    note_text = p_field_note_create.add_mutually_exclusive_group(required=True)
+    note_text.add_argument("--text", metavar="TEXT")
+    note_text.add_argument("--input", metavar="PATH")
+    p_field_note_list = field_note_sub.add_parser(
+        "list", parents=[sub_globals], help="list Field Notes"
+    )
+    p_field_note_list.add_argument("--graph", default=None, metavar="GRAPH")
+    p_field_note_list.add_argument("--node", default=None, metavar="NODE")
+    p_field_note_list.add_argument(
+        "--format", choices=["table", "json"], default="table"
+    )
+    p_field_note_show = field_note_sub.add_parser(
+        "show", parents=[sub_globals], help="show one Field Note"
+    )
+    p_field_note_show.add_argument("note")
+    p_field_note_show.add_argument(
+        "--format", choices=["text", "json"], default="text"
+    )
 
     p_harness = sub.add_parser(
         "harness",
@@ -889,6 +934,8 @@ def cmd_validate(args: argparse.Namespace) -> int:
                 validate_schema("turn.schema.json", raw)
             elif isinstance(raw, dict) and "title" in raw and "updated_at" in raw:
                 validate_schema("session.schema.json", raw)
+            elif isinstance(raw, dict) and raw.get("author") == "human" and "references" in raw:
+                validate_schema("field-note.schema.json", raw)
             else:
                 validate_graph(raw)
         except ValidationError as exc:
@@ -912,6 +959,12 @@ def cmd_validate(args: argparse.Namespace) -> int:
         except (StoreError, ValidationError) as exc:
             print(exc, file=sys.stderr)
             return EXIT_VALIDATION if isinstance(exc, ValidationError) else EXIT_IO
+        return EXIT_OK
+    if store.field_note_exists(target):
+        note = field_note_read(store, store.load_field_note(target))
+        if note["integrity"] != "verified":
+            print(f"Field Note {target} source integrity failed", file=sys.stderr)
+            return EXIT_VALIDATION
         return EXIT_OK
     print(f"not found: {target}", file=sys.stderr)
     return EXIT_IO
@@ -1874,6 +1927,95 @@ def cmd_continuation(args: argparse.Namespace) -> int:
     raise UsageError("unknown continuation command")
 
 
+def _field_note_reference(value: str) -> tuple[str, str, str]:
+    parts = tuple(value.split("/"))
+    if len(parts) != 3 or any(not is_ulid(part) for part in parts):
+        raise UsageError("--reference must be SESSION/GRAPH/NODE using exact ULIDs")
+    return parts  # type: ignore[return-value]
+
+
+def cmd_field_note(args: argparse.Namespace) -> int:
+    store = _store(args)
+    if args.field_note_cmd == "create":
+        text = args.text if args.text is not None else _read_path(args.input)
+        references = tuple(_field_note_reference(item) for item in args.reference)
+        note = create_field_note(
+            store,
+            kind=args.kind,
+            text=text,
+            references=references,
+            comparison_request_id=args.comparison,
+        )
+        path = store.field_notes_dir / f"{note.id}.json"
+        store.log(
+            "field_note_create",
+            note_id=note.id,
+            kind=note.kind,
+            references=[
+                {
+                    "session_id": item.session_id,
+                    "graph_id": item.graph_id,
+                    "node_id": item.node_id,
+                }
+                for item in note.references
+            ],
+            path=str(path),
+            warnings=[],
+        )
+        print(note.id)
+        return EXIT_OK
+    if args.field_note_cmd == "list":
+        if args.node and not args.graph:
+            raise UsageError("--node requires --graph")
+        notes = [
+            field_note_read(store, note)
+            for note in store.iter_field_notes()
+            if any(
+                (args.graph is None or ref.graph_id == args.graph)
+                and (args.node is None or ref.node_id == args.node)
+                for ref in note.references
+            )
+        ]
+        if args.format == "json":
+            print(json.dumps(notes, ensure_ascii=False))
+            return EXIT_OK
+        print(f"{'note':<26}  {'kind':<20}  {'refs':<4}  text")
+        for note in notes:
+            compact = " ".join(note["text"].split())
+            print(
+                f"{note['id']:<26}  {note['kind_label']:<20}  "
+                f"{note['reference_count']:<4}  {compact}"
+            )
+        return EXIT_OK
+    if args.field_note_cmd == "show":
+        note = field_note_read(store, store.load_field_note(args.note))
+        if args.format == "json":
+            print(json.dumps(note, ensure_ascii=False))
+            return EXIT_OK
+        print(f"Human Field Note · {note['kind_label']}")
+        print(note["text"])
+        print(
+            "Source integrity verified"
+            if note["integrity"] == "verified"
+            else "Source integrity failed"
+        )
+        for index, reference in enumerate(note["references"], start=1):
+            thought = reference.get("thought")
+            print()
+            print(
+                f"reference {index} · {reference['session_id']}/"
+                f"{reference['graph_id']}/{reference['node_id']}"
+            )
+            print(
+                f"  {thought['kind']} · {thought['status']} · {thought['text']}"
+                if thought
+                else "  source unavailable"
+            )
+            print(f"  integrity: {reference['integrity']}")
+        return EXIT_OK
+    raise UsageError("unknown Field Note command")
+
+
 def _harness_rows(registry: HarnessRegistry) -> list[dict]:
     default = registry.default_name()
     return [
@@ -2055,6 +2197,7 @@ def main(argv: list[str] | None = None) -> int:
         "fork": cmd_fork,
         "veto": cmd_veto,
         "continuation": cmd_continuation,
+        "field-note": cmd_field_note,
         "harness": cmd_harness,
         "sensor": cmd_sensor,
         "evidence": cmd_evidence,

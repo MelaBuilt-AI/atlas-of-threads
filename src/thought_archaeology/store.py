@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 import os
 import time
 import fcntl
@@ -18,7 +18,8 @@ from thought_archaeology.continuation import (
     ContinuationRequest,
     ParallelContinuationBatch,
 )
-from thought_archaeology.ids import now_iso, new_ulid
+from thought_archaeology.field_notes import FieldNote
+from thought_archaeology.ids import new_ulid, now_iso
 from thought_archaeology.models import SCHEMA_VERSION, Session, ThoughtGraph, ThoughtNode, Turn
 from thought_archaeology.schema import ValidationError, validate_graph, validate_schema
 
@@ -217,6 +218,14 @@ class Store:
     def graph_exists(self, graph_id: str) -> bool:
         return self._find_graph_path(graph_id) is not None
 
+    def graph_sha256(self, graph_id: str) -> str:
+        """Digest the exact immutable JSON bytes stored for one graph."""
+        self._require()
+        path = self._find_graph_path(graph_id)
+        if path is None:
+            raise StoreError(f"graph not found: {graph_id}")
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
     def load_session(self, session_id: str) -> Session:
         self._require()
         path = self.session_dir(session_id) / "session.json"
@@ -291,6 +300,67 @@ class Store:
     @property
     def continuation_requests_dir(self) -> Path:
         return self.root / "continuations" / "requests"
+
+    @property
+    def field_notes_dir(self) -> Path:
+        return self.root / "field-notes"
+
+    def write_field_note(self, note: FieldNote) -> Path:
+        self._require()
+        validate_schema("field-note.schema.json", note.to_dict())
+        if note.text != note.text.strip():
+            raise ValidationError(["Field Note text must be trimmed"])
+        identities = {
+            (item.session_id, item.graph_id, item.node_id)
+            for item in note.references
+        }
+        if len(identities) != len(note.references):
+            raise StoreError("Field Note references must be unique")
+        if len({item.graph_id for item in note.references}) < 2:
+            raise StoreError("Field Note requires thoughts from at least two graphs")
+        for reference in note.references:
+            graph = self.load_graph(reference.graph_id)
+            if graph.session_id != reference.session_id:
+                raise StoreError(
+                    f"graph {graph.id} is not in session {reference.session_id}"
+                )
+            if reference.node_id not in {node.id for node in graph.nodes}:
+                raise StoreError(
+                    f"node {reference.node_id} not in graph {reference.graph_id}"
+                )
+            actual = self.graph_sha256(reference.graph_id)
+            if actual != reference.graph_sha256:
+                raise StoreError(
+                    f"graph SHA-256 mismatch for Field Note source {reference.graph_id}"
+                )
+        _mkdir(self.field_notes_dir)
+        path = self.field_notes_dir / f"{note.id}.json"
+        if path.exists():
+            raise StoreError(f"Field Note {note.id} already exists (write-once)")
+        _write_json(path, note.to_dict())
+        return path
+
+    def load_field_note(self, note_id: str) -> FieldNote:
+        self._require()
+        path = self.field_notes_dir / f"{note_id}.json"
+        if not path.is_file():
+            raise StoreError(f"Field Note not found: {note_id}")
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        validate_schema("field-note.schema.json", raw)
+        return FieldNote.from_dict(raw)
+
+    def field_note_exists(self, note_id: str) -> bool:
+        return (self.field_notes_dir / f"{note_id}.json").is_file()
+
+    def iter_field_notes(self) -> Iterator[FieldNote]:
+        self._require()
+        if not self.field_notes_dir.is_dir():
+            return
+            yield  # pragma: no cover
+        for path in sorted(self.field_notes_dir.glob("*.json")):
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            validate_schema("field-note.schema.json", raw)
+            yield FieldNote.from_dict(raw)
 
     @property
     def continuation_completions_dir(self) -> Path:
@@ -1015,4 +1085,27 @@ class Store:
                         errors.append(
                             f"node {node.id} kind+text mismatch across graphs"
                         )
+        try:
+            notes = list(self.iter_field_notes())
+        except (ValidationError, json.JSONDecodeError, OSError) as exc:
+            errors.append(str(exc))
+            notes = []
+        for note in notes:
+            for reference in note.references:
+                if reference.session_id != session_id:
+                    continue
+                graph = graphs.get(reference.graph_id)
+                if graph is None:
+                    errors.append(
+                        f"Field Note {note.id} graph {reference.graph_id} missing from session"
+                    )
+                    continue
+                if reference.node_id not in {node.id for node in graph.nodes}:
+                    errors.append(
+                        f"Field Note {note.id} node {reference.node_id} missing from graph"
+                    )
+                if self.graph_sha256(graph.id) != reference.graph_sha256:
+                    errors.append(
+                        f"Field Note {note.id} graph {graph.id} SHA-256 mismatch"
+                    )
         return errors

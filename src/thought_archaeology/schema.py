@@ -40,6 +40,7 @@ SCHEMA_NAMES = (
     "continuation-cancellation.schema.json",
     "continuation-failure.schema.json",
     "parallel-continuation-batch.schema.json",
+    "field-note.schema.json",
 )
 
 DAG_EDGE_KINDS = frozenset({"supports", "depends_on", "shapes", "taste_of"})

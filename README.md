@@ -126,6 +126,11 @@ ta continuation pending [--format table|json]
 ta continuation compare NODE --graph G [--request REQUEST] [--format table|json]
 ta continuation cancel REQUEST
 ta continuation complete REQUEST --graph G --harness NAME
+ta field-note create --kind conclusion|unresolved_question|observation \
+  --comparison REQUEST --reference SESSION/GRAPH/NODE \
+  --reference SESSION/GRAPH/NODE --text TEXT
+ta field-note list [--graph G [--node N]] [--format table|json]
+ta field-note show NOTE [--format text|json]
 
 ta harness configure
 ta harness register NAME --adapter PATH [--arg VALUE ...] [--default]
@@ -358,6 +363,14 @@ After two or more completions share the exact session, source graph, source
 node, and prompt, Thread Compass groups them as **Parallel continuations**. The
 comparison keeps every attributed graph separate, reports completed/failed/
 canceled/pending counts, and infers no vote, winner, or consensus.
+
+From that comparison, **Write Field Note** selects exact thought-objects across
+at least two paths and appends one human conclusion, unresolved question, or
+observation. Each reference preserves session/graph/node identity and the
+SHA-256 of the exact immutable graph bytes. Field Notes call no provider, change
+no graph, and remain separate from evidence. Thread Compass reopens them from
+the comparison and from every referenced chamber, where each exact source can
+be entered again. The bounded contract is in `docs/FIELD_NOTES.md`.
 
 The chamber edge stays intentionally quiet: its one top line opens the
 **Legend and controls** drawer with `l`. The drawer owns the sound controls,

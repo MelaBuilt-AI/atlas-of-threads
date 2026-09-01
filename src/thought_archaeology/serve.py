@@ -18,6 +18,11 @@ from thought_archaeology.continuation import (
     parallel_progress_for_source,
 )
 from thought_archaeology.fork import ForkError
+from thought_archaeology.field_notes import (
+    create_field_note,
+    field_note_read,
+    field_note_summaries,
+)
 from thought_archaeology.harness import (
     HarnessError,
     HarnessRegistry,
@@ -406,7 +411,13 @@ def cancel_parallel_continuations(store: Store, batch_id: str) -> dict:
     }
 
 
-def thread_payload(store: Store, session_id: str) -> dict:
+def thread_payload(
+    store: Store,
+    session_id: str,
+    *,
+    graph_id: str | None = None,
+    node_id: str | None = None,
+) -> dict:
     """Server-authored graph-generation compass for one durable session."""
     session = store.load_session(session_id)
     graphs = {graph.id: graph for graph in store.iter_graphs(session_id)}
@@ -521,6 +532,16 @@ def thread_payload(store: Store, session_id: str) -> dict:
         "latest_ai_graph_id": latest_ai,
         "entries": entries,
         "parallel_groups": parallel_groups,
+        "standing_field_notes": (
+            field_note_summaries(
+                store,
+                session_id=session_id,
+                graph_id=graph_id,
+                node_id=node_id,
+            )
+            if graph_id and node_id
+            else []
+        ),
     }
 
 
@@ -558,11 +579,38 @@ class InhabitHandler(BaseHTTPRequestHandler):
             if path == "/api/workspace":
                 self._json(200, workspace_payload(self.store))
                 return
+            if path == "/api/field-notes":
+                graph_id = (qs.get("graph") or [None])[0]
+                node_id = (qs.get("node") or [None])[0]
+                if node_id and not graph_id:
+                    raise StoreError("Field Note node filter requires graph")
+                self._json(
+                    200,
+                    field_note_summaries(
+                        self.store, graph_id=graph_id, node_id=node_id
+                    ),
+                )
+                return
+            if path.startswith("/api/field-notes/"):
+                note_id = path[len("/api/field-notes/") :].strip("/")
+                if not note_id:
+                    raise StoreError("Field Note is required")
+                note = self.store.load_field_note(note_id)
+                self._json(200, field_note_read(self.store, note))
+                return
             if path.startswith("/api/thread/"):
                 session_id = path[len("/api/thread/") :].strip("/")
                 if not session_id:
                     raise StoreError("session is required")
-                self._json(200, thread_payload(self.store, session_id))
+                self._json(
+                    200,
+                    thread_payload(
+                        self.store,
+                        session_id,
+                        graph_id=(qs.get("graph") or [None])[0],
+                        node_id=(qs.get("node") or [None])[0],
+                    ),
+                )
                 return
             if path.startswith("/api/parallel/"):
                 request_id = path[len("/api/parallel/") :].strip("/")
@@ -629,6 +677,16 @@ class InhabitHandler(BaseHTTPRequestHandler):
                         self.store.iter_continuation_requests(pending=True)
                     )
                 )
+                payload["field_notes"] = field_note_summaries(
+                    self.store, graph_id=view.graph.id, node_id=view.node.id
+                )
+                payload["read"]["field_note_line"] = (
+                    f"{len(payload['field_notes'])} human Field "
+                    f"{'Note' if len(payload['field_notes']) == 1 else 'Notes'} "
+                    "\u00b7 inspect in Thread Compass"
+                    if payload["field_notes"]
+                    else None
+                )
                 self._json(200, payload)
                 return
             self._static(path)
@@ -674,6 +732,9 @@ class InhabitHandler(BaseHTTPRequestHandler):
             if path == "/api/parallel":
                 self._parallel_ready()
                 return
+            if path == "/api/field-notes":
+                self._field_note_create()
+                return
             if path.startswith("/api/parallel/") and path.endswith("/cancel"):
                 batch_id = path[len("/api/parallel/") : -len("/cancel")].strip("/")
                 if not batch_id:
@@ -714,6 +775,55 @@ class InhabitHandler(BaseHTTPRequestHandler):
         if not session_id:
             raise ServeError("session is required")
         return str(node_id), (str(graph_id) if graph_id else None), str(session_id)
+
+    def _field_note_create(self) -> None:
+        body = self._read_json()
+        kind = str(body.get("kind") or "")
+        text = str(body.get("text") or "")
+        comparison_request_id = str(body.get("comparison_request_id") or "")
+        raw_references = body.get("references")
+        if not comparison_request_id:
+            raise ServeError("Field Note requires a comparison request")
+        if not isinstance(raw_references, list):
+            raise ServeError("Field Note references must be a list")
+        references = []
+        for item in raw_references:
+            if not isinstance(item, dict):
+                raise ServeError("Field Note reference must be an object")
+            try:
+                references.append(
+                    (
+                        str(item["session_id"]),
+                        str(item["graph_id"]),
+                        str(item["node_id"]),
+                    )
+                )
+            except KeyError as exc:
+                raise ServeError(f"Field Note reference missing {exc.args[0]}") from exc
+        note = create_field_note(
+            self.store,
+            kind=kind,  # type: ignore[arg-type]
+            text=text,
+            references=tuple(references),
+            comparison_request_id=comparison_request_id,
+        )
+        path = self.store.field_notes_dir / f"{note.id}.json"
+        self.store.log(
+            "field_note_create",
+            note_id=note.id,
+            kind=note.kind,
+            references=[
+                {
+                    "session_id": item.session_id,
+                    "graph_id": item.graph_id,
+                    "node_id": item.node_id,
+                }
+                for item in note.references
+            ],
+            path=str(path),
+            warnings=[],
+        )
+        self._json(200, {"ok": True, "note": field_note_read(self.store, note)})
 
     def _edit_fork(self) -> None:
         body = self._read_json()

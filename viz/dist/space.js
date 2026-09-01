@@ -779,12 +779,16 @@
 
   let threadLineage = null;
   let threadComparison = null;
+  let threadNote = null;
+  let threadComposer = false;
   let threadReturnFocus = null;
 
   function closeThreadCompass(restoreFocus = true) {
     elThreadCompass.hidden = true;
     threadLineage = null;
     threadComparison = null;
+    threadNote = null;
+    threadComposer = false;
     elThreadTitle.textContent = "Thread Compass";
     elThreadClose.textContent = "close · T / esc";
     if (restoreFocus) {
@@ -887,6 +891,8 @@
   function renderThreadCompass(lineage, focusRequestId = null) {
     threadLineage = lineage;
     threadComparison = null;
+    threadNote = null;
+    threadComposer = false;
     const entries = lineage.entries || [];
     const parallelGroups = lineage.parallel_groups || [];
     const groupByGraph = new Map();
@@ -904,6 +910,12 @@
     elThreadStatus.textContent =
       "Select any generation to re-enter its first chamber. The graph store remains unchanged.";
     elThreadList.replaceChildren();
+
+    appendFieldNoteCards(
+      elThreadList,
+      lineage.standing_field_notes || [],
+      "Field Notes from this chamber"
+    );
 
     if (latestAi && latestAi.node_id && latestAi.graph_id !== view.graph_id) {
       elThreadLatest.hidden = false;
@@ -964,6 +976,8 @@
 
   function renderParallelComparison(comparison) {
     threadComparison = comparison;
+    threadNote = null;
+    threadComposer = false;
     elThreadTitle.textContent = "Parallel continuations";
     elThreadSubtitle.textContent =
       `${comparison.completed_count} answers from the same chamber. No vote or winner is inferred.`;
@@ -993,6 +1007,19 @@
     ].join(" · ");
     context.append(sourceLabel, source, promptLabel, prompt, counts);
     elThreadList.append(context);
+
+    appendFieldNoteCards(
+      elThreadList,
+      comparison.field_notes || [],
+      "Human Field Notes"
+    );
+
+    const writeNote = document.createElement("button");
+    writeNote.type = "button";
+    writeNote.className = "field-note-write";
+    writeNote.textContent = "Write Field Note";
+    writeNote.addEventListener("click", () => renderFieldNoteComposer(comparison));
+    elThreadList.append(writeNote);
 
     for (const path of comparison.paths || []) {
       const article = document.createElement("article");
@@ -1060,7 +1087,270 @@
     }
   }
 
+  function appendFieldNoteCards(parent, notes, headingText) {
+    if (!notes.length) return;
+    const section = document.createElement("section");
+    section.className = "field-note-list";
+    const heading = document.createElement("h3");
+    heading.textContent = headingText;
+    section.append(heading);
+    for (const note of notes) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "field-note-card";
+      const label = document.createElement("span");
+      label.className = "field-note-label";
+      label.textContent = `Human Field Note · ${note.kind_label}`;
+      const body = document.createElement("span");
+      body.className = "field-note-card-text";
+      body.textContent = note.text;
+      const meta = document.createElement("span");
+      meta.className = "field-note-meta";
+      meta.textContent =
+        `${note.reference_count} exact thoughts · ${note.integrity === "verified" ? "source integrity verified" : "source integrity failed"}`;
+      button.append(label, body, meta);
+      button.addEventListener("click", () => openFieldNote(note.id));
+      section.append(button);
+    }
+    parent.append(section);
+  }
+
+  async function openFieldNote(noteId) {
+    elThreadStatus.textContent = "reading the human Field Note…";
+    try {
+      const note = await api(`/api/field-notes/${noteId}`);
+      if (!elThreadCompass.hidden) renderFieldNote(note);
+    } catch (error) {
+      elThreadStatus.textContent = String(error.message || error);
+    }
+  }
+
+  function renderFieldNote(note) {
+    threadNote = note;
+    threadComposer = false;
+    elThreadTitle.textContent = "Human Field Note";
+    elThreadSubtitle.textContent =
+      `${note.kind_label} · written by the inhabitant · ${note.reference_count} exact thoughts`;
+    elThreadClose.textContent = threadComparison
+      ? "back to comparison · esc"
+      : "back to lineage · esc";
+    elThreadLatest.hidden = true;
+    elThreadStatus.textContent =
+      note.integrity === "verified" ? "Source integrity verified." : "Source integrity failed.";
+    elThreadList.replaceChildren();
+
+    const article = document.createElement("article");
+    article.className = "field-note-reading";
+    const label = document.createElement("div");
+    label.className = "field-note-label";
+    label.textContent = `Human Field Note · ${note.kind_label}`;
+    const text = document.createElement("p");
+    text.textContent = note.text;
+    article.append(label, text);
+    elThreadList.append(article);
+
+    for (const reference of note.references || []) {
+      const source = document.createElement("article");
+      source.className = "field-note-reference";
+      const sourceLabel = document.createElement("div");
+      sourceLabel.className = "field-note-label";
+      sourceLabel.textContent = "Exact referenced thought";
+      const attribution = document.createElement("div");
+      attribution.className = "field-note-meta";
+      const harness = reference.harness
+        ? reference.harness.replace(/(^|-)([a-z])/g, (_match, dash, letter) => `${dash ? " " : ""}${letter.toUpperCase()}`)
+        : "Human or imported graph";
+      attribution.textContent = reference.thought
+        ? `${harness} · ${reference.model.name} · ${reference.thought.kind.replace(/_/g, " ")} · ${reference.thought.status}`
+        : `${reference.session_id}/${reference.graph_id}/${reference.node_id}`;
+      const thought = document.createElement("p");
+      thought.textContent = reference.thought
+        ? reference.thought.text
+        : "Referenced source is unavailable.";
+      const integrity = document.createElement("div");
+      integrity.className = "field-note-integrity";
+      integrity.textContent = reference.integrity === "verified"
+        ? "Source integrity verified"
+        : `Source integrity ${reference.integrity}`;
+      const enter = document.createElement("button");
+      enter.type = "button";
+      enter.className = "field-note-enter";
+      enter.textContent = "Enter this thought";
+      enter.disabled = !reference.entry || reference.integrity !== "verified";
+      enter.addEventListener("click", () => {
+        if (reference.entry) visitThreadEntry(reference.entry);
+      });
+      source.append(sourceLabel, attribution, thought, integrity, enter);
+      elThreadList.append(source);
+    }
+    elThreadPanel.scrollTop = 0;
+    elThreadClose.focus({ preventScroll: true });
+  }
+
+  function renderFieldNoteComposer(comparison) {
+    threadComposer = true;
+    threadNote = null;
+    elThreadTitle.textContent = "Write Field Note";
+    elThreadSubtitle.textContent =
+      "Select exact thoughts from at least two paths, then decide what mattered in your own words.";
+    elThreadClose.textContent = "back to comparison · esc";
+    elThreadLatest.hidden = true;
+    elThreadStatus.textContent = "No provider will be called. Source graphs will not change.";
+    elThreadList.replaceChildren();
+
+    const form = document.createElement("form");
+    form.className = "field-note-form";
+    const selectionStatus = document.createElement("div");
+    selectionStatus.className = "field-note-selection-status";
+    const selectedReview = document.createElement("ol");
+    selectedReview.className = "field-note-review";
+
+    for (const path of comparison.paths || []) {
+      const fieldset = document.createElement("fieldset");
+      fieldset.className = "field-note-path";
+      const legend = document.createElement("legend");
+      legend.textContent = `${path.harness_display_name} · ${path.model}`;
+      fieldset.append(legend);
+      for (const thought of path.selectable_thoughts || []) {
+        const label = document.createElement("label");
+        label.className = "field-note-thought";
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.dataset.sessionId = comparison.session_id;
+        input.dataset.graphId = path.graph_id;
+        input.dataset.nodeId = thought.id;
+        input.dataset.attribution = `${path.harness_display_name} · ${path.model}`;
+        input.dataset.kind = thought.kind.replace(/_/g, " ");
+        input.dataset.text = thought.text;
+        const copy = document.createElement("span");
+        const kind = document.createElement("span");
+        kind.className = "field-note-thought-kind";
+        kind.textContent = `${thought.kind.replace(/_/g, " ")} · ${thought.status}`;
+        const words = document.createElement("span");
+        words.textContent = thought.text;
+        copy.append(kind, words);
+        label.append(input, copy);
+        fieldset.append(label);
+      }
+      form.append(fieldset);
+    }
+
+    const kinds = document.createElement("fieldset");
+    kinds.className = "field-note-kinds";
+    const kindsLegend = document.createElement("legend");
+    kindsLegend.textContent = "note kind";
+    kinds.append(kindsLegend);
+    for (const [value, visible] of [
+      ["conclusion", "conclusion"],
+      ["unresolved_question", "unresolved question"],
+      ["observation", "observation"],
+    ]) {
+      const label = document.createElement("label");
+      const input = document.createElement("input");
+      input.type = "radio";
+      input.name = "field-note-kind";
+      input.value = value;
+      input.checked = value === "observation";
+      label.append(input, document.createTextNode(visible));
+      kinds.append(label);
+    }
+    const textLabel = document.createElement("label");
+    textLabel.className = "field-note-text-label";
+    textLabel.textContent = "what mattered";
+    const textarea = document.createElement("textarea");
+    textarea.maxLength = 4000;
+    textarea.rows = 7;
+    textarea.placeholder = "Write the conclusion, unresolved question, or observation in your own words.";
+    textLabel.append(textarea);
+    const reviewLabel = document.createElement("div");
+    reviewLabel.className = "field-note-review-label";
+    reviewLabel.textContent = "selected exact thoughts";
+    const actions = document.createElement("div");
+    actions.className = "field-note-actions";
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.textContent = "back without writing";
+    cancel.addEventListener("click", () => renderParallelComparison(comparison));
+    const submit = document.createElement("button");
+    submit.type = "submit";
+    submit.textContent = "Commit Field Note";
+    submit.disabled = true;
+    actions.append(cancel, submit);
+    form.append(kinds, textLabel, reviewLabel, selectedReview, selectionStatus, actions);
+    elThreadList.append(form);
+
+    function selectedInputs() {
+      return [...form.querySelectorAll('.field-note-thought input[type="checkbox"]:checked')];
+    }
+
+    function syncSelection(changed = null) {
+      let selected = selectedInputs();
+      if (selected.length > 12 && changed) {
+        changed.checked = false;
+        selected = selectedInputs();
+      }
+      const graphs = new Set(selected.map((item) => item.dataset.graphId));
+      selectionStatus.textContent =
+        `${selected.length} of 12 thoughts selected · ${graphs.size} paths represented`;
+      selectedReview.replaceChildren();
+      for (const input of selected) {
+        const item = document.createElement("li");
+        item.textContent =
+          `${input.dataset.attribution} · ${input.dataset.kind} — ${input.dataset.text}`;
+        selectedReview.append(item);
+      }
+      submit.disabled = selected.length < 2 || graphs.size < 2 || !textarea.value.trim();
+    }
+
+    form.addEventListener("change", (event) => {
+      const changed = event.target instanceof HTMLInputElement && event.target.type === "checkbox"
+        ? event.target
+        : null;
+      syncSelection(changed);
+    });
+    textarea.addEventListener("input", () => syncSelection());
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const selected = selectedInputs();
+      const kind = form.querySelector('input[name="field-note-kind"]:checked');
+      if (!kind || selected.length < 2 || new Set(selected.map((item) => item.dataset.graphId)).size < 2) return;
+      submit.disabled = true;
+      selectionStatus.textContent = "committing one immutable human Field Note…";
+      try {
+        const result = await post("/api/field-notes", {
+          kind: kind.value,
+          text: textarea.value,
+          comparison_request_id: comparison.representative_request_id,
+          references: selected.map((input) => ({
+            session_id: input.dataset.sessionId,
+            graph_id: input.dataset.graphId,
+            node_id: input.dataset.nodeId,
+          })),
+        });
+        threadComparison = await api(
+          `/api/parallel/${comparison.representative_request_id}`
+        );
+        renderFieldNote(result.note);
+      } catch (error) {
+        syncSelection();
+        selectionStatus.textContent = String(error.message || error);
+      }
+    });
+    syncSelection();
+    elThreadPanel.scrollTop = 0;
+    form.querySelector('.field-note-thought input[type="checkbox"]')?.focus();
+  }
+
   function threadBackOrClose() {
+    if (threadComposer && threadComparison) {
+      renderParallelComparison(threadComparison);
+      return;
+    }
+    if (threadNote) {
+      if (threadComparison) renderParallelComparison(threadComparison);
+      else if (threadLineage) renderThreadCompass(threadLineage);
+      return;
+    }
     if (threadComparison && threadLineage) {
       const requestId = threadComparison.representative_request_id;
       renderThreadCompass(threadLineage, requestId);
@@ -1082,7 +1372,9 @@
     elThreadStatus.textContent = "reading the session lineage…";
     elThreadClose.focus();
     try {
-      const lineage = await api(`/api/thread/${view.session_id}`);
+      const lineage = await api(
+        `/api/thread/${view.session_id}?graph=${view.graph_id}&node=${view.node.id}`
+      );
       if (!elThreadCompass.hidden) renderThreadCompass(lineage);
     } catch (error) {
       elThreadStatus.textContent =
@@ -2185,6 +2477,7 @@
       traversal.terminal ? traversal.state_line : null,
       read.climate_line,
       read.evidence_line,
+      read.field_note_line,
     ].filter(Boolean);
     elHere.textContent = hereBits.join(" · ");
     const bits = [];
@@ -3049,6 +3342,7 @@
 
   window.addEventListener("keydown", (e) => {
     if (!elThreadCompass.hidden) {
+      if (textEntryOwnsKey(e.target) && e.key !== "Escape") return;
       if (e.key === "Escape") {
         e.preventDefault();
         threadBackOrClose();

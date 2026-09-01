@@ -171,6 +171,8 @@ def test_thread_compass_and_parallel_endpoint_are_server_authored(tmp_path: Path
     comparison = replies[-1][1]
     assert comparison["prompt"] == group["prompt"]
     assert len(comparison["paths"]) == 5
+    assert comparison["field_notes"] == []
+    assert comparison["paths"][0]["selectable_thoughts"]
     assert comparison["paths"][2]["recorded_warnings"] == [
         "policy: supports/depends_on/shapes cycle detected"
     ]
@@ -200,7 +202,7 @@ def test_thread_compass_and_legend_controls_are_chamber_overlays():
     assert "backdrop-filter: blur(10px)" in css
     assert ".thread-panel" in css
     assert ".thread-entry.current" in css
-    assert 'api(`/api/thread/${view.session_id}`)' in js
+    assert '`/api/thread/${view.session_id}?graph=${view.graph_id}&node=${view.node.id}`' in js
     assert 'api(`/api/parallel/${requestId}`)' in js
     assert "openThreadCompass" in js
     assert "openParallelComparison" in js
@@ -235,6 +237,12 @@ def test_thread_compass_and_legend_controls_are_chamber_overlays():
     assert 'api("/api/workspace")' in js
     assert 'e.key === "m"' in js
     assert "function textEntryOwnsKey(target)" in js
+    assert 'post("/api/field-notes"' in js
+    assert 'api(`/api/field-notes/${noteId}`)' in js
+    assert "renderFieldNoteComposer" in js
+    assert "Human Field Note" in js
+    assert ".field-note-form" in css
+    assert ".field-note-reference" in css
     assert 'if (textEntryOwnsKey(e.target) && e.key !== "Escape") return;' in js
     key_handler = js.index('window.addEventListener("keydown", (e) =>')
     assert js.index('if (textEntryOwnsKey(e.target)', key_handler) < js.index(

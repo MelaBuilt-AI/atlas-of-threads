@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mela.ai/schemas/thought-archaeology/v1/field-note.schema.json",
+  "title": "FieldNote",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "created_at", "author", "kind", "text", "references"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "id": { "type": "string", "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$" },
+    "created_at": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" },
+    "author": { "const": "human" },
+    "kind": {
+      "type": "string",
+      "enum": ["conclusion", "unresolved_question", "observation"]
+    },
+    "text": { "type": "string", "minLength": 1, "maxLength": 4000 },
+    "references": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 12,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["session_id", "graph_id", "node_id", "graph_sha256"],
+        "properties": {
+          "session_id": { "type": "string", "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$" },
+          "graph_id": { "type": "string", "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$" },
+          "node_id": { "type": "string", "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$" },
+          "graph_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        }
+      }
+    }
+  }
+}
