@@ -1085,6 +1085,12 @@ html, body {
   outline: none;
 }
 
+.field-note-card:disabled {
+  border-color: rgba(200, 242, 106, 0.22);
+  cursor: default;
+  opacity: 0.72;
+}
+
 .field-note-label {
   color: var(--phosphor);
   font: 0.62rem ui-monospace, Menlo, monospace;

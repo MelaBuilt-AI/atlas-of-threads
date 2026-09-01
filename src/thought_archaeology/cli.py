@@ -21,7 +21,12 @@ from thought_archaeology.continuation import (
 )
 from thought_archaeology.edits import append_op_turn, commit, plan_fork, plan_veto
 from thought_archaeology.evidence import context_provenance_binding
-from thought_archaeology.field_notes import create_field_note, field_note_read
+from thought_archaeology.field_notes import (
+    create_field_note,
+    edit_field_note,
+    field_note_all_references,
+    field_note_read,
+)
 from thought_archaeology.fingerprint import DEFAULT_MIN_SESSIONS, Fingerprint, fingerprint
 from thought_archaeology.fork import (
     ForkError,
@@ -256,6 +261,29 @@ def _parser() -> argparse.ArgumentParser:
     note_text = p_field_note_create.add_mutually_exclusive_group(required=True)
     note_text.add_argument("--text", metavar="TEXT")
     note_text.add_argument("--input", metavar="PATH")
+    p_field_note_edit = field_note_sub.add_parser(
+        "edit",
+        parents=[sub_globals],
+        help="append a revision to the original author's Field Note",
+    )
+    p_field_note_edit.add_argument("note")
+    p_field_note_edit.add_argument(
+        "--kind",
+        required=True,
+        choices=["conclusion", "unresolved_question", "observation"],
+    )
+    p_field_note_edit.add_argument(
+        "--comparison", required=True, metavar="REQUEST"
+    )
+    p_field_note_edit.add_argument(
+        "--reference",
+        required=True,
+        action="append",
+        metavar="SESSION/GRAPH/NODE",
+    )
+    edit_text = p_field_note_edit.add_mutually_exclusive_group(required=True)
+    edit_text.add_argument("--text", metavar="TEXT")
+    edit_text.add_argument("--input", metavar="PATH")
     p_field_note_list = field_note_sub.add_parser(
         "list", parents=[sub_globals], help="list Field Notes"
     )
@@ -268,6 +296,7 @@ def _parser() -> argparse.ArgumentParser:
         "show", parents=[sub_globals], help="show one Field Note"
     )
     p_field_note_show.add_argument("note")
+    p_field_note_show.add_argument("--revision", default=None, metavar="REVISION")
     p_field_note_show.add_argument(
         "--format", choices=["text", "json"], default="text"
     )
@@ -935,7 +964,12 @@ def cmd_validate(args: argparse.Namespace) -> int:
             elif isinstance(raw, dict) and "title" in raw and "updated_at" in raw:
                 validate_schema("session.schema.json", raw)
             elif isinstance(raw, dict) and raw.get("author") == "human" and "references" in raw:
-                validate_schema("field-note.schema.json", raw)
+                validate_schema(
+                    "field-note-revision.schema.json"
+                    if "note_id" in raw
+                    else "field-note.schema.json",
+                    raw,
+                )
             else:
                 validate_graph(raw)
         except ValidationError as exc:
@@ -1964,6 +1998,37 @@ def cmd_field_note(args: argparse.Namespace) -> int:
         )
         print(note.id)
         return EXIT_OK
+    if args.field_note_cmd == "edit":
+        text = args.text if args.text is not None else _read_path(args.input)
+        references = tuple(_field_note_reference(item) for item in args.reference)
+        revision = edit_field_note(
+            store,
+            note_id=args.note,
+            kind=args.kind,
+            text=text,
+            references=references,
+            comparison_request_id=args.comparison,
+        )
+        path = store.field_note_revisions_dir(args.note) / f"{revision.id}.json"
+        store.log(
+            "field_note_revision_create",
+            note_id=args.note,
+            revision_id=revision.id,
+            previous_revision_id=revision.previous_revision_id,
+            kind=revision.kind,
+            references=[
+                {
+                    "session_id": item.session_id,
+                    "graph_id": item.graph_id,
+                    "node_id": item.node_id,
+                }
+                for item in revision.references
+            ],
+            path=str(path),
+            warnings=[],
+        )
+        print(revision.id)
+        return EXIT_OK
     if args.field_note_cmd == "list":
         if args.node and not args.graph:
             raise UsageError("--node requires --graph")
@@ -1973,7 +2038,7 @@ def cmd_field_note(args: argparse.Namespace) -> int:
             if any(
                 (args.graph is None or ref.graph_id == args.graph)
                 and (args.node is None or ref.node_id == args.node)
-                for ref in note.references
+                for ref in field_note_all_references(store, note)
             )
         ]
         if args.format == "json":
@@ -1988,11 +2053,23 @@ def cmd_field_note(args: argparse.Namespace) -> int:
             )
         return EXIT_OK
     if args.field_note_cmd == "show":
-        note = field_note_read(store, store.load_field_note(args.note))
+        note = field_note_read(
+            store,
+            store.load_field_note(args.note),
+            revision_id=args.revision,
+        )
         if args.format == "json":
             print(json.dumps(note, ensure_ascii=False))
             return EXIT_OK
-        print(f"Human Field Note · {note['kind_label']}")
+        selected_index = next(
+            index
+            for index, item in enumerate(note["revision_history"], start=1)
+            if item["revision_id"] == note["revision_id"]
+        )
+        print(
+            f"Human Field Note · {note['kind_label']} · revision "
+            f"{selected_index}/{note['revision_count']}"
+        )
         print(note["text"])
         print(
             "Source integrity verified"
@@ -2012,6 +2089,15 @@ def cmd_field_note(args: argparse.Namespace) -> int:
                 else "  source unavailable"
             )
             print(f"  integrity: {reference['integrity']}")
+        if note["revision_count"] > 1:
+            print()
+            print("Revision history")
+            for index, revision in enumerate(note["revision_history"], start=1):
+                marker = " · current" if revision["current"] else ""
+                print(
+                    f"  {index}/{note['revision_count']} · {revision['revision_id']} · "
+                    f"{revision['created_at']} · {revision['kind_label']}{marker}"
+                )
         return EXIT_OK
     raise UsageError("unknown Field Note command")
 

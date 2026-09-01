@@ -1056,11 +1056,18 @@
       "Human Field Notes"
     );
 
-    const writeNote = document.createElement("button");
-    writeNote.type = "button";
-    writeNote.className = "field-note-write";
-    writeNote.textContent = "Write Field Note";
-    writeNote.addEventListener("click", () => {
+    const noteAction = document.createElement("button");
+    noteAction.type = "button";
+    noteAction.className = "field-note-write";
+    const existingNote = (comparison.field_notes || [])[0] || null;
+    noteAction.textContent = existingNote
+      ? "Edit Field Note · appends a revision"
+      : "Write Field Note";
+    noteAction.addEventListener("click", () => {
+      if (existingNote) {
+        openFieldNoteEditor(existingNote.id, comparison);
+        return;
+      }
       const standingPath = (comparison.paths || []).find((path) =>
         path.graph_id === view.graph_id &&
         (path.selectable_thoughts || []).some((thought) => thought.id === view.node.id)
@@ -1076,7 +1083,7 @@
           : null
       );
     });
-    elThreadList.append(writeNote);
+    elThreadList.append(noteAction);
 
     for (const path of comparison.paths || []) {
       const article = document.createElement("article");
@@ -1163,8 +1170,11 @@
       body.textContent = note.text;
       const meta = document.createElement("span");
       meta.className = "field-note-meta";
-      meta.textContent =
-        `${note.reference_count} exact thoughts · ${note.integrity === "verified" ? "source integrity verified" : "source integrity failed"}`;
+      meta.textContent = [
+        `${note.reference_count} exact thoughts`,
+        `${note.revision_count || 1} ${(note.revision_count || 1) === 1 ? "revision" : "revisions"}`,
+        note.integrity === "verified" ? "source integrity verified" : "source integrity failed",
+      ].join(" · ");
       button.append(label, body, meta);
       button.addEventListener("click", () => openFieldNote(note.id));
       section.append(button);
@@ -1172,11 +1182,31 @@
     parent.append(section);
   }
 
-  async function openFieldNote(noteId) {
+  async function openFieldNote(noteId, revisionId = null) {
     elThreadStatus.textContent = "reading the human Field Note…";
     try {
-      const note = await api(`/api/field-notes/${noteId}`);
+      const suffix = revisionId
+        ? `?revision=${encodeURIComponent(revisionId)}`
+        : "";
+      const note = await api(`/api/field-notes/${noteId}${suffix}`);
       if (!elThreadCompass.hidden) renderFieldNote(note);
+    } catch (error) {
+      elThreadStatus.textContent = String(error.message || error);
+    }
+  }
+
+  async function openFieldNoteEditor(noteId, comparison = null) {
+    elThreadStatus.textContent = "opening the Field Note revision editor…";
+    try {
+      const note = await api(`/api/field-notes/${noteId}`);
+      const targetComparison = comparison || threadComparison || (
+        note.comparison_request_id
+          ? await api(`/api/parallel/${note.comparison_request_id}`)
+          : null
+      );
+      if (!targetComparison) throw new Error("Field Note comparison is unavailable");
+      threadComparison = targetComparison;
+      renderFieldNoteComposer(targetComparison, null, note);
     } catch (error) {
       elThreadStatus.textContent = String(error.message || error);
     }
@@ -1186,8 +1216,14 @@
     threadNote = note;
     threadComposer = false;
     elThreadTitle.textContent = "Human Field Note";
+    const revisionIndex = Math.max(
+      0,
+      (note.revision_history || []).findIndex(
+        (item) => item.revision_id === note.revision_id
+      )
+    );
     elThreadSubtitle.textContent =
-      `${note.kind_label} · written by the inhabitant · ${note.reference_count} exact thoughts`;
+      `${note.kind_label} · written by the inhabitant · revision ${revisionIndex + 1}/${note.revision_count || 1} · ${note.reference_count} exact thoughts`;
     elThreadClose.textContent = threadComparison
       ? "back to comparison · esc"
       : "back to lineage · esc";
@@ -1205,6 +1241,44 @@
     text.textContent = note.text;
     article.append(label, text);
     elThreadList.append(article);
+
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.className = "field-note-write";
+    edit.textContent = "Edit this Field Note · preserve the earlier revision";
+    edit.addEventListener("click", () => openFieldNoteEditor(note.id));
+    elThreadList.append(edit);
+
+    if ((note.revision_history || []).length > 1) {
+      const history = document.createElement("section");
+      history.className = "field-note-list";
+      const heading = document.createElement("h3");
+      heading.textContent = "Revision history · nothing overwritten";
+      history.append(heading);
+      for (const [index, revision] of note.revision_history.entries()) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "field-note-card";
+        if (revision.revision_id === note.revision_id) button.disabled = true;
+        const revisionLabel = document.createElement("span");
+        revisionLabel.className = "field-note-label";
+        revisionLabel.textContent =
+          `Revision ${index + 1}/${note.revision_count} · ${revision.kind_label}${revision.current ? " · current" : ""}`;
+        const body = document.createElement("span");
+        body.className = "field-note-card-text";
+        body.textContent = revision.text;
+        const meta = document.createElement("span");
+        meta.className = "field-note-meta";
+        meta.textContent =
+          `${revision.created_at.replace("T", " ").replace("Z", " UTC")} · ${revision.reference_count} exact thoughts`;
+        button.append(revisionLabel, body, meta);
+        button.addEventListener("click", () =>
+          openFieldNote(note.id, revision.revision_id)
+        );
+        history.append(button);
+      }
+      elThreadList.append(history);
+    }
 
     for (const reference of note.references || []) {
       const source = document.createElement("article");
@@ -1244,15 +1318,21 @@
     elThreadClose.focus({ preventScroll: true });
   }
 
-  function renderFieldNoteComposer(comparison, initialReference = null) {
+  function renderFieldNoteComposer(
+    comparison,
+    initialReference = null,
+    existingNote = null
+  ) {
     threadComposer = true;
-    threadNote = null;
-    elThreadTitle.textContent = "Write Field Note";
+    threadNote = existingNote;
+    elThreadTitle.textContent = existingNote ? "Edit Field Note" : "Write Field Note";
     elThreadSubtitle.textContent =
       "Select exact thoughts from at least two paths, then decide what mattered in your own words.";
     elThreadClose.textContent = "back to comparison · esc";
     elThreadLatest.hidden = true;
-    elThreadStatus.textContent = "No provider will be called. Source graphs will not change.";
+    elThreadStatus.textContent = existingNote
+      ? "Saving appends a human revision. Earlier text and source selections remain intact."
+      : "No provider will be called. Source graphs will not change.";
     elThreadList.replaceChildren();
     sound.setFieldNoteWriting(true);
 
@@ -1262,6 +1342,11 @@
     selectionStatus.className = "field-note-selection-status";
     const selectedReview = document.createElement("ol");
     selectedReview.className = "field-note-review";
+    const existingSelections = new Set(
+      (existingNote?.references || []).map((reference) =>
+        `${reference.session_id}:${reference.graph_id}:${reference.node_id}`
+      )
+    );
 
     for (const path of comparison.paths || []) {
       const fieldset = document.createElement("fieldset");
@@ -1280,7 +1365,10 @@
         input.dataset.attribution = `${path.harness_display_name} · ${path.model}`;
         input.dataset.kind = thought.kind.replace(/_/g, " ");
         input.dataset.text = thought.text;
-        input.checked = Boolean(
+        input.checked = existingSelections.has(
+          `${comparison.session_id}:${path.graph_id}:${thought.id}`
+        ) || Boolean(
+          !existingNote &&
           initialReference &&
           initialReference.session_id === comparison.session_id &&
           initialReference.graph_id === path.graph_id &&
@@ -1314,7 +1402,9 @@
       input.type = "radio";
       input.name = "field-note-kind";
       input.value = value;
-      input.checked = value === "observation";
+      input.checked = existingNote
+        ? value === existingNote.kind
+        : value === "observation";
       label.append(input, document.createTextNode(visible));
       kinds.append(label);
     }
@@ -1325,10 +1415,13 @@
     textarea.maxLength = 4000;
     textarea.rows = 7;
     textarea.placeholder = "Write the conclusion, unresolved question, or observation in your own words.";
+    textarea.value = existingNote ? existingNote.text : "";
     textLabel.append(textarea);
     const textHint = document.createElement("span");
     textHint.className = "field-note-selection-status";
-    textHint.textContent = "enter commits · shift+enter adds a new line · esc returns without writing";
+    textHint.textContent = existingNote
+      ? "enter saves a revision · shift+enter adds a new line · esc preserves the current revision"
+      : "enter commits · shift+enter adds a new line · esc returns without writing";
     textLabel.append(textHint);
     const reviewLabel = document.createElement("div");
     reviewLabel.className = "field-note-review-label";
@@ -1337,11 +1430,16 @@
     actions.className = "field-note-actions";
     const cancel = document.createElement("button");
     cancel.type = "button";
-    cancel.textContent = "back without writing";
-    cancel.addEventListener("click", () => renderParallelComparison(comparison));
+    cancel.textContent = existingNote
+      ? "back without revising"
+      : "back without writing";
+    cancel.addEventListener("click", () => {
+      if (existingNote) renderFieldNote(existingNote);
+      else renderParallelComparison(comparison);
+    });
     const submit = document.createElement("button");
     submit.type = "submit";
-    submit.textContent = "Commit Field Note";
+    submit.textContent = existingNote ? "Save Revision" : "Commit Field Note";
     submit.disabled = true;
     actions.append(cancel, submit);
     form.append(kinds, textLabel, reviewLabel, selectedReview, selectionStatus, actions);
@@ -1388,9 +1486,14 @@
       const kind = form.querySelector('input[name="field-note-kind"]:checked');
       if (!kind || selected.length < 2 || new Set(selected.map((item) => item.dataset.graphId)).size < 2) return;
       submit.disabled = true;
-      selectionStatus.textContent = "committing one immutable human Field Note…";
+      selectionStatus.textContent = existingNote
+        ? "appending one immutable human revision…"
+        : "committing one immutable human Field Note…";
       try {
-        const result = await post("/api/field-notes", {
+        const endpoint = existingNote
+          ? `/api/field-notes/${existingNote.id}/revisions`
+          : "/api/field-notes";
+        const result = await post(endpoint, {
           kind: kind.value,
           text: textarea.value,
           comparison_request_id: comparison.representative_request_id,
@@ -1402,6 +1505,18 @@
         });
         sound.setFieldNoteWriting(false);
         const summary = fieldNoteSummary(result.note);
+        if (existingNote) {
+          comparison.field_notes = (comparison.field_notes || []).map((note) =>
+            note.id === summary.id ? summary : note
+          );
+          if (view && (view.field_notes || []).some((note) => note.id === summary.id)) {
+            view.field_notes = view.field_notes.map((note) =>
+              note.id === summary.id ? summary : note
+            );
+          }
+          renderFieldNote(result.note);
+          return;
+        }
         if (!(comparison.field_notes || []).some((note) => note.id === summary.id)) {
           comparison.field_notes = [...(comparison.field_notes || []), summary];
         }
@@ -1424,7 +1539,8 @@
     syncSelection();
     elThreadPanel.scrollTop = 0;
     const initialInput = form.querySelector('.field-note-thought input[type="checkbox"]:checked');
-    (initialInput || form.querySelector('.field-note-thought input[type="checkbox"]'))?.focus();
+    if (existingNote) textarea.focus();
+    else (initialInput || form.querySelector('.field-note-thought input[type="checkbox"]'))?.focus();
   }
 
   async function openEligibleFieldNoteComposer() {
@@ -2861,6 +2977,7 @@
     return {
       id: note.id,
       created_at: note.created_at,
+      updated_at: note.updated_at || note.created_at,
       author: note.author,
       kind: note.kind,
       kind_label: note.kind_label,
@@ -2868,6 +2985,7 @@
       reference_count: note.reference_count,
       referenced_graph_count: note.referenced_graph_count,
       integrity: note.integrity,
+      revision_count: note.revision_count || 1,
     };
   }
 
@@ -2941,10 +3059,14 @@
   function plateFieldNote(note) {
     elKind.textContent = `human field note — ${note.kind_label}`;
     elText.textContent = note.text;
+    const revisionCount = note.revision_count || 1;
     elHere.textContent =
-      `inside an immutable human inscription · ${note.reference_count} exact thoughts across ${note.referenced_graph_count} paths · e reveals the selected sources`;
+      `inside a durable human inscription · revision ${revisionCount} of ${revisionCount} · ${note.reference_count} exact thoughts across ${note.referenced_graph_count} paths · e reveals the selected sources`;
     elMeta.textContent = [
-      note.created_at.replace("T", " ").replace("Z", " UTC"),
+      `created ${note.created_at.replace("T", " ").replace("Z", " UTC")}`,
+      revisionCount > 1
+        ? `revised ${note.updated_at.replace("T", " ").replace("Z", " UTC")}`
+        : "original inscription",
       note.integrity === "verified" ? "source integrity verified" : "source integrity failed",
       "b returns to the referenced chamber",
     ].join("  ·  ");

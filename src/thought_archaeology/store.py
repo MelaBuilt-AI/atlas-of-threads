@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import os
 import time
-import fcntl
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import replace
@@ -18,7 +18,7 @@ from thought_archaeology.continuation import (
     ContinuationRequest,
     ParallelContinuationBatch,
 )
-from thought_archaeology.field_notes import FieldNote
+from thought_archaeology.field_notes import FieldNote, FieldNoteRevision
 from thought_archaeology.ids import new_ulid, now_iso
 from thought_archaeology.models import SCHEMA_VERSION, Session, ThoughtGraph, ThoughtNode, Turn
 from thought_archaeology.schema import ValidationError, validate_graph, validate_schema
@@ -305,9 +305,40 @@ class Store:
     def field_notes_dir(self) -> Path:
         return self.root / "field-notes"
 
-    def write_field_note(self, note: FieldNote) -> Path:
+    @property
+    def field_notes_lock_path(self) -> Path:
+        return self.root / "field-notes.lock"
+
+    @contextmanager
+    def field_notes_lock(self, *, timeout: float = 5):
+        """Bounded lock for one-per-comparison creation and linear revisions."""
         self._require()
-        validate_schema("field-note.schema.json", note.to_dict())
+        fd = os.open(self.field_notes_lock_path, os.O_CREAT | os.O_RDWR, FILE_MODE)
+        started = time.monotonic()
+        acquired = False
+        try:
+            while True:
+                try:
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    acquired = True
+                    break
+                except BlockingIOError:
+                    if time.monotonic() - started >= timeout:
+                        raise StoreError("timed out waiting for Field Notes lock")
+                    time.sleep(0.02)
+            yield
+        finally:
+            if acquired:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+            os.close(fd)
+
+    def field_note_revisions_dir(self, note_id: str) -> Path:
+        return self.root / "field-note-revisions" / note_id
+
+    def _validate_field_note_content(
+        self, note: FieldNote | FieldNoteRevision, schema_name: str
+    ) -> None:
+        validate_schema(schema_name, note.to_dict())
         if note.text != note.text.strip():
             raise ValidationError(["Field Note text must be trimmed"])
         identities = {
@@ -333,6 +364,10 @@ class Store:
                 raise StoreError(
                     f"graph SHA-256 mismatch for Field Note source {reference.graph_id}"
                 )
+
+    def write_field_note(self, note: FieldNote) -> Path:
+        self._require()
+        self._validate_field_note_content(note, "field-note.schema.json")
         _mkdir(self.field_notes_dir)
         path = self.field_notes_dir / f"{note.id}.json"
         if path.exists():
@@ -361,6 +396,64 @@ class Store:
             raw = json.loads(path.read_text(encoding="utf-8"))
             validate_schema("field-note.schema.json", raw)
             yield FieldNote.from_dict(raw)
+
+    def write_field_note_revision(self, revision: FieldNoteRevision) -> Path:
+        self._require()
+        self._validate_field_note_content(
+            revision, "field-note-revision.schema.json"
+        )
+        note = self.load_field_note(revision.note_id)
+        directory = self.field_note_revisions_dir(note.id)
+        path = directory / f"{revision.id}.json"
+        if path.exists():
+            raise StoreError(
+                f"Field Note revision {revision.id} already exists (write-once)"
+            )
+        revisions = list(self.iter_field_note_revisions(note.id))
+        expected_previous = revisions[-1].id if revisions else note.id
+        if revision.previous_revision_id != expected_previous:
+            raise StoreError(
+                f"Field Note revision must follow current revision {expected_previous}"
+            )
+        _mkdir(directory)
+        _write_json(path, revision.to_dict())
+        return path
+
+    def load_field_note_revision(
+        self, note_id: str, revision_id: str
+    ) -> FieldNoteRevision:
+        self._require()
+        path = self.field_note_revisions_dir(note_id) / f"{revision_id}.json"
+        if not path.is_file():
+            raise StoreError(f"Field Note revision not found: {revision_id}")
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        validate_schema("field-note-revision.schema.json", raw)
+        revision = FieldNoteRevision.from_dict(raw)
+        if revision.note_id != note_id:
+            raise StoreError(f"Field Note revision {revision_id} has wrong note ID")
+        return revision
+
+    def iter_field_note_revisions(
+        self, note_id: str
+    ) -> Iterator[FieldNoteRevision]:
+        self._require()
+        directory = self.field_note_revisions_dir(note_id)
+        if not directory.is_dir():
+            return
+            yield  # pragma: no cover
+        previous = note_id
+        for path in sorted(directory.glob("*.json")):
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            validate_schema("field-note-revision.schema.json", raw)
+            revision = FieldNoteRevision.from_dict(raw)
+            if revision.note_id != note_id:
+                raise StoreError(f"Field Note revision {revision.id} has wrong note ID")
+            if revision.previous_revision_id != previous:
+                raise StoreError(
+                    f"Field Note revision {revision.id} does not follow {previous}"
+                )
+            yield revision
+            previous = revision.id
 
     @property
     def continuation_completions_dir(self) -> Path:
@@ -1108,4 +1201,30 @@ class Store:
                     errors.append(
                         f"Field Note {note.id} graph {graph.id} SHA-256 mismatch"
                     )
+            try:
+                revisions = list(self.iter_field_note_revisions(note.id))
+            except (StoreError, ValidationError, json.JSONDecodeError, OSError) as exc:
+                errors.append(str(exc))
+                revisions = []
+            for revision in revisions:
+                for reference in revision.references:
+                    if reference.session_id != session_id:
+                        continue
+                    graph = graphs.get(reference.graph_id)
+                    if graph is None:
+                        errors.append(
+                            f"Field Note revision {revision.id} graph "
+                            f"{reference.graph_id} missing from session"
+                        )
+                        continue
+                    if reference.node_id not in {node.id for node in graph.nodes}:
+                        errors.append(
+                            f"Field Note revision {revision.id} node "
+                            f"{reference.node_id} missing from graph"
+                        )
+                    if self.graph_sha256(graph.id) != reference.graph_sha256:
+                        errors.append(
+                            f"Field Note revision {revision.id} graph {graph.id} "
+                            "SHA-256 mismatch"
+                        )
         return errors

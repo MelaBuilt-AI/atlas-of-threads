@@ -11,6 +11,7 @@ import pytest
 from thought_archaeology.continuation import parallel_comparison
 from thought_archaeology.field_notes import (
     create_field_note,
+    edit_field_note,
     field_note,
     field_note_eligibility,
     field_note_read,
@@ -104,6 +105,113 @@ def test_field_note_is_write_once_exact_and_non_mutating(tmp_path: Path):
     assert lineage["standing_field_notes"][0]["kind"] == "observation"
     assert lineage["parallel_groups"][0]["field_notes"][0]["id"] == note.id
 
+    with pytest.raises(StoreError, match="already has Field Note"):
+        create_field_note(
+            store,
+            kind="conclusion",
+            text="A second monument must not appear.",
+            references=references,
+            comparison_request_id=request_ids[0],
+        )
+
+
+def test_field_note_edit_appends_revision_without_rewriting_history(tmp_path: Path):
+    store, _source_node, request_ids = _parallel_study(tmp_path / "data")
+    comparison = parallel_comparison(store, request_ids[0])
+    original_references = _references(comparison)
+    revised_references = _references(comparison, count=3)[1:]
+    graph_ids = [path["graph_id"] for path in comparison["paths"]]
+    graph_hashes = _source_hashes(store, graph_ids)
+    sessions_before = {
+        session_id: (store.session_dir(session_id) / "session.json").read_bytes()
+        for session_id in store.iter_session_ids()
+    }
+    turns_before = {
+        session_id: (store.session_dir(session_id) / "turns.jsonl").read_bytes()
+        for session_id in store.iter_session_ids()
+    }
+
+    note = create_field_note(
+        store,
+        kind="observation",
+        text="The original reading remains part of the record.",
+        references=original_references,
+        comparison_request_id=request_ids[0],
+    )
+    base_path = store.field_notes_dir / f"{note.id}.json"
+    base_bytes = base_path.read_bytes()
+    revision = edit_field_note(
+        store,
+        note_id=note.id,
+        kind="conclusion",
+        text="  The later reading can become more precise without erasure.  ",
+        references=revised_references,
+        comparison_request_id=request_ids[0],
+    )
+
+    revision_path = store.field_note_revisions_dir(note.id) / f"{revision.id}.json"
+    assert revision.previous_revision_id == note.id
+    assert revision.text == "The later reading can become more precise without erasure."
+    assert oct(revision_path.stat().st_mode & 0o777) == oct(0o600)
+    assert base_path.read_bytes() == base_bytes
+    with pytest.raises(StoreError, match="write-once"):
+        store.write_field_note_revision(revision)
+    branched = replace(
+        revision,
+        id=new_ulid(),
+        previous_revision_id=note.id,
+        text="This attempted branch must not enter the linear revision chain.",
+    )
+    with pytest.raises(StoreError, match="must follow current revision"):
+        store.write_field_note_revision(branched)
+
+    current = field_note_read(store, note)
+    assert current["id"] == note.id
+    assert current["revision_id"] == revision.id
+    assert current["current_revision_id"] == revision.id
+    assert current["revision_count"] == 2
+    assert current["viewing_latest"] is True
+    assert current["kind"] == "conclusion"
+    assert current["text"] == revision.text
+    assert [item["revision_id"] for item in current["revision_history"]] == [
+        note.id,
+        revision.id,
+    ]
+
+    original = field_note_read(store, note, revision_id=note.id)
+    assert original["id"] == note.id
+    assert original["revision_id"] == note.id
+    assert original["current_revision_id"] == revision.id
+    assert original["viewing_latest"] is False
+    assert original["text"] == note.text
+    assert original["references"][0]["node_id"] == note.references[0].node_id
+
+    assert field_note_summaries(
+        store,
+        graph_id=original_references[0][1],
+        node_id=original_references[0][2],
+    )[0]["text"] == revision.text
+    assert field_note_summaries(
+        store,
+        graph_id=revised_references[-1][1],
+        node_id=revised_references[-1][2],
+    )[0]["revision_count"] == 2
+    comparison_notes = parallel_comparison(store, request_ids[0])["field_notes"]
+    assert len(comparison_notes) == 1
+    assert comparison_notes[0]["id"] == note.id
+    assert comparison_notes[0]["revision_count"] == 2
+    assert comparison_notes[0]["text"] == revision.text
+
+    assert _source_hashes(store, graph_ids) == graph_hashes
+    assert {
+        session_id: (store.session_dir(session_id) / "session.json").read_bytes()
+        for session_id in store.iter_session_ids()
+    } == sessions_before
+    assert {
+        session_id: (store.session_dir(session_id) / "turns.jsonl").read_bytes()
+        for session_id in store.iter_session_ids()
+    } == turns_before
+
 
 def test_field_note_validation_and_comparison_guard(tmp_path: Path):
     store, _source_node, request_ids = _parallel_study(tmp_path / "data")
@@ -195,12 +303,50 @@ def test_field_note_schema_boundaries(tmp_path: Path):
         with pytest.raises(ValidationError):
             validate_schema("field-note.schema.json", candidate)
 
+    note = create_field_note(
+        store,
+        kind="observation",
+        text="The base note supplies the stable identity.",
+        references=_references(comparison),
+        comparison_request_id=request_ids[0],
+    )
+    revision = edit_field_note(
+        store,
+        note_id=note.id,
+        kind="conclusion",
+        text="The revision supplies the changing interpretation.",
+        references=_references(comparison),
+        comparison_request_id=request_ids[0],
+    ).to_dict()
+    validate_schema("field-note-revision.schema.json", revision)
+    for key in ("note_id", "previous_revision_id"):
+        malformed = deepcopy(revision)
+        malformed[key] = "not-an-id"
+        with pytest.raises(ValidationError):
+            validate_schema("field-note-revision.schema.json", malformed)
+
 
 def test_field_note_cli_and_server_surfaces(tmp_path: Path):
     store_path = tmp_path / "data"
     store, _source_node, request_ids = _parallel_study(store_path)
     comparison = parallel_comparison(store, request_ids[0])
     references = _references(comparison)
+    graph_id = comparison["paths"][0]["graph_id"]
+    graph = store.load_graph(graph_id)
+    terminal = next(
+        node
+        for node in graph.nodes
+        if not inhabit(store, node.id, graph_id=graph.id).forward
+    )
+    eligibility = field_note_eligibility(
+        store, graph_id=graph.id, node_id=terminal.id
+    )
+    assert eligibility["comparison_request_id"] == request_ids[0]
+    assert eligibility["standing_reference"] == {
+        "session_id": graph.session_id,
+        "graph_id": graph.id,
+        "node_id": terminal.id,
+    }
     ref_args = [
         item
         for reference in references
@@ -231,6 +377,39 @@ def test_field_note_cli_and_server_surfaces(tmp_path: Path):
     )
     assert code == 0, err
     assert json.loads(out)["integrity"] == "verified"
+    code, out, err = run(
+        [
+            "field-note",
+            "edit",
+            note_id,
+            "--kind",
+            "observation",
+            "--comparison",
+            request_ids[0],
+            *ref_args,
+            "--text",
+            "Plural paths remain distinct after a human revision.",
+        ],
+        store=store_path,
+    )
+    assert code == 0, err
+    cli_revision_id = out.strip()
+    assert list(store.iter_log_entries())[-1]["op"] == "field_note_revision_create"
+    assert "Plural paths remain" not in json.dumps(list(store.iter_log_entries())[-1])
+    code, out, err = run(
+        [
+            "field-note",
+            "show",
+            note_id,
+            "--revision",
+            note_id,
+            "--format",
+            "json",
+        ],
+        store=store_path,
+    )
+    assert code == 0, err
+    assert json.loads(out)["text"] == "Plural paths should remain addressably different."
     code, out, err = run(["validate", note_id], store=store_path)
     assert code == 0, err
     code, out, err = run(
@@ -262,40 +441,29 @@ def test_field_note_cli_and_server_surfaces(tmp_path: Path):
             for session, graph, node in references
         ],
     }
-    handler._field_note_create()
+    handler._field_note_edit(note_id)
     assert replies[-1][0] == 200
     second = replies[-1][1]["note"]
+    assert second["id"] == note_id
+    assert second["revision_count"] == 3
+    assert second["revision_history"][1]["revision_id"] == cli_revision_id
     assert second["kind_label"] == "unresolved question"
     assert second["integrity"] == "verified"
 
-    handler.path = f"/api/field-notes/{second['id']}"
+    handler.path = f"/api/field-notes/{note_id}?revision={cli_revision_id}"
     handler.do_GET()
-    assert replies[-1][1]["text"] == "Which fracture deserves another inquiry?"
+    assert replies[-1][1]["text"] == "Plural paths remain distinct after a human revision."
     handler.path = f"/api/inhabit/{references[0][2]}?graph={references[0][1]}"
     handler.do_GET()
     inhabit_payload = replies[-1][1]
-    assert len(inhabit_payload["field_notes"]) == 2
+    assert len(inhabit_payload["field_notes"]) == 1
+    assert inhabit_payload["field_notes"][0]["revision_count"] == 3
     assert "inspect in Thread Compass" in inhabit_payload["read"]["field_note_line"]
 
-    graph_id = comparison["paths"][0]["graph_id"]
-    graph = store.load_graph(graph_id)
-    terminal = next(
-        node
-        for node in graph.nodes
-        if not inhabit(store, node.id, graph_id=graph.id).forward
-    )
-    eligibility = field_note_eligibility(
-        store, graph_id=graph.id, node_id=terminal.id
-    )
-    assert eligibility["comparison_request_id"] == request_ids[0]
-    assert eligibility["standing_reference"] == {
-        "session_id": graph.session_id,
-        "graph_id": graph.id,
-        "node_id": terminal.id,
-    }
+    assert field_note_eligibility(store, graph_id=graph.id, node_id=terminal.id) is None
     handler.path = f"/api/inhabit/{terminal.id}?graph={graph.id}"
     handler.do_GET()
-    assert replies[-1][1]["field_note_eligibility"] == eligibility
+    assert replies[-1][1]["field_note_eligibility"] is None
     nonterminal = next(
         node
         for node in graph.nodes

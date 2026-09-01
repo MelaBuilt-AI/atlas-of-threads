@@ -365,12 +365,14 @@ comparison keeps every attributed graph separate, reports completed/failed/
 canceled/pending counts, and infers no vote, winner, or consensus.
 
 From that comparison, **Write Field Note** selects exact thought-objects across
-at least two paths and appends one human conclusion, unresolved question, or
-observation. Each reference preserves session/graph/node identity and the
-SHA-256 of the exact immutable graph bytes. Field Notes call no provider, change
-no graph, and remain separate from evidence. Thread Compass reopens them from
-the comparison and from every referenced chamber, where each exact source can
-be entered again. The bounded contract is in `docs/FIELD_NOTES.md`.
+at least two paths and creates its one human conclusion, unresolved question,
+or observation. Once it exists, eligibility disappears and **Edit Field Note**
+appends a revision to the same stable note and monument; prior text and source
+selections remain inspectable. Each reference preserves session/graph/node
+identity and the SHA-256 of the exact immutable graph bytes. Field Notes call no
+provider, change no graph, and remain separate from evidence. Thread Compass
+reopens the one note from the comparison and from every chamber referenced
+anywhere in its history. The bounded contract is in `docs/FIELD_NOTES.md`.
 
 At the terminal chamber of an eligible parallel path, a floating **Field Note
 Eligible** prompt offers `W` and preselects the standing thought in that exact
@@ -379,7 +381,8 @@ Field Notes Monument into the left human-inscription alcove, then leaves the
 completed notebook monument at every exact referenced chamber. Its neuron halo
 marks only browser-local first entry. Inside the monument the human note occupies
 the main reading plate, while `E` reveals its exact selected sources as human
-interpretive context—not causal evidence.
+interpretive context—not causal evidence. Later edits update that stable
+monument without replaying its one-time construction ceremony.
 
 The chamber edge stays intentionally quiet: its one top line opens the
 **Legend and controls** drawer with `l`. The drawer owns the sound controls,

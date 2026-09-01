@@ -240,7 +240,9 @@ def test_thread_compass_and_legend_controls_are_chamber_overlays():
     assert 'api("/api/workspace")' in js
     assert 'e.key === "m"' in js
     assert "function textEntryOwnsKey(target)" in js
-    assert 'post("/api/field-notes"' in js
+    assert '"/api/field-notes"' in js
+    assert '`/api/field-notes/${existingNote.id}/revisions`' in js
+    assert "post(endpoint" in js
     assert 'api(`/api/field-notes/${noteId}`)' in js
     assert "renderFieldNoteComposer" in js
     assert "Human Field Note" in js

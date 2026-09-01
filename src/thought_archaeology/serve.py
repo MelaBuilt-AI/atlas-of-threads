@@ -20,6 +20,7 @@ from thought_archaeology.continuation import (
 from thought_archaeology.fork import ForkError
 from thought_archaeology.field_notes import (
     create_field_note,
+    edit_field_note,
     field_note_eligibility,
     field_note_read,
     field_note_summaries,
@@ -601,7 +602,13 @@ class InhabitHandler(BaseHTTPRequestHandler):
                 if not note_id:
                     raise StoreError("Field Note is required")
                 note = self.store.load_field_note(note_id)
-                self._json(200, field_note_read(self.store, note))
+                revision_id = (qs.get("revision") or [None])[0]
+                self._json(
+                    200,
+                    field_note_read(
+                        self.store, note, revision_id=revision_id
+                    ),
+                )
                 return
             if path.startswith("/api/thread/"):
                 session_id = path[len("/api/thread/") :].strip("/")
@@ -749,6 +756,14 @@ class InhabitHandler(BaseHTTPRequestHandler):
             if path == "/api/field-notes":
                 self._field_note_create()
                 return
+            if path.startswith("/api/field-notes/") and path.endswith("/revisions"):
+                note_id = path[
+                    len("/api/field-notes/") : -len("/revisions")
+                ].strip("/")
+                if not note_id:
+                    raise ServeError("Field Note is required")
+                self._field_note_edit(note_id)
+                return
             if path.startswith("/api/parallel/") and path.endswith("/cancel"):
                 batch_id = path[len("/api/parallel/") : -len("/cancel")].strip("/")
                 if not batch_id:
@@ -790,7 +805,9 @@ class InhabitHandler(BaseHTTPRequestHandler):
             raise ServeError("session is required")
         return str(node_id), (str(graph_id) if graph_id else None), str(session_id)
 
-    def _field_note_create(self) -> None:
+    def _field_note_write_body(
+        self,
+    ) -> tuple[str, str, str, tuple[tuple[str, str, str], ...]]:
         body = self._read_json()
         kind = str(body.get("kind") or "")
         text = str(body.get("text") or "")
@@ -814,11 +831,17 @@ class InhabitHandler(BaseHTTPRequestHandler):
                 )
             except KeyError as exc:
                 raise ServeError(f"Field Note reference missing {exc.args[0]}") from exc
+        return kind, text, comparison_request_id, tuple(references)
+
+    def _field_note_create(self) -> None:
+        kind, text, comparison_request_id, references = (
+            self._field_note_write_body()
+        )
         note = create_field_note(
             self.store,
             kind=kind,  # type: ignore[arg-type]
             text=text,
-            references=tuple(references),
+            references=references,
             comparison_request_id=comparison_request_id,
         )
         path = self.store.field_notes_dir / f"{note.id}.json"
@@ -837,6 +860,39 @@ class InhabitHandler(BaseHTTPRequestHandler):
             path=str(path),
             warnings=[],
         )
+        self._json(200, {"ok": True, "note": field_note_read(self.store, note)})
+
+    def _field_note_edit(self, note_id: str) -> None:
+        kind, text, comparison_request_id, references = (
+            self._field_note_write_body()
+        )
+        revision = edit_field_note(
+            self.store,
+            note_id=note_id,
+            kind=kind,  # type: ignore[arg-type]
+            text=text,
+            references=references,
+            comparison_request_id=comparison_request_id,
+        )
+        path = self.store.field_note_revisions_dir(note_id) / f"{revision.id}.json"
+        self.store.log(
+            "field_note_revision_create",
+            note_id=note_id,
+            revision_id=revision.id,
+            previous_revision_id=revision.previous_revision_id,
+            kind=revision.kind,
+            references=[
+                {
+                    "session_id": item.session_id,
+                    "graph_id": item.graph_id,
+                    "node_id": item.node_id,
+                }
+                for item in revision.references
+            ],
+            path=str(path),
+            warnings=[],
+        )
+        note = self.store.load_field_note(note_id)
         self._json(200, {"ok": True, "note": field_note_read(self.store, note)})
 
     def _edit_fork(self) -> None:

@@ -1,6 +1,6 @@
 # Human-authored Field Notes
 
-Status: implementation authorized; live acceptance pending  
+Status: first live note accepted; one-note revision slice implemented, live acceptance pending
 Authorized by: user  
 Date: 2026-09-01
 
@@ -20,9 +20,11 @@ ask together → inspect separately → decide what mattered
 
 An inhabitant selects exact thought-objects from at least two paths in one
 Parallel Continuations comparison and writes a durable conclusion, unresolved
-question, or observation in their own words. The note is a new immutable human
-artifact. It does not modify its source graphs, invoke a provider, select a
-winner, or synthesize an AI consensus graph.
+question, or observation in their own words. One exact comparison may own one
+Field Note. Its stable base artifact and every later revision are immutable;
+editing appends to one linear history and never creates a second monument. It
+does not modify its source graphs, invoke a provider, select a winner, or
+synthesize an AI consensus graph.
 
 This is the complete Phase 1 boundary. Portability, publication, remote
 references, identity, and the Master Atlas remain later work.
@@ -30,7 +32,11 @@ references, identity, and the Master Atlas remain later work.
 ## Product rules
 
 - Every Field Note is explicitly `human` authored.
-- Notes and their references are append-only.
+- One exact same-question Parallel Continuations comparison may own exactly one
+  Field Note. After creation, eligibility disappears and every write surface
+  becomes an edit surface for that note.
+- The base note and each revision are write-once. Editing appends one revision
+  to a linear chain; no earlier text or source selection is overwritten.
 - The first composition flow requires at least two selected thoughts from at
   least two distinct graphs in one exact same-question comparison.
 - A selected thought is identified by exact session, graph, and node ULIDs plus
@@ -43,6 +49,11 @@ references, identity, and the Master Atlas remain later work.
   graph compilation, turn append, graph mutation, or session-head update.
 - Field Notes are human interpretation, not causal evidence. They do not appear
   in evidence strata and do not change evidence results.
+- The local phase has no account system: the inhabitant controlling the private
+  local store is its implicit original author. When networking exists, Atlas
+  identity and instance signatures must restrict revision authorship to the
+  original owner while other identities branch from or respond to an exact
+  revision.
 
 ## Exact local thought reference
 
@@ -119,6 +130,45 @@ titles, or absolute locations. Those are server-authored read projections over
 the referenced immutable artifacts. This keeps the canonical note small and
 prevents copied display metadata from becoming a second source of truth.
 
+## Stable note identity and append-only revisions
+
+The first artifact remains the stable Field Note identity and revision 1. An
+edit writes a second artifact rather than changing it:
+
+```json
+{
+  "schema_version": "1.0.0",
+  "id": "01...REVISION",
+  "note_id": "01...STABLE_NOTE",
+  "previous_revision_id": "01...STABLE_NOTE_OR_PRIOR_REVISION",
+  "created_at": "2026-09-01T13:00:00Z",
+  "author": "human",
+  "kind": "unresolved_question",
+  "text": "The question that remains is ...",
+  "references": [
+    {
+      "session_id": "01...",
+      "graph_id": "01...",
+      "node_id": "01...",
+      "graph_sha256": "..."
+    },
+    {
+      "session_id": "01...",
+      "graph_id": "01...",
+      "node_id": "01...",
+      "graph_sha256": "..."
+    }
+  ]
+}
+```
+
+`note_id` never changes. `previous_revision_id` is the base note ID for the
+first edit and the immediately prior revision ID thereafter, producing one
+inspectable linear chain. The same content and exact-source validation applies
+to every revision. The ordinary read surface returns the latest revision while
+also returning revision count, current revision ID, and history; an exact older
+revision remains directly readable.
+
 ## Append-only store location
 
 Field Notes span sessions, so they live at store scope rather than beneath one
@@ -126,15 +176,18 @@ session:
 
 ```text
 field-notes/{note_id}.json
+field-note-revisions/{note_id}/{revision_id}.json
 ```
 
 `Store.write_field_note` validates all references and rejects an existing ID.
-There is no update or delete operation in Phase 1. Corrections are new notes;
-later correspondence may relate them without rewriting either artifact.
+Comparison-guarded creation uses a bounded store lock so concurrent requests
+cannot create two notes for one comparison. `Store.write_field_note_revision`
+requires the exact current predecessor and rejects an existing revision ID.
+There is no overwrite or delete operation.
 
-The ordinary store log records one `field_note_create` event with note ID,
-kind, exact referenced IDs, path, and an empty warning list. It does not copy
-the note text into the log.
+The ordinary store log records `field_note_create` or
+`field_note_revision_create` with note/revision IDs, kind, exact referenced
+IDs, path, and an empty warning list. It does not copy note text into the log.
 
 ## CLI surfaces
 
@@ -148,8 +201,15 @@ ta field-note create \
   --reference SESSION/GRAPH/NODE \
   --text "What mattered..."
 
+ta field-note edit NOTE \
+  --kind unresolved_question \
+  --comparison REQUEST \
+  --reference SESSION/GRAPH/NODE \
+  --reference SESSION/GRAPH/NODE \
+  --text "What matters now..."
+
 ta field-note list [--graph GRAPH [--node NODE]] [--format table|json]
-ta field-note show NOTE [--format text|json]
+ta field-note show NOTE [--revision REVISION] [--format text|json]
 ```
 
 `create` accepts either `--text TEXT` or `--input PATH` (including `-` for
@@ -157,18 +217,22 @@ stdin), never both. Human output shows kind, text, exact source attribution,
 and whether every graph digest still matches. JSON returns the complete
 server-authored read model.
 
-`list` is chronological and may filter by exact graph/node. `show` resolves
-every reference into its current exact thought text, kind, status, model,
-harness when recorded, session title, and entry target. Missing or mismatched
-source bytes are reported as an integrity failure; the raw note remains
-readable and is never silently repaired.
+`edit` accepts the same kind, comparison, reference, and text boundary as
+creation but appends to the named note. `list` is chronological and may filter
+by any exact graph/node referenced anywhere in the note's history. `show`
+defaults to the current revision and `--revision` selects the stable base ID or
+an exact revision ID. It resolves that revision's references into their exact
+thought text, kind, status, model, harness when recorded, session title, and
+entry target. Missing or mismatched source bytes are reported as an integrity
+failure; raw artifacts remain readable and are never silently repaired.
 
 ## Server surfaces
 
 ```text
 POST /api/field-notes
 GET  /api/field-notes?graph=GRAPH&node=NODE
-GET  /api/field-notes/NOTE
+POST /api/field-notes/NOTE/revisions
+GET  /api/field-notes/NOTE[?revision=REVISION]
 ```
 
 The write body is:
@@ -185,11 +249,15 @@ The write body is:
 }
 ```
 
-`comparison_request_id` is a write-time guard, not part of the canonical note.
+`comparison_request_id` is a write-time guard, not part of the canonical note
+or revision.
 The server loads that exact eligible comparison and requires every submitted
 graph to be one of its completed paths. This prevents the first UI from
 quietly becoming a generalized cross-store annotation endpoint. It then lets
 the store validate the exact thought references and compute hashes.
+
+Creation additionally rejects a comparison that already owns a Field Note.
+Revision creation requires the named stable note to belong to that comparison.
 
 The detailed Parallel Continuations payload adds `selectable_thoughts` for
 every path in canonical graph order and `field_notes` whose references touch at
@@ -220,7 +288,7 @@ eligibility.
 6. Choose conclusion, unresolved question, or observation.
 7. Write up to 4,000 characters and review the selected references in their
    preserved order. `Enter` commits when valid; `Shift+Enter` inserts a line.
-8. The immutable note is written once. The composer closes back to the same
+8. The immutable base note is written once. The composer closes back to the same
    chamber and its writing loop stops.
 9. An 18-second `field-notes-monument-construction-loop` accompanies the
    hologram monument while it materializes. Completion swaps to the permanent
@@ -229,15 +297,23 @@ eligibility.
     First-entry state is browser-local atmosphere, not canonical note state.
 11. Entering plays `field-notes-scribe-entry`, dissipates the first-entry halo,
     and inhabits the note without turning it into a graph node.
+12. Once authored, the floating eligibility message and `W` invitation vanish.
+    Thread Compass presents **Edit Field Note** instead.
+13. Editing begins from the latest kind, text, and exact selections. Saving
+    appends a revision, returns to the same note reader, and does not replay the
+    monument construction/completion ceremony because the monument already
+    exists.
 
 Existing notes appear above the comparison path readings under **Human Field
 Notes**. A note card visibly distinguishes its kind and human authorship.
-Opening it shows the note text followed by each exact referenced thought and an
-**Enter this thought** action.
+Opening it shows the current note text followed by each exact referenced thought
+and an **Enter this thought** action. Its revision history opens every older
+text and its corresponding exact selections without changing the current note.
 
-Thread Compass also nests the same note cards beneath their Parallel
-Continuations group. They are connective human inscriptions, not graph
-generations, children, votes, or merged paths.
+Thread Compass also nests one stable note card beneath its Parallel
+Continuations group. Revisions remain inside that card rather than becoming
+siblings or graph generations. They are connective human inscriptions, not
+children, votes, or merged paths.
 
 When standing at a referenced chamber, the server-authored bottom plate says
 `N human Field Notes · inspect in Thread Compass`. Opening `T` places those notes
@@ -245,6 +321,11 @@ in a **Field Notes from this chamber** section. The same immutable note is also
 projected as a permanent Field Notes Monument in the chamber's left-side human
 inscription alcove. A note selected from several chambers is not duplicated in
 storage; each monument is a doorway to the one store-scoped artifact.
+If an edit changes the selections, the monument remains discoverable at every
+chamber referenced by any revision so old archaeological doorways never vanish.
+Every doorway opens the stable note's current revision; its history exposes the
+older chamber selections. A newly referenced chamber receives the same permanent
+monument on entry, not a second stored object.
 
 Left placement is deliberate spatial grammar: story consequences remain ahead,
 rejected roads and human interpretation remain leftward but separate, AI
@@ -253,10 +334,11 @@ placed beyond existing rejected-road rows so they do not displace story
 geometry. Their amber ring and notebook/pen form distinguish them from ghosted
 negative-space relics.
 
-Inside a monument, the note kind and exact human text occupy the ordinary main
-reading plate. `B`, down, or Escape returns to the source chamber. `E` opens
-**Field Note source selections** in commit order with exact attribution, text,
-IDs, and integrity. This reuses the archaeological descent surface as an
+Inside a monument, the current note kind and exact human text occupy the
+ordinary main reading plate and identify its revision count. `B`, down, or
+Escape returns to the source chamber. `E` opens **Field Note source selections**
+for the current revision in recorded order with exact attribution, text, IDs,
+and integrity. This reuses the archaeological descent surface as an
 inspection gesture while explicitly saying that human selection context is not
 causal evidence and creates no `EvidenceBinding`.
 
@@ -291,13 +373,19 @@ inhabitant; it does not settle what should matter to everyone.
 - creation computes exact stored graph-byte SHA-256 values;
 - wrong session/graph/node combinations are rejected;
 - writing the same note ID twice is rejected;
+- a second note for the same comparison is rejected, including under the store
+  lock, and eligibility disappears after the first;
+- editing preserves the base bytes, appends a mode-`0600` revision with the
+  exact current predecessor, and rejects overwrite or a branched predecessor;
+- latest and exact historical reads return the correct text and selections;
 - source graph bytes, turns, session heads, continuation artifacts, and the
   pending inbox are unchanged by note creation;
 - list/filter/show are deterministic and report source integrity.
 
 ### CLI and server
 
-- CLI create/list/show table and JSON paths preserve exact IDs and text;
+- CLI create/edit/list/show table and JSON paths preserve stable note,
+  revision, exact IDs, and text;
 - server creation accepts only references from the guarded comparison;
 - GET detail and exact chamber filtering return server-authored attribution;
 - hidden reasoning never enters a Field Note payload;
@@ -309,6 +397,10 @@ inhabitant; it does not settle what should matter to everyone.
 - selection requires 2–12 thoughts and two distinct paths;
 - kind and multiline text remain stable while focused;
 - commit produces one note and returns to the same comparison/chamber context;
+- after commit, the eligibility prompt is absent and the comparison exposes
+  edit rather than a second creation action;
+- edit is prefilled from current content, saves one revision, exposes history,
+  and does not reconstruct the stable monument;
 - existing notes reopen from the comparison and every referenced chamber;
 - terminal comparison paths receive server-authored eligibility and `W`
   preselects the standing thought;
@@ -339,7 +431,7 @@ Before Public Local Preview work begins:
    prompt and ethereal cue appear once.
 2. Press `W`, confirm the standing thought is preselected, select a second
    path, and verify the writing loop stops when the composer closes.
-3. Commit one Field Note with `Enter`; observe the complete 18-second
+3. Commit the one Field Note with `Enter`; observe the complete 18-second
    hologram/construction-loop transition, completion cue, permanent monument,
    and first-entry neuron halo.
 4. Enter the monument, confirm the scribe-entry cue and halo dissipation, read
@@ -351,27 +443,34 @@ Before Public Local Preview work begins:
    first-entry halo in that browser.
 8. Open it from the original comparison and from every referenced chamber.
 9. Enter every referenced thought from the note and retrace normally.
-10. Create or inspect each visible kind: conclusion, unresolved question, and
-   observation.
-11. Confirm no continuation request, provider call, compiled graph, turn, or
-   session-head change occurred.
-12. Run the complete local suite and GitHub Python 3.11/3.12 workflow.
-13. Obtain explicit user live acceptance.
+10. Confirm the eligibility invitation is now absent and the exact comparison
+    offers **Edit Field Note**, not a second note.
+11. Edit its kind, text, or selections; confirm the monument does not reconstruct,
+    the stable note ID remains, and both revisions and their exact selections
+    remain inspectable.
+12. Create or inspect each visible kind: conclusion, unresolved question, and
+    observation.
+13. Confirm no continuation request, provider call, compiled graph, turn, or
+    session-head change occurred.
+14. Run the complete local suite and GitHub Python 3.11/3.12 workflow.
+15. Obtain explicit user live acceptance.
 
 ## Explicit deferrals
 
 Phase 1 does not add:
 
 - single-thought or single-graph notes;
-- editing, deletion, drafts, reactions, tags, search, or automatic suggestions;
+- deletion, drafts, reactions, tags, search, or automatic suggestions;
 - agent-authored or agent-proposed note text;
 - semantic clustering, agreement detection, voting, ranking, synthesis, or
   confidence aggregation;
 - new graph node/edge kinds or mutation of graph schema `1.0.0`;
 - evidence bindings derived from Field Notes;
 - portable reference envelopes, bundles, imports, or migrations;
-- instance identity, signatures, handles, accounts, permissions, publication,
-  remote references, networking, presence, or a Master Atlas service;
+- runtime instance identity, signatures, handles, accounts, permissions,
+  publication, remote references, networking, presence, or a Master Atlas
+  service (the accepted GitHub-gated identity bootstrap is preserved in the
+  Master Atlas specification for that later slice);
 - generalized annotation geometry, note-to-note links, remote monuments,
   monument publication, or a social feed.
 
