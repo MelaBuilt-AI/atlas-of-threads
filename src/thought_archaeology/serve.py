@@ -40,6 +40,13 @@ from thought_archaeology.harness_service import (
 )
 from thought_archaeology.ids import new_ulid, now_iso
 from thought_archaeology.inhabit import entry_node, inhabit
+from thought_archaeology.knowledge_capsules import (
+    construct_knowledge_capsule,
+    knowledge_capsule_eligibility,
+    knowledge_capsule_read,
+    knowledge_capsule_summaries,
+    launch_knowledge_capsule,
+)
 from thought_archaeology.models import (
     ModelInfo,
     SCHEMA_VERSION,
@@ -531,6 +538,10 @@ def thread_payload(
         group["field_notes"] = field_notes_for_graphs(
             store, set(group["graph_ids"])
         )
+        group["knowledge_capsules"] = knowledge_capsule_summaries(
+            store,
+            comparison_request_id=group["representative_request_id"],
+        )
     return {
         "session_id": session.id,
         "title": session.title,
@@ -594,6 +605,27 @@ class InhabitHandler(BaseHTTPRequestHandler):
                     200,
                     field_note_summaries(
                         self.store, graph_id=graph_id, node_id=node_id
+                    ),
+                )
+                return
+            if path == "/api/knowledge-capsules":
+                self._json(
+                    200,
+                    knowledge_capsule_summaries(
+                        self.store,
+                        session_id=(qs.get("session") or [None])[0],
+                    ),
+                )
+                return
+            if path.startswith("/api/knowledge-capsules/"):
+                capsule_id = path[len("/api/knowledge-capsules/") :].strip("/")
+                if not capsule_id:
+                    raise StoreError("Knowledge Capsule is required")
+                self._json(
+                    200,
+                    knowledge_capsule_read(
+                        self.store,
+                        self.store.load_knowledge_capsule(capsule_id),
                     ),
                 )
                 return
@@ -701,6 +733,18 @@ class InhabitHandler(BaseHTTPRequestHandler):
                     if payload.get("read", {}).get("traversal", {}).get("terminal")
                     else None
                 )
+                payload["knowledge_capsules"] = knowledge_capsule_summaries(
+                    self.store,
+                    source_graph_id=view.graph.id,
+                    source_node_id=view.node.id,
+                )
+                payload["knowledge_capsule_eligibility"] = (
+                    knowledge_capsule_eligibility(
+                        self.store,
+                        graph_id=view.graph.id,
+                        node_id=view.node.id,
+                    )
+                )
                 payload["read"]["field_note_line"] = (
                     f"{len(payload['field_notes'])} human Field "
                     f"{'Note' if len(payload['field_notes']) == 1 else 'Notes'} "
@@ -755,6 +799,17 @@ class InhabitHandler(BaseHTTPRequestHandler):
                 return
             if path == "/api/field-notes":
                 self._field_note_create()
+                return
+            if path == "/api/knowledge-capsules":
+                self._knowledge_capsule_construct()
+                return
+            if path.startswith("/api/knowledge-capsules/") and path.endswith("/launch"):
+                capsule_id = path[
+                    len("/api/knowledge-capsules/") : -len("/launch")
+                ].strip("/")
+                if not capsule_id:
+                    raise ServeError("Knowledge Capsule is required")
+                self._knowledge_capsule_launch(capsule_id)
                 return
             if path.startswith("/api/field-notes/") and path.endswith("/revisions"):
                 note_id = path[
@@ -894,6 +949,58 @@ class InhabitHandler(BaseHTTPRequestHandler):
         )
         note = self.store.load_field_note(note_id)
         self._json(200, {"ok": True, "note": field_note_read(self.store, note)})
+
+    def _knowledge_capsule_construct(self) -> None:
+        body = self._read_json()
+        comparison_request_id = str(body.get("comparison_request_id") or "")
+        if not comparison_request_id:
+            raise ServeError("Knowledge Capsule requires a comparison request")
+        manifest = construct_knowledge_capsule(
+            self.store, comparison_request_id=comparison_request_id
+        )
+        path = self.store.knowledge_capsules_dir / f"{manifest.id}.json"
+        self.store.log(
+            "knowledge_capsule_construct",
+            capsule_id=manifest.id,
+            session_id=manifest.session_id,
+            comparison_request_id=manifest.comparison_request_id,
+            field_note_id=manifest.field_note_id,
+            field_note_revision_id=manifest.field_note_revision_id,
+            head_graph_id=manifest.head_graph_id,
+            head_turn_id=manifest.head_turn_id,
+            path=str(path),
+            warnings=[],
+        )
+        self._json(
+            200,
+            {
+                "ok": True,
+                "construction_started": True,
+                "capsule": knowledge_capsule_read(self.store, manifest),
+            },
+        )
+
+    def _knowledge_capsule_launch(self, capsule_id: str) -> None:
+        launch = launch_knowledge_capsule(self.store, capsule_id)
+        self.store.log(
+            "knowledge_capsule_launch",
+            capsule_id=launch.capsule_id,
+            launch_id=launch.id,
+            markdown_sha256=launch.markdown_sha256,
+            path=str(self.store.root / launch.markdown_path),
+            warnings=[],
+        )
+        self._json(
+            200,
+            {
+                "ok": True,
+                "launch": launch.to_dict(),
+                "capsule": knowledge_capsule_read(
+                    self.store,
+                    self.store.load_knowledge_capsule(capsule_id),
+                ),
+            },
+        )
 
     def _edit_fork(self) -> None:
         body = self._read_json()

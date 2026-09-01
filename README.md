@@ -131,6 +131,10 @@ ta field-note create --kind conclusion|unresolved_question|observation \
   --reference SESSION/GRAPH/NODE --text TEXT
 ta field-note list [--graph G [--node N]] [--format table|json]
 ta field-note show NOTE [--format text|json]
+ta capsule construct --comparison REQUEST
+ta capsule launch CAPSULE
+ta capsule list [--session SESSION] [--format table|json]
+ta capsule show CAPSULE [--format text|json]
 
 ta harness configure
 ta harness register NAME --adapter PATH [--arg VALUE ...] [--default]
@@ -383,6 +387,17 @@ marks only browser-local first entry. Inside the monument the human note occupie
 the main reading plate, while `E` reveals its exact selected sources as human
 interpretive context—not causal evidence. Later edits update that stable
 monument without replaying its one-time construction ceremony.
+
+Once a completed comparison has its integrity-valid Field Note and no pending
+session work, **Knowledge Capsule Earned** offers `K` at the exact source
+chamber. Construction freezes a private, write-once, full-session-through-head
+manifest with exact artifact hashes and the current Field Note revision. Its
+rear-right launcher builds for 18 seconds, becomes charged, and can launch only
+after deterministic mode-`0600` Markdown and its receipt are safely written.
+Successful launch curves one Capsule into the local neural canopy and leaves a
+selectable spent launcher with scope, integrity, launch time, and output path.
+It uploads or publishes nothing, includes no hidden reasoning, and is not a
+lossless backup or import bundle. See `docs/KNOWLEDGE_CAPSULES.md`.
 
 The chamber edge stays intentionally quiet: its one top line opens the
 **Legend and controls** drawer with `l`. The drawer owns the sound controls,

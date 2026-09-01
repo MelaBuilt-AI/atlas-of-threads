@@ -48,6 +48,12 @@ from thought_archaeology.harness_service import (
     remove_harness_service,
 )
 from thought_archaeology.inhabit import format_inhabit, inhabit, resolve_standing
+from thought_archaeology.knowledge_capsules import (
+    construct_knowledge_capsule,
+    knowledge_capsule_read,
+    knowledge_capsule_summaries,
+    launch_knowledge_capsule,
+)
 from thought_archaeology.models import SCHEMA_VERSION, ModelInfo, Span, ThoughtGraph, Turn
 from thought_archaeology.render_md import render_md
 from thought_archaeology.serve import DEFAULT_BIND, DEFAULT_PORT, ServeError, serve_forever
@@ -298,6 +304,39 @@ def _parser() -> argparse.ArgumentParser:
     p_field_note_show.add_argument("note")
     p_field_note_show.add_argument("--revision", default=None, metavar="REVISION")
     p_field_note_show.add_argument(
+        "--format", choices=["text", "json"], default="text"
+    )
+
+    p_capsule = sub.add_parser(
+        "capsule",
+        parents=[sub_globals],
+        help="construct and launch private Knowledge Capsule snapshots",
+    )
+    capsule_sub = p_capsule.add_subparsers(dest="capsule_cmd", required=True)
+    p_capsule_construct = capsule_sub.add_parser(
+        "construct",
+        parents=[sub_globals],
+        help="freeze one earned comparison milestone",
+    )
+    p_capsule_construct.add_argument(
+        "--comparison", required=True, metavar="REQUEST"
+    )
+    p_capsule_launch = capsule_sub.add_parser(
+        "launch", parents=[sub_globals], help="write and spend one Capsule"
+    )
+    p_capsule_launch.add_argument("capsule")
+    p_capsule_list = capsule_sub.add_parser(
+        "list", parents=[sub_globals], help="list Knowledge Capsules"
+    )
+    p_capsule_list.add_argument("--session", default=None, metavar="SESSION")
+    p_capsule_list.add_argument(
+        "--format", choices=["table", "json"], default="table"
+    )
+    p_capsule_show = capsule_sub.add_parser(
+        "show", parents=[sub_globals], help="show one Knowledge Capsule"
+    )
+    p_capsule_show.add_argument("capsule")
+    p_capsule_show.add_argument(
         "--format", choices=["text", "json"], default="text"
     )
 
@@ -970,6 +1009,10 @@ def cmd_validate(args: argparse.Namespace) -> int:
                     else "field-note.schema.json",
                     raw,
                 )
+            elif isinstance(raw, dict) and "rendering_version" in raw and "artifacts" in raw:
+                validate_schema("knowledge-capsule-manifest.schema.json", raw)
+            elif isinstance(raw, dict) and raw.get("success") is True and "markdown_sha256" in raw:
+                validate_schema("knowledge-capsule-launch.schema.json", raw)
             else:
                 validate_graph(raw)
         except ValidationError as exc:
@@ -998,6 +1041,15 @@ def cmd_validate(args: argparse.Namespace) -> int:
         note = field_note_read(store, store.load_field_note(target))
         if note["integrity"] != "verified":
             print(f"Field Note {target} source integrity failed", file=sys.stderr)
+            return EXIT_VALIDATION
+        return EXIT_OK
+    if store.knowledge_capsule_exists(target):
+        capsule = knowledge_capsule_read(store, store.load_knowledge_capsule(target))
+        if capsule["integrity"] != "verified":
+            print(f"Knowledge Capsule {target} source integrity failed", file=sys.stderr)
+            return EXIT_VALIDATION
+        if capsule["launch"] and capsule["markdown_integrity"] != "verified":
+            print(f"Knowledge Capsule {target} Markdown integrity failed", file=sys.stderr)
             return EXIT_VALIDATION
         return EXIT_OK
     print(f"not found: {target}", file=sys.stderr)
@@ -2102,6 +2154,80 @@ def cmd_field_note(args: argparse.Namespace) -> int:
     raise UsageError("unknown Field Note command")
 
 
+def cmd_capsule(args: argparse.Namespace) -> int:
+    store = _store(args)
+    if args.capsule_cmd == "construct":
+        manifest = construct_knowledge_capsule(
+            store, comparison_request_id=args.comparison
+        )
+        path = store.knowledge_capsules_dir / f"{manifest.id}.json"
+        store.log(
+            "knowledge_capsule_construct",
+            capsule_id=manifest.id,
+            session_id=manifest.session_id,
+            comparison_request_id=manifest.comparison_request_id,
+            field_note_id=manifest.field_note_id,
+            field_note_revision_id=manifest.field_note_revision_id,
+            head_graph_id=manifest.head_graph_id,
+            head_turn_id=manifest.head_turn_id,
+            path=str(path),
+            warnings=[],
+        )
+        print(manifest.id)
+        return EXIT_OK
+    if args.capsule_cmd == "launch":
+        launch = launch_knowledge_capsule(store, args.capsule)
+        store.log(
+            "knowledge_capsule_launch",
+            capsule_id=launch.capsule_id,
+            launch_id=launch.id,
+            markdown_sha256=launch.markdown_sha256,
+            path=str(store.root / launch.markdown_path),
+            warnings=[],
+        )
+        print(store.root / launch.markdown_path)
+        return EXIT_OK
+    if args.capsule_cmd == "list":
+        capsules = knowledge_capsule_summaries(store, session_id=args.session)
+        if args.format == "json":
+            print(json.dumps(capsules, ensure_ascii=False))
+            return EXIT_OK
+        print(f"{'capsule':<26}  {'state':<10}  {'artifacts':<9}  session")
+        for capsule in capsules:
+            print(
+                f"{capsule['id']:<26}  {capsule['state']:<10}  "
+                f"{capsule['artifact_count']:<9}  {capsule['session_id']}"
+            )
+        return EXIT_OK
+    if args.capsule_cmd == "show":
+        capsule = knowledge_capsule_read(
+            store, store.load_knowledge_capsule(args.capsule)
+        )
+        if args.format == "json":
+            print(json.dumps(capsule, ensure_ascii=False))
+            return EXIT_OK
+        print(f"Knowledge Capsule · {capsule['state']}")
+        print(f"capsule {capsule['id']}")
+        print(f"session {capsule['session_id']} · head {capsule['head_graph_id']}")
+        print(
+            f"Field Note {capsule['field_note_id']} · revision "
+            f"{capsule['field_note_revision_id']}"
+        )
+        print(
+            f"source integrity {capsule['integrity']} · "
+            f"{capsule['artifact_count']} frozen artifacts"
+        )
+        if capsule["launch"]:
+            print(f"launched {capsule['launch']['launched_at']}")
+            print(f"Markdown {capsule['markdown_path']}")
+            print(f"Markdown integrity {capsule['markdown_integrity']}")
+        else:
+            print("ready for its one launch")
+        print(f"Privacy: {capsule['privacy_warning']}")
+        return EXIT_OK
+    raise UsageError("unknown Knowledge Capsule command")
+
+
 def _harness_rows(registry: HarnessRegistry) -> list[dict]:
     default = registry.default_name()
     return [
@@ -2284,6 +2410,7 @@ def main(argv: list[str] | None = None) -> int:
         "veto": cmd_veto,
         "continuation": cmd_continuation,
         "field-note": cmd_field_note,
+        "capsule": cmd_capsule,
         "harness": cmd_harness,
         "sensor": cmd_sensor,
         "evidence": cmd_evidence,

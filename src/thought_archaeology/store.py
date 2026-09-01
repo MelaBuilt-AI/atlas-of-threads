@@ -4,6 +4,7 @@ import fcntl
 import hashlib
 import json
 import os
+import tempfile
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -19,6 +20,10 @@ from thought_archaeology.continuation import (
     ParallelContinuationBatch,
 )
 from thought_archaeology.field_notes import FieldNote, FieldNoteRevision
+from thought_archaeology.knowledge_capsules import (
+    KnowledgeCapsuleLaunch,
+    KnowledgeCapsuleManifest,
+)
 from thought_archaeology.ids import new_ulid, now_iso
 from thought_archaeology.models import SCHEMA_VERSION, Session, ThoughtGraph, ThoughtNode, Turn
 from thought_archaeology.schema import ValidationError, validate_graph, validate_schema
@@ -74,6 +79,29 @@ def _write_json(path: Path, obj: dict) -> None:
 def _write_text(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
     _chmod_file(path)
+
+
+def _write_private_atomic(path: Path, data: bytes) -> None:
+    """Publish one private file only after all bytes reach its temporary peer."""
+    fd, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+        _chmod_file(path)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
+
+
+def _write_private_json_atomic(path: Path, obj: dict) -> None:
+    _write_private_atomic(
+        path,
+        (json.dumps(obj, indent=2, ensure_ascii=False) + "\n").encode("utf-8"),
+    )
 
 
 class Store:
@@ -334,6 +362,196 @@ class Store:
 
     def field_note_revisions_dir(self, note_id: str) -> Path:
         return self.root / "field-note-revisions" / note_id
+
+    @property
+    def knowledge_capsules_dir(self) -> Path:
+        return self.root / "knowledge-capsules"
+
+    @property
+    def knowledge_capsule_launches_dir(self) -> Path:
+        return self.root / "knowledge-capsule-launches"
+
+    @property
+    def knowledge_capsules_lock_path(self) -> Path:
+        return self.root / "knowledge-capsules.lock"
+
+    @contextmanager
+    def knowledge_capsules_lock(self, *, timeout: float = 5):
+        """Bounded lock for one launcher per milestone and one launch receipt."""
+        self._require()
+        fd = os.open(
+            self.knowledge_capsules_lock_path, os.O_CREAT | os.O_RDWR, FILE_MODE
+        )
+        started = time.monotonic()
+        acquired = False
+        try:
+            while True:
+                try:
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    acquired = True
+                    break
+                except BlockingIOError:
+                    if time.monotonic() - started >= timeout:
+                        raise StoreError("timed out waiting for Knowledge Capsules lock")
+                    time.sleep(0.02)
+            yield
+        finally:
+            if acquired:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+            os.close(fd)
+
+    def write_knowledge_capsule(self, manifest: KnowledgeCapsuleManifest) -> Path:
+        self._require()
+        validate_schema("knowledge-capsule-manifest.schema.json", manifest.to_dict())
+        from thought_archaeology.knowledge_capsules import (
+            OMISSIONS,
+            PRIVACY_WARNING,
+            RENDERING_VERSION,
+            capsule_session_artifacts,
+            capsule_artifact_bytes,
+        )
+
+        if (
+            manifest.rendering_version != RENDERING_VERSION
+            or manifest.privacy_warning != PRIVACY_WARNING
+            or manifest.omissions != OMISSIONS
+        ):
+            raise StoreError("Knowledge Capsule disclosure contract does not match")
+        session = self.load_session(manifest.session_id)
+        if session.title != manifest.session_title:
+            raise StoreError("Knowledge Capsule session title changed before construction")
+        if (
+            session.head_graph_id != manifest.head_graph_id
+            or session.head_turn_id != manifest.head_turn_id
+        ):
+            raise StoreError("Knowledge Capsule head changed before construction")
+        source = self.load_graph(manifest.source_graph_id)
+        if source.session_id != manifest.session_id:
+            raise StoreError("Knowledge Capsule source graph is not in its session")
+        if manifest.source_node_id not in {node.id for node in source.nodes}:
+            raise StoreError("Knowledge Capsule source node is not in its graph")
+        request = self.load_continuation_request(manifest.comparison_request_id)
+        if (
+            request.session_id != manifest.session_id
+            or request.graph_id != manifest.source_graph_id
+            or request.node_id != manifest.source_node_id
+        ):
+            raise StoreError("Knowledge Capsule comparison source does not match")
+        note = self.load_field_note(manifest.field_note_id)
+        versions = [note, *self.iter_field_note_revisions(note.id)]
+        if versions[-1].id != manifest.field_note_revision_id:
+            raise StoreError("Knowledge Capsule must pin the current Field Note revision")
+        identities = {(item.kind, item.id) for item in manifest.artifacts}
+        if len(identities) != len(manifest.artifacts):
+            raise StoreError("Knowledge Capsule artifacts must be unique")
+        if manifest.artifacts != capsule_session_artifacts(self, manifest.session_id):
+            raise StoreError("Knowledge Capsule artifact inventory is not the exact session scope")
+
+        for artifact in manifest.artifacts:
+            actual = hashlib.sha256(capsule_artifact_bytes(self, artifact)).hexdigest()
+            if actual != artifact.sha256:
+                raise StoreError(
+                    f"Knowledge Capsule artifact SHA-256 mismatch: {artifact.id}"
+                )
+        for existing in self.iter_knowledge_capsules():
+            if (
+                existing.comparison_request_id == manifest.comparison_request_id
+                and existing.field_note_id == manifest.field_note_id
+            ):
+                raise StoreError(
+                    f"Knowledge Capsule {existing.id} already exists for this milestone"
+                )
+        _mkdir(self.knowledge_capsules_dir)
+        path = self.knowledge_capsules_dir / f"{manifest.id}.json"
+        if path.exists():
+            raise StoreError(f"Knowledge Capsule {manifest.id} already exists (write-once)")
+        _write_private_json_atomic(path, manifest.to_dict())
+        return path
+
+    def load_knowledge_capsule(self, capsule_id: str) -> KnowledgeCapsuleManifest:
+        self._require()
+        path = self.knowledge_capsules_dir / f"{capsule_id}.json"
+        if not path.is_file():
+            raise StoreError(f"Knowledge Capsule not found: {capsule_id}")
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        validate_schema("knowledge-capsule-manifest.schema.json", raw)
+        return KnowledgeCapsuleManifest.from_dict(raw)
+
+    def knowledge_capsule_exists(self, capsule_id: str) -> bool:
+        return (self.knowledge_capsules_dir / f"{capsule_id}.json").is_file()
+
+    def iter_knowledge_capsules(self) -> Iterator[KnowledgeCapsuleManifest]:
+        self._require()
+        if not self.knowledge_capsules_dir.is_dir():
+            return
+            yield  # pragma: no cover
+        for path in sorted(self.knowledge_capsules_dir.glob("*.json")):
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            validate_schema("knowledge-capsule-manifest.schema.json", raw)
+            yield KnowledgeCapsuleManifest.from_dict(raw)
+
+    def knowledge_capsule_export_path(self, capsule_id: str) -> Path:
+        return (
+            self.root
+            / "exports"
+            / "knowledge-capsules"
+            / capsule_id
+            / "knowledge-capsule.md"
+        )
+
+    def write_knowledge_capsule_markdown(self, capsule_id: str, markdown: str) -> Path:
+        self._require()
+        self.load_knowledge_capsule(capsule_id)
+        path = self.knowledge_capsule_export_path(capsule_id)
+        if path.exists():
+            if path.read_text(encoding="utf-8") != markdown:
+                raise StoreError(
+                    f"Knowledge Capsule export {capsule_id} already exists with different bytes"
+                )
+            _chmod_file(path)
+            return path
+        _mkdir(path.parent)
+        _write_private_atomic(path, markdown.encode("utf-8"))
+        return path
+
+    def write_knowledge_capsule_launch(
+        self, launch: KnowledgeCapsuleLaunch
+    ) -> Path:
+        self._require()
+        self.load_knowledge_capsule(launch.capsule_id)
+        validate_schema("knowledge-capsule-launch.schema.json", launch.to_dict())
+        expected_path = self.knowledge_capsule_export_path(launch.capsule_id)
+        if launch.markdown_path != str(expected_path.relative_to(self.root)):
+            raise StoreError("Knowledge Capsule launch path does not match its Capsule")
+        if not expected_path.is_file():
+            raise StoreError("Knowledge Capsule Markdown does not exist")
+        if hashlib.sha256(expected_path.read_bytes()).hexdigest() != launch.markdown_sha256:
+            raise StoreError("Knowledge Capsule Markdown SHA-256 mismatch")
+        _mkdir(self.knowledge_capsule_launches_dir)
+        path = self.knowledge_capsule_launches_dir / f"{launch.capsule_id}.json"
+        if path.exists():
+            raise StoreError(
+                f"Knowledge Capsule {launch.capsule_id} already launched (write-once)"
+            )
+        _write_private_json_atomic(path, launch.to_dict())
+        return path
+
+    def knowledge_capsule_launch_exists(self, capsule_id: str) -> bool:
+        return (self.knowledge_capsule_launches_dir / f"{capsule_id}.json").is_file()
+
+    def load_knowledge_capsule_launch(
+        self, capsule_id: str
+    ) -> KnowledgeCapsuleLaunch:
+        self._require()
+        path = self.knowledge_capsule_launches_dir / f"{capsule_id}.json"
+        if not path.is_file():
+            raise StoreError(f"Knowledge Capsule launch not found: {capsule_id}")
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        validate_schema("knowledge-capsule-launch.schema.json", raw)
+        launch = KnowledgeCapsuleLaunch.from_dict(raw)
+        if launch.capsule_id != capsule_id:
+            raise StoreError(f"Knowledge Capsule launch {launch.id} has wrong Capsule ID")
+        return launch
 
     def _validate_field_note_content(
         self, note: FieldNote | FieldNoteRevision, schema_name: str
@@ -1227,4 +1445,34 @@ class Store:
                             f"Field Note revision {revision.id} graph {graph.id} "
                             "SHA-256 mismatch"
                         )
+        try:
+            capsules = [
+                item for item in self.iter_knowledge_capsules()
+                if item.session_id == session_id
+            ]
+        except (StoreError, ValidationError, json.JSONDecodeError, OSError) as exc:
+            errors.append(str(exc))
+            capsules = []
+        from thought_archaeology.knowledge_capsules import capsule_integrity
+
+        for capsule in capsules:
+            if capsule_integrity(self, capsule)["status"] != "verified":
+                errors.append(
+                    f"Knowledge Capsule {capsule.id} source integrity failed"
+                )
+            if not self.knowledge_capsule_launch_exists(capsule.id):
+                continue
+            try:
+                launch = self.load_knowledge_capsule_launch(capsule.id)
+                markdown = self.root / launch.markdown_path
+                if not markdown.is_file():
+                    errors.append(
+                        f"Knowledge Capsule {capsule.id} Markdown missing"
+                    )
+                elif hashlib.sha256(markdown.read_bytes()).hexdigest() != launch.markdown_sha256:
+                    errors.append(
+                        f"Knowledge Capsule {capsule.id} Markdown SHA-256 mismatch"
+                    )
+            except (StoreError, ValidationError, json.JSONDecodeError, OSError) as exc:
+                errors.append(str(exc))
         return errors

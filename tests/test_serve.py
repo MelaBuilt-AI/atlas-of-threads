@@ -602,7 +602,7 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert "walkDeeper();" in js
     assert "clockwiseChoices" in js
     assert "Math.atan2(position.x, -position.z)" in js
-    assert js.count("addClockChoice(") == 7
+    assert js.count("addClockChoice(") == 8
     assert "sparkColors" in js
     assert "inhabit(view.graph_id, cycle[" not in js
 
@@ -636,12 +636,17 @@ def test_space_sound_field_uses_cinematic_pack_and_is_event_bound():
         "blue-new-path-enter.ogg",
         "blue-path-complete-splash.ogg",
         "camera-cycle-transition.ogg",
+        "charged-capsule-launch.ogg",
         "green-beam-activate.ogg",
         "green-beam-sparks-loop.ogg",
         "field-notes-monument-complete.ogg",
         "field-notes-monument-construction-loop.ogg",
         "field-notes-scribe-entry.ogg",
         "field-notes-writing-loop.ogg",
+        "knowledge-capsule-launcher-earned.ogg",
+        "launcher-build-complete.ogg",
+        "launcher-construction-loop.ogg",
+        "launcher-ready-hum-loop.ogg",
         "neural-atmosphere-loop.ogg",
         "object-cycle.ogg",
         "red-return-activate.ogg",

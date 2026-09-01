@@ -176,7 +176,8 @@ html, body {
 
 #threshold[hidden] { display: none; }
 
-#field-note-eligible {
+#field-note-eligible,
+#knowledge-capsule-eligible {
   position: absolute;
   top: 5.3rem;
   left: 50%;
@@ -197,15 +198,18 @@ html, body {
   backdrop-filter: blur(8px);
 }
 
-#field-note-eligible[hidden] { display: none; }
+#field-note-eligible[hidden],
+#knowledge-capsule-eligible[hidden] { display: none; }
 
-#field-note-eligible span {
+#field-note-eligible span,
+#knowledge-capsule-eligible span {
   font: 0.72rem ui-monospace, Menlo, monospace;
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 
-#field-note-eligible small {
+#field-note-eligible small,
+#knowledge-capsule-eligible small {
   color: rgba(236, 230, 216, 0.76);
   font: 0.65rem ui-monospace, Menlo, monospace;
   letter-spacing: 0.08em;
@@ -213,12 +217,23 @@ html, body {
 }
 
 #field-note-eligible:hover,
-#field-note-eligible:focus-visible {
+#field-note-eligible:focus-visible,
+#knowledge-capsule-eligible:hover,
+#knowledge-capsule-eligible:focus-visible {
   border-color: var(--phosphor);
   color: var(--phosphor);
   outline: none;
   box-shadow: 0 0 2rem rgba(200, 242, 106, 0.18), inset 0 0 1rem rgba(79, 143, 214, 0.12);
 }
+
+#knowledge-capsule-eligible {
+  top: 9.7rem;
+  border-color: rgba(247, 157, 57, 0.62);
+  background: rgba(48, 25, 8, 0.82);
+  box-shadow: 0 0 1.8rem rgba(247, 138, 38, 0.2);
+}
+
+#knowledge-capsule-eligible span { color: #ffc06a; }
 
 @keyframes field-note-float {
   0%, 100% { transform: translate(-50%, 0) rotate(-0.15deg); }
@@ -742,6 +757,13 @@ html, body {
   box-shadow: 0 0 0.8rem rgba(255, 210, 122, 0.42);
 }
 
+.legend-mark.capsule-mark {
+  border: 1px solid #f79d39;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff0b2 0 18%, #f79d39 20% 42%, #4d2608 45% 68%, transparent 71%);
+  box-shadow: 0 0 0.9rem rgba(247, 157, 57, 0.58);
+}
+
 #thread-compass {
   z-index: 7;
   display: grid;
@@ -943,6 +965,43 @@ html, body {
 .thread-parallel-group > .field-note-list {
   margin: 0.8rem 0 0.15rem 1rem;
   border-left-color: rgba(226, 196, 138, 0.46);
+}
+
+.knowledge-capsule-list {
+  display: grid;
+  gap: 0.42rem;
+  margin: 0.5rem 0 0 1rem;
+  padding-left: 0.75rem;
+  border-left: 1px solid rgba(247, 157, 57, 0.58);
+}
+
+.knowledge-capsule-card {
+  display: grid;
+  gap: 0.28rem;
+  padding: 0.65rem 0.72rem;
+  border: 1px solid rgba(247, 157, 57, 0.42);
+  background: rgba(48, 25, 8, 0.48);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.knowledge-capsule-card:hover,
+.knowledge-capsule-card:focus-visible {
+  border-color: #ffc06a;
+  outline: none;
+}
+
+.knowledge-capsule-label {
+  color: #ffc06a;
+  font: 0.62rem ui-monospace, Menlo, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.knowledge-capsule-meta {
+  color: var(--mute);
+  font: 0.61rem ui-monospace, Menlo, monospace;
 }
 
 .parallel-context,
@@ -1593,6 +1652,10 @@ html, body {
 @media (max-width: 38rem) {
   #field-note-eligible {
     top: 4.7rem;
+    width: min(18rem, calc(100vw - 2rem));
+  }
+  #knowledge-capsule-eligible {
+    top: 9.1rem;
     width: min(18rem, calc(100vw - 2rem));
   }
   #plate,

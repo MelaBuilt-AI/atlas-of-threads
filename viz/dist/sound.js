@@ -29,6 +29,11 @@
     fieldNoteConstruction: { file: "field-notes-monument-construction-loop.ogg", gain: 0.2, loop: true },
     fieldNoteComplete: { file: "field-notes-monument-complete.ogg", gain: 0.62 },
     fieldNoteEntry: { file: "field-notes-scribe-entry.ogg", gain: 0.54 },
+    capsuleEarned: { file: "knowledge-capsule-launcher-earned.ogg", gain: 0.58 },
+    capsuleConstruction: { file: "launcher-construction-loop.ogg", gain: 0.2, loop: true },
+    capsuleComplete: { file: "launcher-build-complete.ogg", gain: 0.62 },
+    capsuleReady: { file: "launcher-ready-hum-loop.ogg", gain: 0.15, loop: true },
+    capsuleLaunch: { file: "charged-capsule-launch.ogg", gain: 0.7 },
   };
 
   let saved = {};
@@ -52,6 +57,8 @@
   let desiredBeam = null;
   let desiredFieldNoteWriting = false;
   let desiredFieldNoteConstruction = false;
+  let desiredCapsuleConstruction = false;
+  let desiredCapsuleReady = false;
   let pendingFieldNoteEligible = false;
   const buffers = new Map();
   const loopLayers = new Map();
@@ -258,6 +265,10 @@
     else stopLoop("fieldNoteWriting", 0.35);
     if (desiredFieldNoteConstruction) startLoop("fieldNoteConstruction", 0.18);
     else stopLoop("fieldNoteConstruction", 0.45);
+    if (desiredCapsuleConstruction) startLoop("capsuleConstruction", 0.18);
+    else stopLoop("capsuleConstruction", 0.45);
+    if (desiredCapsuleReady) startLoop("capsuleReady", 0.7);
+    else stopLoop("capsuleReady", 0.35);
   }
 
   async function awaken() {
@@ -416,6 +427,30 @@
     playOneShot("fieldNoteEntry");
   }
 
+  function capsuleEarned() {
+    playOneShot("capsuleEarned");
+  }
+
+  function setCapsuleConstruction(active) {
+    desiredCapsuleConstruction = Boolean(active);
+    syncLayers();
+  }
+
+  function setCapsuleReady(active) {
+    desiredCapsuleReady = Boolean(active);
+    syncLayers();
+  }
+
+  function capsuleComplete() {
+    playOneShot("capsuleComplete");
+  }
+
+  function capsuleLaunch() {
+    desiredCapsuleReady = false;
+    syncLayers();
+    playOneShot("capsuleLaunch");
+  }
+
   function cancel() {
     noiseBurst({ duration: 0.4, gain: 0.038, from: 1300, to: 64, q: 2.3 });
     tone({ from: 91, to: 27, duration: 0.45, gain: 0.032, type: "triangle" });
@@ -521,6 +556,11 @@
     setFieldNoteConstruction,
     fieldNoteComplete,
     fieldNoteEntry,
+    capsuleEarned,
+    setCapsuleConstruction,
+    setCapsuleReady,
+    capsuleComplete,
+    capsuleLaunch,
     cancel,
   };
 })();

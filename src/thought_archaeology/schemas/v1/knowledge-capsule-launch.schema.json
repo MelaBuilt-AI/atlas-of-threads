@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mela.ai/schemas/thought-archaeology/v1/knowledge-capsule-launch.schema.json",
+  "title": "KnowledgeCapsuleLaunch",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "id", "capsule_id", "launched_at",
+    "markdown_path", "markdown_sha256", "success"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "id": { "type": "string", "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$" },
+    "capsule_id": { "type": "string", "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$" },
+    "launched_at": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" },
+    "markdown_path": {
+      "type": "string",
+      "pattern": "^exports/knowledge-capsules/[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}/knowledge-capsule\\.md$"
+    },
+    "markdown_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "success": { "const": true }
+  }
+}

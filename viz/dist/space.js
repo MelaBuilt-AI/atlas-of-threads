@@ -17,6 +17,9 @@
     ["fork-compass", "Fork Compass", "continuation · a navigable fork"],
     ["forked-claim", "Forked Claim", "forked status · a claim on another path"],
     ["field-notes-monument", "Field Notes Monument", "human inscription · what mattered across exact paths"],
+    ["knowledge-ark-launcher", "Knowledge Ark Launcher", "outbound knowledge · one frozen milestone ready to launch"],
+    ["knowledge-ark-launcher-post-launch", "Knowledge Ark Launcher — Post Launch", "outbound knowledge · a carried milestone"],
+    ["charged-knowledge-capsule", "Charged Knowledge Capsule", "portable context · a private human-reviewed dossier"],
     ["gray-box-prism", "Gray-Box Prism", "uncertainty · bounded unknowns"],
     ["intervened-claim", "Intervened Claim", "behavioral evidence · a tested thought"],
     ["intervention-key", "Intervention Key", "neural intervention · a causal internal edit"],
@@ -109,6 +112,7 @@
   const elThresholdAskBox = document.getElementById("threshold-ask-box");
   const elThresholdAskInput = document.getElementById("threshold-ask-input");
   const elFieldNoteEligible = document.getElementById("field-note-eligible");
+  const elKnowledgeCapsuleEligible = document.getElementById("knowledge-capsule-eligible");
   const elRelicIndex = document.getElementById("relic-index");
   const elRelicGrid = document.getElementById("relic-grid");
   const elRelicClose = document.getElementById("relic-close");
@@ -162,6 +166,7 @@
   let targets = [];
   let portals = [];
   let fieldNoteTargets = [];
+  let capsuleTargets = [];
   let choices = [];
   let focusIndex = -1;
   const HOME_YAW = 0.18;
@@ -185,11 +190,16 @@
   let layoutGeneration = 0;
   let standingMesh = null;
   let activeFieldNote = null;
+  let activeCapsule = null;
   let fieldNoteConstruction = null;
+  let capsuleConstruction = null;
+  let capsuleFlight = null;
   let eligibilityKey = null;
+  let capsuleEligibilityKey = null;
   const COMPANION_MEMORY_KEY = "thought-archaeology.companions.v1";
   const CIRCUIT_MEMORY_KEY = "thought-archaeology.continuation-circuits.v2";
   const FIELD_NOTE_MEMORY_KEY = "thought-archaeology.field-notes-entered.v1";
+  const CAPSULE_EARNED_MEMORY_KEY = "thought-archaeology.knowledge-capsules-earned.v1";
   const knownHeads = new Map();
   const sessionTitles = new Map();
   let liveArrivals = loadCompanionThoughts();
@@ -205,6 +215,30 @@
   const parallelJobStates = new Map();
   let workspaceState = null;
   const enteredFieldNotes = loadEnteredFieldNotes();
+  const announcedCapsuleMilestones = loadAnnouncedCapsuleMilestones();
+
+  function loadAnnouncedCapsuleMilestones() {
+    try {
+      const saved = JSON.parse(
+        window.localStorage.getItem(CAPSULE_EARNED_MEMORY_KEY) || "[]"
+      );
+      return new Set(Array.isArray(saved) ? saved.filter((item) => typeof item === "string") : []);
+    } catch (_error) {
+      return new Set();
+    }
+  }
+
+  function rememberCapsuleMilestone(key) {
+    announcedCapsuleMilestones.add(key);
+    try {
+      window.localStorage.setItem(
+        CAPSULE_EARNED_MEMORY_KEY,
+        JSON.stringify([...announcedCapsuleMilestones].slice(-240))
+      );
+    } catch (_error) {
+      // The earned cue remains optional browser-local atmosphere.
+    }
+  }
 
   function loadEnteredFieldNotes() {
     try {
@@ -816,6 +850,7 @@
   let threadLineage = null;
   let threadComparison = null;
   let threadNote = null;
+  let threadCapsule = null;
   let threadComposer = false;
   let threadReturnFocus = null;
 
@@ -825,6 +860,7 @@
     threadLineage = null;
     threadComparison = null;
     threadNote = null;
+    threadCapsule = null;
     threadComposer = false;
     elThreadTitle.textContent = "Thread Compass";
     elThreadClose.textContent = "close · T / esc";
@@ -925,7 +961,8 @@
     appendFieldNoteCards(
       section,
       group.field_notes || [],
-      "Human Field Notes · connective inscriptions"
+      "Human Field Notes · connective inscriptions",
+      group.knowledge_capsules || []
     );
     return section;
   }
@@ -934,6 +971,7 @@
     threadLineage = lineage;
     threadComparison = null;
     threadNote = null;
+    threadCapsule = null;
     threadComposer = false;
     const entries = lineage.entries || [];
     const parallelGroups = lineage.parallel_groups || [];
@@ -1020,6 +1058,7 @@
     sound.setFieldNoteWriting(false);
     threadComparison = comparison;
     threadNote = null;
+    threadCapsule = null;
     threadComposer = false;
     elThreadTitle.textContent = "Parallel continuations";
     elThreadSubtitle.textContent =
@@ -1054,7 +1093,8 @@
     appendFieldNoteCards(
       elThreadList,
       comparison.field_notes || [],
-      "Human Field Notes"
+      "Human Field Notes",
+      comparison.knowledge_capsules || []
     );
 
     const noteAction = document.createElement("button");
@@ -1152,7 +1192,7 @@
     }
   }
 
-  function appendFieldNoteCards(parent, notes, headingText) {
+  function appendFieldNoteCards(parent, notes, headingText, capsules = []) {
     if (!notes.length) return;
     const section = document.createElement("section");
     section.className = "field-note-list";
@@ -1179,8 +1219,76 @@
       button.append(label, body, meta);
       button.addEventListener("click", () => openFieldNote(note.id));
       section.append(button);
+      const nested = capsules.filter((capsule) => capsule.field_note_id === note.id);
+      if (nested.length) {
+        const capsuleList = document.createElement("div");
+        capsuleList.className = "knowledge-capsule-list";
+        for (const capsule of nested) {
+          const capsuleButton = document.createElement("button");
+          capsuleButton.type = "button";
+          capsuleButton.className = "knowledge-capsule-card";
+          const capsuleLabel = document.createElement("span");
+          capsuleLabel.className = "knowledge-capsule-label";
+          capsuleLabel.textContent = `Knowledge Capsule · ${capsule.state}`;
+          const capsuleMeta = document.createElement("span");
+          capsuleMeta.className = "knowledge-capsule-meta";
+          capsuleMeta.textContent =
+            `pinned revision ${capsule.field_note_revision_id} · head ${capsule.head_graph_id}`;
+          capsuleButton.append(capsuleLabel, capsuleMeta);
+          capsuleButton.addEventListener("click", () => openThreadCapsule(capsule.id));
+          capsuleList.append(capsuleButton);
+        }
+        section.append(capsuleList);
+      }
     }
     parent.append(section);
+  }
+
+  async function openThreadCapsule(capsuleId) {
+    elThreadStatus.textContent = "reading the frozen Knowledge Capsule…";
+    try {
+      const capsule = await api(`/api/knowledge-capsules/${capsuleId}`);
+      if (!elThreadCompass.hidden) renderThreadCapsule(capsule);
+    } catch (error) {
+      elThreadStatus.textContent = String(error.message || error);
+    }
+  }
+
+  function renderThreadCapsule(capsule) {
+    threadCapsule = capsule;
+    threadNote = null;
+    threadComposer = false;
+    elThreadTitle.textContent = "Knowledge Capsule";
+    elThreadSubtitle.textContent =
+      `${capsule.state} · frozen human milestone · ${capsule.artifact_count} exact artifacts`;
+    elThreadClose.textContent = "back to comparison · esc";
+    elThreadLatest.hidden = true;
+    elThreadStatus.textContent = capsule.integrity === "verified"
+      ? "Frozen source integrity verified."
+      : "Frozen source integrity failed.";
+    elThreadList.replaceChildren();
+    const article = document.createElement("article");
+    article.className = "field-note-reading";
+    const label = document.createElement("div");
+    label.className = "knowledge-capsule-label";
+    label.textContent = `Knowledge Capsule · ${capsule.state}`;
+    const text = document.createElement("p");
+    text.textContent = capsule.state === "launched"
+      ? "This one-shot milestone has been carried outward as a private Markdown dossier."
+      : "The frozen Capsule is charged and waiting for its one spatial launch.";
+    const meta = document.createElement("div");
+    meta.className = "knowledge-capsule-meta";
+    meta.textContent = [
+      `capsule ${capsule.id}`,
+      `session head ${capsule.head_graph_id}`,
+      `Field Note revision ${capsule.field_note_revision_id}`,
+      `source integrity ${capsule.integrity}`,
+      capsule.markdown_path ? `Markdown ${capsule.markdown_path}` : "Markdown is written only at launch",
+    ].join(" · ");
+    article.append(label, text, meta);
+    elThreadList.append(article);
+    elThreadPanel.scrollTop = 0;
+    elThreadClose.focus({ preventScroll: true });
   }
 
   async function openFieldNote(noteId, revisionId = null) {
@@ -1590,6 +1698,12 @@
   }
 
   function threadBackOrClose() {
+    if (threadCapsule) {
+      threadCapsule = null;
+      if (threadComparison) renderParallelComparison(threadComparison);
+      else if (threadLineage) renderThreadCompass(threadLineage);
+      return;
+    }
     if (threadComposer && threadComparison) {
       renderParallelComparison(threadComparison);
       return;
@@ -2321,6 +2435,185 @@
       });
   }
 
+  function mountCapsuleRelic(group, { state, scale, placeholder, generation }) {
+    const model = state === "constructing"
+      ? "./assets/models/knowledge-ark-launcher-hologram.glb"
+      : state === "launched"
+        ? "./assets/models/knowledge-ark-launcher-post-launch.glb"
+        : "./assets/models/knowledge-ark-launcher.glb";
+    const mountToken = (group.userData.capsuleMountToken || 0) + 1;
+    group.userData.capsuleMountToken = mountToken;
+    RelicGLBLoader.load(model)
+      .then((object) => {
+        if (
+          !group.parent || generation !== layoutGeneration ||
+          mountToken !== group.userData.capsuleMountToken
+        ) return;
+        if (group.userData.relicObject) group.remove(group.userData.relicObject);
+        const box = new THREE.Box3().setFromObject(object);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        const fit = (3.35 * scale) /
+          Math.max(size.y, size.x * 0.72, size.z * 0.72, 0.001);
+        object.scale.setScalar(fit);
+        object.position.set(-center.x * fit, 0.52 - box.min.y * fit, -center.z * fit);
+        object.userData.capsuleRestY = object.position.y;
+        if (state === "constructing") {
+          object.traverse((part) => {
+            if (!part.material) return;
+            part.material.transparent = true;
+            part.material.opacity = Math.min(0.7, part.material.opacity);
+            part.material.depthWrite = false;
+            part.material.emissiveIntensity = Math.max(
+              part.material.emissiveIntensity || 0, 0.42
+            );
+          });
+        }
+        placeholder.visible = false;
+        group.userData.relicObject = object;
+        group.add(object);
+      })
+      .catch((error) => {
+        placeholder.material.color.setHex(0x6b3540);
+        placeholder.userData.loadError = String(error.message || error);
+      });
+  }
+
+  function addCapsuleOrbit(group) {
+    if (group.userData.capsuleOrbit) return;
+    const count = 66;
+    const positions = new Float32Array(count * 3);
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    const material = new THREE.PointsMaterial({
+      color: 0xffa43d,
+      map: neuralSky && neuralSky.glow,
+      size: 0.11,
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const points = new THREE.Points(geometry, material);
+    points.position.y = 1.7;
+    group.add(points);
+    group.userData.capsuleOrbit = { points, count, dissipatingAt: null };
+  }
+
+  function capsuleLauncher(
+    capsule,
+    { x, z, scale = 0.82, state = capsule.state, standing = false }
+  ) {
+    const group = new THREE.Group();
+    group.position.set(x, 0.72, z);
+    group.userData = {
+      capsuleId: capsule.id,
+      capsule,
+      capsuleState: state,
+      focusScale: 1,
+      ghost: false,
+    };
+    const terrace = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.72 * scale, 2.05 * scale, 0.64, 12),
+      stoneMat(0x2d2418, 1)
+    );
+    terrace.position.y = 0.32;
+    group.add(terrace);
+    const placeholder = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.58 * scale),
+      new THREE.MeshStandardMaterial({
+        color: state === "constructing" ? 0x8dc7f3 : 0xffa43d,
+        emissive: state === "constructing" ? 0x315f8a : 0x8a4312,
+        emissiveIntensity: 0.9,
+        transparent: true,
+        opacity: 0.68,
+      })
+    );
+    placeholder.position.y = 1.8 * scale;
+    group.add(placeholder);
+    mountCapsuleRelic(group, {
+      state,
+      scale,
+      placeholder,
+      generation: layoutGeneration,
+    });
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(1.52 * scale, 0.07, 10, 36),
+      new THREE.MeshStandardMaterial({
+        color: state === "launched" ? 0x9a6b42 : 0xffa43d,
+        emissive: state === "launched" ? 0x382316 : 0x8a4312,
+        emissiveIntensity: state === "launched" ? 0.38 : 0.95,
+        metalness: 0.58,
+        roughness: 0.28,
+      })
+    );
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 0.68;
+    group.add(ring);
+    group.userData.capsuleRing = ring;
+    const lantern = new THREE.PointLight(
+      state === "launched" ? 0xb06f36 : 0xffa43d,
+      state === "launched" ? 320 : 760,
+      10,
+      2
+    );
+    lantern.position.set(0, 3.1 * scale, 1.15 * scale);
+    group.add(lantern);
+    group.userData.capsuleLantern = lantern;
+    const board = new THREE.Mesh(
+      new THREE.PlaneGeometry(3.25 * scale, 1.2 * scale),
+      new THREE.MeshBasicMaterial({
+        map: labelTexture(
+          state === "constructing"
+            ? "Knowledge Capsule constructing"
+            : state === "launched"
+              ? "Knowledge Capsule launched"
+              : "Launch Capsule",
+          state === "launched"
+            ? `frozen milestone ${capsule.id}`
+            : `Field Note revision ${capsule.field_note_revision_id}`
+        ),
+        transparent: true,
+      })
+    );
+    board.position.set(0, 3.75 * scale, 1.1 * scale);
+    group.add(board);
+    group.userData.capsuleBoard = board;
+    group.userData.capsulePlaceholder = placeholder;
+    const hit = new THREE.Mesh(
+      new THREE.SphereGeometry(2.05 * scale),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    hit.position.y = 1.65 * scale;
+    hit.userData = { capsuleId: capsule.id };
+    group.add(hit);
+    capsuleTargets.push(group);
+    if (state === "ready" && !standing) addCapsuleOrbit(group);
+    if (!standing) {
+      addClockChoice(group, {
+        via: "outbound knowledge",
+        kind: "knowledge_capsule",
+        text: state === "launched"
+          ? `spent Knowledge Ark Launcher · ${capsule.id}`
+          : state === "constructing"
+            ? "Knowledge Ark Launcher construction is in progress"
+            : `Launch Capsule · ${capsule.id}`,
+        description: state === "launched"
+          ? `Knowledge Capsule launched · select to inspect ${capsule.id}`
+          : state === "constructing"
+            ? "Knowledge Ark Launcher construction is still in progress"
+            : "Launch Capsule · write the frozen Markdown, then spend this launcher once",
+        selectionColor: 0xffa43d,
+        audioRole: "capsule",
+        walk: () => {
+          if (state === "ready") launchCapsule(capsule.id, group);
+          else if (state === "launched") enterCapsule(capsule.id);
+        },
+      });
+    }
+    return group;
+  }
+
   function addFieldNoteSwirl(group) {
     if (group.userData.fieldNoteSwirl || enteredFieldNotes.has(group.userData.fieldNoteId)) {
       return;
@@ -2557,6 +2850,12 @@
     targets = [];
     portals = [];
     fieldNoteTargets = [];
+    capsuleTargets = [];
+    if (capsuleFlight) {
+      scene.remove(capsuleFlight.group);
+      scene.remove(capsuleFlight.trail);
+      capsuleFlight = null;
+    }
     risers = [];
     choices = [];
     focusIndex = -1;
@@ -2591,6 +2890,13 @@
     return {
       x: -(CHOICE_ROW + row * CHOICE_ROW_GAP),
       z: offsets[i % 5] * CHOICE_STRIDE,
+    };
+  }
+
+  function capsuleSlot(index = 0) {
+    return {
+      x: CHOICE_ROW + index * CHOICE_STRIDE,
+      z: -CHOICE_ROW * 1.25 - index * CHOICE_ROW_GAP,
     };
   }
 
@@ -2682,7 +2988,9 @@
   function layout(payload) {
     layoutGeneration += 1;
     activeFieldNote = null;
+    activeCapsule = null;
     elEvidenceDescent.hidden = true;
+    elKnowledgeCapsuleEligible.hidden = true;
     clearRoot();
     root.add(floor());
     mappedRelicKey = relicForNode(payload.node, payload.evidence || []);
@@ -2783,6 +3091,24 @@
       markRise(monument, 0.16 + i * 0.08);
     });
 
+    const capsules = payload.knowledge_capsules || [];
+    capsules.forEach((capsule, i) => {
+      const slot = capsuleSlot(i);
+      const constructing = Boolean(
+        capsuleConstruction && capsuleConstruction.id === capsule.id
+      );
+      const state = constructing ? "constructing" : capsule.state;
+      const launcher = capsuleLauncher(capsule, {
+        x: slot.x,
+        z: slot.z,
+        state,
+      });
+      root.add(launcher);
+      if (constructing) capsuleConstruction.group = launcher;
+      markRise(launcher, 0.2 + i * 0.08);
+    });
+    sound.setCapsuleReady(capsules.some((item) => item.state === "ready") && !capsuleConstruction);
+
     forks.forEach((f, i) => {
       const slot = choiceSlot(storyNodes.length + i, pathCount);
       const ring = portalRing({
@@ -2844,6 +3170,7 @@
       plate(payload);
     }
     renderFieldNoteEligibility(payload);
+    renderKnowledgeCapsuleEligibility(payload);
     renderThreshold(payload);
   }
 
@@ -2959,6 +3286,15 @@
           `${noteCount} human Field ${noteCount === 1 ? "Note monument" : "Note monuments"} in the left inscription alcove`
         );
       }
+      const capsuleCount = (payload.knowledge_capsules || []).length;
+      if (capsuleCount) {
+        const states = payload.knowledge_capsules.map((item) => item.state);
+        bits.push(states.includes("ready")
+          ? "one charged Knowledge Ark Launcher waits on the rear-right terrace"
+          : states.includes("launched")
+            ? "one spent Knowledge Ark Launcher marks a carried milestone"
+            : "one Knowledge Ark Launcher is constructing on the rear-right terrace");
+      }
       const nearbyArrivals = visibleArrivals(payload);
       const atOrigin = payload.origin && payload.origin.id === payload.node.id;
       const atThreshold = Boolean(traversal.terminal || atOrigin);
@@ -2999,6 +3335,24 @@
     if (nextKey !== eligibilityKey) {
       eligibilityKey = nextKey;
       sound.fieldNoteEligible();
+    }
+  }
+
+  function renderKnowledgeCapsuleEligibility(payload) {
+    const eligibility = payload && payload.knowledge_capsule_eligibility;
+    const visible = Boolean(
+      eligibility && !activeFieldNote && !activeCapsule && !capsuleConstruction
+    );
+    elKnowledgeCapsuleEligible.hidden = !visible;
+    if (!visible) {
+      if (!eligibility) capsuleEligibilityKey = null;
+      return;
+    }
+    const nextKey = `${eligibility.comparison_request_id}:${eligibility.field_note_id}`;
+    capsuleEligibilityKey = nextKey;
+    if (!announcedCapsuleMilestones.has(nextKey)) {
+      rememberCapsuleMilestone(nextKey);
+      sound.capsuleEarned();
     }
   }
 
@@ -3149,6 +3503,285 @@
     return true;
   }
 
+  function capsuleSummary(capsule) {
+    return {
+      id: capsule.id,
+      created_at: capsule.created_at,
+      author: capsule.author,
+      state: capsule.state,
+      comparison_request_id: capsule.comparison_request_id,
+      session_id: capsule.session_id,
+      session_title: capsule.session_title,
+      source_graph_id: capsule.source_graph_id,
+      source_node_id: capsule.source_node_id,
+      head_graph_id: capsule.head_graph_id,
+      head_turn_id: capsule.head_turn_id,
+      field_note_id: capsule.field_note_id,
+      field_note_revision_id: capsule.field_note_revision_id,
+      artifact_count: capsule.artifact_count,
+      launched_at: capsule.launched_at || (capsule.launch && capsule.launch.launched_at) || null,
+    };
+  }
+
+  async function constructKnowledgeCapsule() {
+    const eligibility = view && view.knowledge_capsule_eligibility;
+    if (!eligibility || busy || activeFieldNote || activeCapsule || capsuleConstruction) return;
+    busy = true;
+    elKnowledgeCapsuleEligible.disabled = true;
+    try {
+      const result = await post("/api/knowledge-capsules", {
+        comparison_request_id: eligibility.comparison_request_id,
+      });
+      const capsule = capsuleSummary(result.capsule);
+      view.knowledge_capsule_eligibility = null;
+      view.knowledge_capsules = [...(view.knowledge_capsules || []), capsule];
+      capsuleConstruction = {
+        id: capsule.id,
+        capsule,
+        startedAt: clock.getElapsedTime(),
+        duration: 18,
+        group: null,
+      };
+      sound.setCapsuleConstruction(true);
+      sound.setCapsuleReady(false);
+      layout(view);
+    } catch (error) {
+      elKind.textContent = "Knowledge Capsule was not constructed";
+      elHere.textContent = String(error.message || error);
+    } finally {
+      busy = false;
+      elKnowledgeCapsuleEligible.disabled = false;
+    }
+  }
+
+  function finishCapsuleConstruction() {
+    const construction = capsuleConstruction;
+    if (!construction) return;
+    capsuleConstruction = null;
+    sound.setCapsuleConstruction(false);
+    sound.capsuleComplete();
+    sound.setCapsuleReady(true);
+    const capsule = construction.capsule;
+    const group = construction.group;
+    if (group && group.parent) {
+      group.userData.capsuleState = "ready";
+      const ring = group.userData.capsuleRing;
+      if (ring && ring.material) {
+        ring.material.color.setHex(0xffa43d);
+        ring.material.emissive.setHex(0x8a4312);
+        ring.material.emissiveIntensity = 0.95;
+      }
+      const board = group.userData.capsuleBoard;
+      if (board && board.material) {
+        board.material.map = labelTexture(
+          "Launch Capsule",
+          `Field Note revision ${capsule.field_note_revision_id}`
+        );
+        board.material.needsUpdate = true;
+      }
+      mountCapsuleRelic(group, {
+        state: "ready",
+        scale: 0.82,
+        placeholder: group.userData.capsulePlaceholder,
+        generation: layoutGeneration,
+      });
+      addCapsuleOrbit(group);
+      const choice = choices.find((item) => item.mesh === group);
+      if (choice) {
+        choice.choice.text = `Launch Capsule · ${capsule.id}`;
+        choice.choice.description =
+          "Launch Capsule · write the frozen Markdown, then spend this launcher once";
+        choice.choice.walk = () => launchCapsule(capsule.id, group);
+      }
+    }
+    if (view && !activeCapsule) {
+      renderKnowledgeCapsuleEligibility(view);
+      plate(view);
+    }
+  }
+
+  function beginCapsuleFlight(group) {
+    if (!group || !neuralSky) return;
+    const neuronIndex = visibleNeuronIndex(group);
+    if (neuronIndex < 0) return;
+    scene.updateMatrixWorld(true);
+    const start = new THREE.Vector3();
+    group.getWorldPosition(start);
+    start.y += 2.25;
+    const end = neuralSky.nodes[neuronIndex].clone();
+    neuralSky.group.localToWorld(end);
+    const flight = new THREE.Group();
+    flight.position.copy(start);
+    scene.add(flight);
+    const placeholder = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.35),
+      new THREE.MeshStandardMaterial({
+        color: 0xffc15a,
+        emissive: 0xff7b20,
+        emissiveIntensity: 2.4,
+      })
+    );
+    flight.add(placeholder);
+    RelicGLBLoader.load("./assets/models/charged-knowledge-capsule.glb")
+      .then((object) => {
+        if (!capsuleFlight || capsuleFlight.group !== flight) return;
+        const box = new THREE.Box3().setFromObject(object);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        const fit = 1.25 / Math.max(size.x, size.y, size.z, 0.001);
+        object.scale.setScalar(fit);
+        object.position.set(-center.x * fit, -center.y * fit, -center.z * fit);
+        placeholder.visible = false;
+        flight.add(object);
+      });
+    const flash = new THREE.PointLight(0xffa43d, 3800, 24, 2);
+    flight.add(flash);
+    const trailGeometry = new THREE.BufferGeometry();
+    const trailPositions = new Float32Array(42 * 3);
+    trailGeometry.setAttribute("position", new THREE.BufferAttribute(trailPositions, 3));
+    const trail = new THREE.Points(
+      trailGeometry,
+      new THREE.PointsMaterial({
+        color: 0xffa43d,
+        map: neuralSky.glow,
+        size: 0.28,
+        transparent: true,
+        opacity: 0.88,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      })
+    );
+    scene.add(trail);
+    capsuleFlight = {
+      group: flight,
+      trail,
+      trailPositions,
+      points: [],
+      start,
+      control1: start.clone().add(new THREE.Vector3(0, 13, 0)),
+      control2: end.clone().lerp(start, 0.32).add(new THREE.Vector3(8, 7, 0)),
+      end,
+      startedAt: clock.getElapsedTime(),
+      duration: 7.0,
+      flash,
+    };
+  }
+
+  function spendCapsuleLauncher(group, capsule) {
+    group.userData.capsuleState = "launched";
+    group.userData.capsule = capsule;
+    sound.setCapsuleReady(false);
+    const orbit = group.userData.capsuleOrbit;
+    if (orbit && orbit.dissipatingAt === null) orbit.dissipatingAt = clock.getElapsedTime();
+    const lantern = group.userData.capsuleLantern;
+    if (lantern) {
+      lantern.color.setHex(0xb06f36);
+      lantern.intensity = 320;
+    }
+    mountCapsuleRelic(group, {
+      state: "launched",
+      scale: 0.82,
+      placeholder: group.userData.capsulePlaceholder,
+      generation: layoutGeneration,
+    });
+    const board = group.userData.capsuleBoard;
+    if (board && board.material) {
+      board.material.map = labelTexture(
+        "Knowledge Capsule launched",
+        `frozen milestone ${capsule.id}`
+      );
+      board.material.needsUpdate = true;
+    }
+    const choice = choices.find((item) => item.mesh === group);
+    if (choice) {
+      choice.choice.text = `spent Knowledge Ark Launcher · ${capsule.id}`;
+      choice.choice.description = `Knowledge Capsule launched · select to inspect ${capsule.id}`;
+      choice.choice.walk = () => enterCapsule(capsule.id);
+    }
+  }
+
+  async function launchCapsule(capsuleId, group) {
+    if (busy || !group || group.userData.capsuleState !== "ready") return;
+    busy = true;
+    try {
+      const result = await post(`/api/knowledge-capsules/${capsuleId}/launch`, {});
+      const capsule = capsuleSummary(result.capsule);
+      view.knowledge_capsules = (view.knowledge_capsules || []).map((item) =>
+        item.id === capsuleId ? capsule : item
+      );
+      spendCapsuleLauncher(group, capsule);
+      sound.capsuleLaunch();
+      beginCapsuleFlight(group);
+      plate(view);
+    } catch (error) {
+      elKind.textContent = "Knowledge Capsule launch failed";
+      elHere.textContent = `${String(error.message || error)} · the launcher remains ready`;
+    } finally {
+      busy = false;
+    }
+  }
+
+  function plateCapsule(capsule) {
+    elKind.textContent = "outbound knowledge — launched Knowledge Capsule";
+    elText.textContent = `Private, human-reviewed inquiry milestone ${capsule.id}`;
+    elHere.textContent = [
+      `session ${capsule.session_title || capsule.session_id}`,
+      `comparison ${capsule.comparison_request_id}`,
+      `pinned Field Note revision ${capsule.field_note_revision_id}`,
+      `frozen head ${capsule.head_graph_id}/${capsule.head_turn_id}`,
+    ].join(" · ");
+    const path = capsule.markdown_path || (capsule.launch && capsule.launch.markdown_path) || "local Markdown path unavailable";
+    elMeta.textContent = [
+      capsule.launched_at ? `launched ${capsule.launched_at.replace("T", " ").replace("Z", " UTC")}` : "launch receipt present",
+      `source integrity ${capsule.integrity || "not read"}`,
+      `Markdown integrity ${capsule.markdown_integrity || "not read"}`,
+      path,
+      "b returns to the source chamber",
+    ].join("  ·  ");
+    requestAnimationFrame(resize);
+    applyClimate(null);
+  }
+
+  function layoutCapsule(capsule) {
+    layoutGeneration += 1;
+    elEvidenceDescent.hidden = true;
+    elFieldNoteEligible.hidden = true;
+    elKnowledgeCapsuleEligible.hidden = true;
+    elThreshold.hidden = true;
+    sound.setCapsuleReady(false);
+    clearRoot();
+    root.add(floor());
+    const launcher = capsuleLauncher(capsule, {
+      x: 0,
+      z: 0,
+      scale: 1,
+      state: "launched",
+      standing: true,
+    });
+    root.add(launcher);
+    standingMesh = launcher;
+    markRise(launcher, 0);
+    plateCapsule(capsule);
+  }
+
+  async function enterCapsule(capsuleId) {
+    if (busy || activeCapsule) return;
+    busy = true;
+    try {
+      activeCapsule = await api(`/api/knowledge-capsules/${capsuleId}`);
+      layoutCapsule(activeCapsule);
+    } finally {
+      busy = false;
+    }
+  }
+
+  function leaveCapsule() {
+    if (!activeCapsule) return false;
+    activeCapsule = null;
+    if (view) layout(view);
+    return true;
+  }
+
   function syncParallelProgress(progress) {
     parallelProgress = progress || null;
     const anchored = Boolean(
@@ -3213,7 +3846,7 @@
   }
 
   function renderThreshold(payload) {
-    if (activeFieldNote) {
+    if (activeFieldNote || activeCapsule) {
       elThreshold.hidden = true;
       return;
     }
@@ -3367,6 +4000,7 @@
       !arrivalsDirty ||
       !view ||
       activeFieldNote ||
+      activeCapsule ||
       composing ||
       !elWorkspaceMenu.hidden ||
       !elRelicIndex.hidden ||
@@ -3379,7 +4013,7 @@
   }
 
   async function revealWaitingArrivals() {
-    if (!view || activeFieldNote) return;
+    if (!view || activeFieldNote || activeCapsule) return;
     const graphId = view.graph_id;
     const nodeId = view.node.id;
     const q = new URLSearchParams({ graph: graphId });
@@ -3535,6 +4169,21 @@
     pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
+    const capsuleHit = pickUserData(
+      raycaster.intersectObjects(capsuleTargets, true),
+      (data) => data.capsuleId
+    );
+    if (capsuleHit) {
+      const launcher = capsuleTargets.find(
+        (item) => item.userData.capsuleId === capsuleHit.capsuleId
+      );
+      if (launcher && launcher.userData.capsuleState === "ready") {
+        launchCapsule(capsuleHit.capsuleId, launcher);
+      } else if (launcher && launcher.userData.capsuleState === "launched") {
+        enterCapsule(capsuleHit.capsuleId);
+      }
+      return;
+    }
     const fieldNoteHit = pickUserData(
       raycaster.intersectObjects(fieldNoteTargets, true),
       (data) => data.fieldNoteId
@@ -3802,7 +4451,7 @@
     }
     if (!choices[focusIndex]) return;
     const role = choices[focusIndex].choice.audioRole || "story";
-    if (role === "field-note") {
+    if (role === "field-note" || role === "capsule") {
       choices[focusIndex].choice.walk();
       return;
     }
@@ -4004,6 +4653,7 @@
 
   elEvidenceClose.addEventListener("click", closeEvidenceDescent);
   elFieldNoteEligible.addEventListener("click", openEligibleFieldNoteComposer);
+  elKnowledgeCapsuleEligible.addEventListener("click", constructKnowledgeCapsule);
   elThresholdOrigin.addEventListener("click", walkOrigin);
   elThresholdContinue.addEventListener("click", toggleContinuationReady);
   elThresholdAsk.addEventListener("click", toggleContinuationComposer);
@@ -4134,6 +4784,13 @@
       openWorkspaceMenu();
       return;
     }
+    if (activeCapsule) {
+      if (e.key === "Escape" || e.key === "b" || e.key === "B" || e.key === "ArrowDown") {
+        e.preventDefault();
+        leaveCapsule();
+      }
+      return;
+    }
     if (activeFieldNote) {
       if (e.key === "e" || e.key === "E") {
         e.preventDefault();
@@ -4151,6 +4808,13 @@
       if (view && view.field_note_eligibility) {
         e.preventDefault();
         openEligibleFieldNoteComposer();
+      }
+      return;
+    }
+    if (e.key === "k" || e.key === "K") {
+      if (view && view.knowledge_capsule_eligibility) {
+        e.preventDefault();
+        constructKnowledgeCapsule();
       }
       return;
     }
@@ -4347,6 +5011,80 @@
     }
   }
 
+  function updateCapsuleAtmosphere(t) {
+    if (
+      capsuleConstruction &&
+      t - capsuleConstruction.startedAt >= capsuleConstruction.duration
+    ) {
+      finishCapsuleConstruction();
+    }
+    for (const group of capsuleTargets) {
+      if (group.userData.capsuleState === "constructing") {
+        const relic = group.userData.relicObject;
+        if (relic) {
+          relic.position.y = relic.userData.capsuleRestY + Math.sin(t * 2.35) * 0.045;
+          relic.traverse((part) => {
+            if (part.material && part.material.transparent) {
+              part.material.opacity = 0.5 + Math.sin(t * 3.8) * 0.13;
+            }
+          });
+        }
+      }
+      const orbit = group.userData.capsuleOrbit;
+      if (!orbit) continue;
+      const dissipation = orbit.dissipatingAt === null
+        ? 0
+        : Math.max(0, t - orbit.dissipatingAt);
+      const fade = orbit.dissipatingAt === null
+        ? 1
+        : Math.max(0, 1 - dissipation / 1.1);
+      if (fade <= 0) {
+        group.remove(orbit.points);
+        delete group.userData.capsuleOrbit;
+        continue;
+      }
+      const positions = orbit.points.geometry.attributes.position.array;
+      for (let index = 0; index < orbit.count; index += 1) {
+        const band = index % 3;
+        const angle = (index / orbit.count) * Math.PI * 2 + t * (0.48 + band * 0.08);
+        const radius = (1.35 + (index % 11) * 0.035) * (1 + dissipation * 1.2);
+        positions[index * 3] = Math.cos(angle) * radius;
+        positions[index * 3 + 1] = (band - 1) * 0.42 + Math.sin(angle * 2.2) * 0.22;
+        positions[index * 3 + 2] = Math.sin(angle) * radius * 0.72;
+      }
+      orbit.points.geometry.attributes.position.needsUpdate = true;
+      orbit.points.material.opacity = 0.9 * fade;
+    }
+
+    if (!capsuleFlight) return;
+    const flight = capsuleFlight;
+    const u = Math.min(1, Math.max(0, (t - flight.startedAt) / flight.duration));
+    const one = 1 - u;
+    flight.group.position.set(0, 0, 0)
+      .addScaledVector(flight.start, one * one * one)
+      .addScaledVector(flight.control1, 3 * one * one * u)
+      .addScaledVector(flight.control2, 3 * one * u * u)
+      .addScaledVector(flight.end, u * u * u);
+    flight.group.rotation.y = t * 2.8;
+    flight.group.rotation.z = Math.sin(u * Math.PI) * 0.24;
+    flight.flash.intensity = u < 0.12
+      ? 3800 * (1 - u / 0.12)
+      : u > 0.9 ? 1500 * ((u - 0.9) / 0.1) : 80;
+    flight.points.unshift(flight.group.position.clone());
+    flight.points = flight.points.slice(0, 42);
+    for (let index = 0; index < 42; index += 1) {
+      const point = flight.points[index] || flight.points[flight.points.length - 1] || flight.start;
+      point.toArray(flight.trailPositions, index * 3);
+    }
+    flight.trail.geometry.attributes.position.needsUpdate = true;
+    flight.trail.material.opacity = 0.88 * (1 - Math.max(0, u - 0.82) / 0.18);
+    if (u >= 1) {
+      scene.remove(flight.group);
+      scene.remove(flight.trail);
+      capsuleFlight = null;
+    }
+  }
+
   function tick() {
     const t = clock.getElapsedTime();
     if (overhead) {
@@ -4375,6 +5113,7 @@
     updateContinuationCircuit(t);
     tickRise(t);
     updateFieldNoteAtmosphere(t);
+    updateCapsuleAtmosphere(t);
     updateNavigationLights(t);
     renderer.render(scene, camera);
     requestAnimationFrame(tick);

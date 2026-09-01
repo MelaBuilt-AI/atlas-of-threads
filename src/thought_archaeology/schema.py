@@ -42,6 +42,8 @@ SCHEMA_NAMES = (
     "parallel-continuation-batch.schema.json",
     "field-note.schema.json",
     "field-note-revision.schema.json",
+    "knowledge-capsule-manifest.schema.json",
+    "knowledge-capsule-launch.schema.json",
 )
 
 DAG_EDGE_KINDS = frozenset({"supports", "depends_on", "shapes", "taste_of"})

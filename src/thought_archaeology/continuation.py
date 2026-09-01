@@ -699,10 +699,15 @@ def parallel_comparison(
         )
     from thought_archaeology.field_notes import field_notes_for_graphs
 
+    from thought_archaeology.knowledge_capsules import knowledge_capsule_summaries
+
     return {
         **summary,
         "paths": readings,
         "field_notes": field_notes_for_graphs(
             store, {item["graph_id"] for item in readings}
+        ),
+        "knowledge_capsules": knowledge_capsule_summaries(
+            store, comparison_request_id=summary["representative_request_id"]
         ),
     }
