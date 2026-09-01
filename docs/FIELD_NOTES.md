@@ -197,33 +197,68 @@ least two graphs in that comparison. `GET /api/inhabit/...` adds compact
 `field_notes` for the exact standing graph/node so rediscovery is
 server-authored.
 
-## Thread Compass flow
+## Composition and chamber flow
 
-Field Notes use the existing Thread Compass rather than a new global key,
-drawer, chamber relic, or evidence surface.
+Field Notes remain attached to an exact Parallel Continuations comparison, but
+an eligible terminal chamber now exposes the direct lived-use entrance. Python
+marks a chamber eligible only when it is terminal and its graph is one of at
+least two completed paths in an exact comparison. JavaScript does not infer
+eligibility.
 
-1. Open `T` and enter an eligible Parallel Continuations comparison.
-2. Choose **Write Field Note**.
-3. Each path reveals its public thought-objects in recorded graph order.
-4. Select 2–12 exact thoughts across at least two paths. Every selection shows
+1. At an eligible path ending, a floating **Field Note Eligible** prompt says
+   **press W to write** and emits a restrained ethereal procedural cue after
+   browser sound has awakened.
+2. `W` opens that exact comparison's Field Note composer inside Thread Compass
+   and preselects the standing thought. `T` → comparison → **Write Field Note**
+   remains an equivalent entrance and preselects the current path thought when
+   it belongs to that comparison.
+3. The supplied `field-notes-writing-loop` plays only while the composer is
+   active.
+4. Each path reveals its public thought-objects in recorded graph order.
+5. Select 2–12 exact thoughts across at least two paths. Every selection shows
    harness/model attribution, kind, status, and exact text.
-5. Choose conclusion, unresolved question, or observation.
-6. Write up to 4,000 characters in a multiline field.
-7. Review the selected references in their preserved order.
-8. Choose **Commit Field Note** once.
-9. The immutable note opens inside Thread Compass; the chamber behind it is not
-   replaced.
-10. `Esc` returns to the comparison, then lineage, then the chamber.
+6. Choose conclusion, unresolved question, or observation.
+7. Write up to 4,000 characters and review the selected references in their
+   preserved order. `Enter` commits when valid; `Shift+Enter` inserts a line.
+8. The immutable note is written once. The composer closes back to the same
+   chamber and its writing loop stops.
+9. An 18-second `field-notes-monument-construction-loop` accompanies the
+   hologram monument while it materializes. Completion swaps to the permanent
+   model and plays `field-notes-monument-complete`.
+10. A small amber/blue neuron halo circles the monument until its first entry.
+    First-entry state is browser-local atmosphere, not canonical note state.
+11. Entering plays `field-notes-scribe-entry`, dissipates the first-entry halo,
+    and inhabits the note without turning it into a graph node.
 
 Existing notes appear above the comparison path readings under **Human Field
 Notes**. A note card visibly distinguishes its kind and human authorship.
 Opening it shows the note text followed by each exact referenced thought and an
 **Enter this thought** action.
 
+Thread Compass also nests the same note cards beneath their Parallel
+Continuations group. They are connective human inscriptions, not graph
+generations, children, votes, or merged paths.
+
 When standing at a referenced chamber, the server-authored bottom plate says
 `N human Field Notes · inspect in Thread Compass`. Opening `T` places those notes
-in a **Field Notes from this chamber** section. This is the Phase 1 rediscovery
-path; there is no new keyboard shortcut or permanent 3D object.
+in a **Field Notes from this chamber** section. The same immutable note is also
+projected as a permanent Field Notes Monument in the chamber's left-side human
+inscription alcove. A note selected from several chambers is not duplicated in
+storage; each monument is a doorway to the one store-scoped artifact.
+
+Left placement is deliberate spatial grammar: story consequences remain ahead,
+rejected roads and human interpretation remain leftward but separate, AI
+arrivals remain rightward, and returns remain behind. Field Note monuments are
+placed beyond existing rejected-road rows so they do not displace story
+geometry. Their amber ring and notebook/pen form distinguish them from ghosted
+negative-space relics.
+
+Inside a monument, the note kind and exact human text occupy the ordinary main
+reading plate. `B`, down, or Escape returns to the source chamber. `E` opens
+**Field Note source selections** in commit order with exact attribution, text,
+IDs, and integrity. This reuses the archaeological descent surface as an
+inspection gesture while explicitly saying that human selection context is not
+causal evidence and creates no `EvidenceBinding`.
 
 While a Field Note textarea owns focus, ordinary chamber shortcuts do not fire.
 `Esc` first leaves the composer without writing. Submitting disables the commit
@@ -275,6 +310,17 @@ inhabitant; it does not settle what should matter to everyone.
 - kind and multiline text remain stable while focused;
 - commit produces one note and returns to the same comparison/chamber context;
 - existing notes reopen from the comparison and every referenced chamber;
+- terminal comparison paths receive server-authored eligibility and `W`
+  preselects the standing thought;
+- writing, construction, completion, and entry sounds follow their exact
+  lifecycle without stacking after exit;
+- hologram construction swaps to the permanent monument after 18 seconds;
+- exact referenced chambers show the left-side monument and Thread Compass
+  nests notes under their comparison group;
+- the first-entry neuron halo is browser-local and dissipates only for the
+  entered note;
+- monument entry puts note text on the main plate and `E` shows exact source
+  selections without presenting them as evidence;
 - `Esc` retraces composer → comparison → lineage → chamber;
 - the layout remains usable at wide and 375 px widths.
 
@@ -289,19 +335,28 @@ inhabitant; it does not settle what should matter to everyone.
 
 Before Public Local Preview work begins:
 
-1. Create one Field Note from a real multi-path comparison.
-2. Confirm its kind, human authorship, exact text, referenced graph/node IDs,
+1. Stand at a real parallel-path ending and confirm the floating eligibility
+   prompt and ethereal cue appear once.
+2. Press `W`, confirm the standing thought is preselected, select a second
+   path, and verify the writing loop stops when the composer closes.
+3. Commit one Field Note with `Enter`; observe the complete 18-second
+   hologram/construction-loop transition, completion cue, permanent monument,
+   and first-entry neuron halo.
+4. Enter the monument, confirm the scribe-entry cue and halo dissipation, read
+   the note on the main plate, and use `E` to inspect every source selection.
+5. Confirm its kind, human authorship, exact text, referenced graph/node IDs,
    and graph hashes.
-3. Confirm every referenced source graph has the same SHA-256 bytes as before.
-4. Close and reopen Inhabit Space and recover the note.
-5. Open it from the original comparison and from every referenced chamber.
-6. Enter every referenced thought from the note and retrace normally.
-7. Create or inspect each visible kind: conclusion, unresolved question, and
+6. Confirm every referenced source graph has the same SHA-256 bytes as before.
+7. Close and reopen Inhabit Space and recover the note without restoring the
+   first-entry halo in that browser.
+8. Open it from the original comparison and from every referenced chamber.
+9. Enter every referenced thought from the note and retrace normally.
+10. Create or inspect each visible kind: conclusion, unresolved question, and
    observation.
-8. Confirm no continuation request, provider call, compiled graph, turn, or
+11. Confirm no continuation request, provider call, compiled graph, turn, or
    session-head change occurred.
-9. Run the complete local suite and GitHub Python 3.11/3.12 workflow.
-10. Obtain explicit user live acceptance.
+12. Run the complete local suite and GitHub Python 3.11/3.12 workflow.
+13. Obtain explicit user live acceptance.
 
 ## Explicit deferrals
 
@@ -317,7 +372,8 @@ Phase 1 does not add:
 - portable reference envelopes, bundles, imports, or migrations;
 - instance identity, signatures, handles, accounts, permissions, publication,
   remote references, networking, presence, or a Master Atlas service;
-- new chamber geometry, sound, beam, ring, global shortcut, or social feed.
+- generalized annotation geometry, note-to-note links, remote monuments,
+  monument publication, or a social feed.
 
 After live acceptance, development stops at this gate and moves to the separate
 Public Local Preview readiness phase. Portability begins only after independent

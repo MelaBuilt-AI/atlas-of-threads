@@ -12,10 +12,12 @@ from thought_archaeology.continuation import parallel_comparison
 from thought_archaeology.field_notes import (
     create_field_note,
     field_note,
+    field_note_eligibility,
     field_note_read,
     field_note_summaries,
 )
 from thought_archaeology.ids import new_ulid
+from thought_archaeology.inhabit import inhabit
 from thought_archaeology.schema import ValidationError, validate_schema
 from thought_archaeology.serve import InhabitHandler, thread_payload
 from thought_archaeology.store import StoreError
@@ -100,6 +102,7 @@ def test_field_note_is_write_once_exact_and_non_mutating(tmp_path: Path):
         node_id=note.references[0].node_id,
     )
     assert lineage["standing_field_notes"][0]["kind"] == "observation"
+    assert lineage["parallel_groups"][0]["field_notes"][0]["id"] == note.id
 
 
 def test_field_note_validation_and_comparison_guard(tmp_path: Path):
@@ -273,6 +276,34 @@ def test_field_note_cli_and_server_surfaces(tmp_path: Path):
     inhabit_payload = replies[-1][1]
     assert len(inhabit_payload["field_notes"]) == 2
     assert "inspect in Thread Compass" in inhabit_payload["read"]["field_note_line"]
+
+    graph_id = comparison["paths"][0]["graph_id"]
+    graph = store.load_graph(graph_id)
+    terminal = next(
+        node
+        for node in graph.nodes
+        if not inhabit(store, node.id, graph_id=graph.id).forward
+    )
+    eligibility = field_note_eligibility(
+        store, graph_id=graph.id, node_id=terminal.id
+    )
+    assert eligibility["comparison_request_id"] == request_ids[0]
+    assert eligibility["standing_reference"] == {
+        "session_id": graph.session_id,
+        "graph_id": graph.id,
+        "node_id": terminal.id,
+    }
+    handler.path = f"/api/inhabit/{terminal.id}?graph={graph.id}"
+    handler.do_GET()
+    assert replies[-1][1]["field_note_eligibility"] == eligibility
+    nonterminal = next(
+        node
+        for node in graph.nodes
+        if inhabit(store, node.id, graph_id=graph.id).forward
+    )
+    handler.path = f"/api/inhabit/{nonterminal.id}?graph={graph.id}"
+    handler.do_GET()
+    assert replies[-1][1]["field_note_eligibility"] is None
 
 
 def test_field_note_digest_is_exact_graph_bytes(tmp_path: Path):

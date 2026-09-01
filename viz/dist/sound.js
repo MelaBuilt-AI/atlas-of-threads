@@ -25,6 +25,10 @@
     greenSparks: { file: "green-beam-sparks-loop.ogg", gain: 0.16, loop: true },
     blueSplash: { file: "blue-path-complete-splash.ogg", gain: 0.66 },
     camera: { file: "camera-cycle-transition.ogg", gain: 0.253125, submerged: true },
+    fieldNoteWriting: { file: "field-notes-writing-loop.ogg", gain: 0.15, loop: true },
+    fieldNoteConstruction: { file: "field-notes-monument-construction-loop.ogg", gain: 0.2, loop: true },
+    fieldNoteComplete: { file: "field-notes-monument-complete.ogg", gain: 0.62 },
+    fieldNoteEntry: { file: "field-notes-scribe-entry.ogg", gain: 0.54 },
   };
 
   let saved = {};
@@ -46,6 +50,9 @@
   let burstNoise = null;
   let desiredWorking = false;
   let desiredBeam = null;
+  let desiredFieldNoteWriting = false;
+  let desiredFieldNoteConstruction = false;
+  let pendingFieldNoteEligible = false;
   const buffers = new Map();
   const loopLayers = new Map();
   const pendingCues = [];
@@ -172,6 +179,7 @@
         const cue = pendingCues.shift();
         playOneShot(cue.key, cue.pan, false);
       }
+      if (pendingFieldNoteEligible) playFieldNoteEligible();
       renderControl();
       return true;
     })().catch((error) => {
@@ -246,6 +254,10 @@
     else stopLoop("working", 0.45);
     if (desiredBeam === "waiting") startLoop("greenSparks", 0.22);
     else stopLoop("greenSparks", 0.3);
+    if (desiredFieldNoteWriting) startLoop("fieldNoteWriting", 0.28);
+    else stopLoop("fieldNoteWriting", 0.35);
+    if (desiredFieldNoteConstruction) startLoop("fieldNoteConstruction", 0.18);
+    else stopLoop("fieldNoteConstruction", 0.45);
   }
 
   async function awaken() {
@@ -371,6 +383,39 @@
     playOneShot("blueSplash");
   }
 
+  function playFieldNoteEligible() {
+    if (!context || muted) return;
+    pendingFieldNoteEligible = false;
+    noiseBurst({ duration: 1.15, gain: 0.018, from: 420, to: 1260, q: 4.8 });
+    tone({ from: 196, to: 392, duration: 1.1, gain: 0.022, type: "sine", pan: -0.18 });
+    window.setTimeout(() => {
+      tone({ from: 293.66, to: 587.32, duration: 1.15, gain: 0.018, type: "sine", pan: 0.2 });
+    }, 180);
+  }
+
+  function fieldNoteEligible() {
+    pendingFieldNoteEligible = true;
+    if (context && packState === "ready") playFieldNoteEligible();
+  }
+
+  function setFieldNoteWriting(active) {
+    desiredFieldNoteWriting = Boolean(active);
+    syncLayers();
+  }
+
+  function setFieldNoteConstruction(active) {
+    desiredFieldNoteConstruction = Boolean(active);
+    syncLayers();
+  }
+
+  function fieldNoteComplete() {
+    playOneShot("fieldNoteComplete");
+  }
+
+  function fieldNoteEntry() {
+    playOneShot("fieldNoteEntry");
+  }
+
   function cancel() {
     noiseBurst({ duration: 0.4, gain: 0.038, from: 1300, to: 64, q: 2.3 });
     tone({ from: 91, to: 27, duration: 0.45, gain: 0.032, type: "triangle" });
@@ -382,6 +427,9 @@
     applyMaster(true);
     save();
     renderControl();
+    if (!muted && pendingFieldNoteEligible && packState === "ready") {
+      playFieldNoteEligible();
+    }
   }
 
   function setVolume(next) {
@@ -468,6 +516,11 @@
     setWorking,
     setBeam,
     arrivalSplash,
+    fieldNoteEligible,
+    setFieldNoteWriting,
+    setFieldNoteConstruction,
+    fieldNoteComplete,
+    fieldNoteEntry,
     cancel,
   };
 })();

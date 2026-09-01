@@ -176,6 +176,55 @@ html, body {
 
 #threshold[hidden] { display: none; }
 
+#field-note-eligible {
+  position: absolute;
+  top: 5.3rem;
+  left: 50%;
+  z-index: 7;
+  display: grid;
+  gap: 0.28rem;
+  min-width: 14.5rem;
+  padding: 0.78rem 1.05rem;
+  transform: translateX(-50%);
+  border: 1px solid rgba(226, 196, 138, 0.72);
+  border-radius: 0.2rem;
+  background: linear-gradient(135deg, rgba(30, 24, 16, 0.92), rgba(3, 8, 16, 0.82));
+  box-shadow: 0 0 1.5rem rgba(226, 196, 138, 0.16), inset 0 0 1rem rgba(79, 143, 214, 0.08);
+  color: var(--bronze-hot);
+  cursor: pointer;
+  text-align: center;
+  animation: field-note-float 4.8s ease-in-out infinite;
+  backdrop-filter: blur(8px);
+}
+
+#field-note-eligible[hidden] { display: none; }
+
+#field-note-eligible span {
+  font: 0.72rem ui-monospace, Menlo, monospace;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+#field-note-eligible small {
+  color: rgba(236, 230, 216, 0.76);
+  font: 0.65rem ui-monospace, Menlo, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+#field-note-eligible:hover,
+#field-note-eligible:focus-visible {
+  border-color: var(--phosphor);
+  color: var(--phosphor);
+  outline: none;
+  box-shadow: 0 0 2rem rgba(200, 242, 106, 0.18), inset 0 0 1rem rgba(79, 143, 214, 0.12);
+}
+
+@keyframes field-note-float {
+  0%, 100% { transform: translate(-50%, 0) rotate(-0.15deg); }
+  50% { transform: translate(-50%, -0.55rem) rotate(0.15deg); }
+}
+
 #threshold .kind {
   font: 0.68rem ui-monospace, Menlo, monospace;
   letter-spacing: 0.1em;
@@ -687,6 +736,12 @@ html, body {
   transform: rotate(45deg);
 }
 
+.legend-mark.field-note-mark {
+  border-color: var(--bronze-hot);
+  background: radial-gradient(circle, #ffd27a 0 22%, #70522f 24% 48%, transparent 51%);
+  box-shadow: 0 0 0.8rem rgba(255, 210, 122, 0.42);
+}
+
 #thread-compass {
   z-index: 7;
   display: grid;
@@ -884,6 +939,11 @@ html, body {
 }
 
 .thread-entry.parallel-member::before { display: none; }
+
+.thread-parallel-group > .field-note-list {
+  margin: 0.8rem 0 0.15rem 1rem;
+  border-left-color: rgba(226, 196, 138, 0.46);
+}
 
 .parallel-context,
 .parallel-path {
@@ -1525,6 +1585,10 @@ html, body {
 }
 
 @media (max-width: 38rem) {
+  #field-note-eligible {
+    top: 4.7rem;
+    width: min(18rem, calc(100vw - 2rem));
+  }
   #plate,
   #topbar,
   #threshold {

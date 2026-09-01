@@ -20,8 +20,10 @@ from thought_archaeology.continuation import (
 from thought_archaeology.fork import ForkError
 from thought_archaeology.field_notes import (
     create_field_note,
+    field_note_eligibility,
     field_note_read,
     field_note_summaries,
+    field_notes_for_graphs,
 )
 from thought_archaeology.harness import (
     HarnessError,
@@ -525,6 +527,9 @@ def thread_payload(
         group["depth"] = min(
             (entry["depth"] for entry in member_entries), default=0
         )
+        group["field_notes"] = field_notes_for_graphs(
+            store, set(group["graph_ids"])
+        )
     return {
         "session_id": session.id,
         "title": session.title,
@@ -679,6 +684,15 @@ class InhabitHandler(BaseHTTPRequestHandler):
                 )
                 payload["field_notes"] = field_note_summaries(
                     self.store, graph_id=view.graph.id, node_id=view.node.id
+                )
+                payload["field_note_eligibility"] = (
+                    field_note_eligibility(
+                        self.store,
+                        graph_id=view.graph.id,
+                        node_id=view.node.id,
+                    )
+                    if payload.get("read", {}).get("traversal", {}).get("terminal")
+                    else None
                 )
                 payload["read"]["field_note_line"] = (
                     f"{len(payload['field_notes'])} human Field "

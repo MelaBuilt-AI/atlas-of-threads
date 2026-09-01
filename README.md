@@ -372,6 +372,15 @@ no graph, and remain separate from evidence. Thread Compass reopens them from
 the comparison and from every referenced chamber, where each exact source can
 be entered again. The bounded contract is in `docs/FIELD_NOTES.md`.
 
+At the terminal chamber of an eligible parallel path, a floating **Field Note
+Eligible** prompt offers `W` and preselects the standing thought in that exact
+composer. Writing has its own quiet loop; committing materializes a holographic
+Field Notes Monument into the left human-inscription alcove, then leaves the
+completed notebook monument at every exact referenced chamber. Its neuron halo
+marks only browser-local first entry. Inside the monument the human note occupies
+the main reading plate, while `E` reveals its exact selected sources as human
+interpretive context—not causal evidence.
+
 The chamber edge stays intentionally quiet: its one top line opens the
 **Legend and controls** drawer with `l`. The drawer owns the sound controls,
 contextual cut/human-no editor, complete key list, and the visual ring, beam, and

@@ -245,3 +245,26 @@ def field_notes_for_graphs(store: Store, graph_ids: set[str]) -> list[dict]:
             }
         )
     return summaries
+
+
+def field_note_eligibility(
+    store: Store, *, graph_id: str, node_id: str
+) -> dict | None:
+    """Resolve the exact parallel comparison available from this chamber."""
+    from thought_archaeology.continuation import parallel_group_summaries
+
+    graph = store.load_graph(graph_id)
+    for group in parallel_group_summaries(store, session_id=graph.session_id):
+        if graph_id not in group["graph_ids"]:
+            continue
+        return {
+            "comparison_request_id": group["representative_request_id"],
+            "completed_count": group["completed_count"],
+            "prompt": group["prompt"],
+            "standing_reference": {
+                "session_id": graph.session_id,
+                "graph_id": graph.id,
+                "node_id": node_id,
+            },
+        }
+    return None

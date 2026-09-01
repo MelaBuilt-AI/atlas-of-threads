@@ -16,6 +16,7 @@
     ["counterfactual-shard-gate", "Counterfactual Shard Gate", "return path · the cut behind you"],
     ["fork-compass", "Fork Compass", "continuation · a navigable fork"],
     ["forked-claim", "Forked Claim", "forked status · a claim on another path"],
+    ["field-notes-monument", "Field Notes Monument", "human inscription · what mattered across exact paths"],
     ["gray-box-prism", "Gray-Box Prism", "uncertainty · bounded unknowns"],
     ["intervened-claim", "Intervened Claim", "behavioral evidence · a tested thought"],
     ["intervention-key", "Intervention Key", "neural intervention · a causal internal edit"],
@@ -107,13 +108,19 @@
   const elThresholdParallel = document.getElementById("threshold-parallel");
   const elThresholdAskBox = document.getElementById("threshold-ask-box");
   const elThresholdAskInput = document.getElementById("threshold-ask-input");
+  const elFieldNoteEligible = document.getElementById("field-note-eligible");
   const elRelicIndex = document.getElementById("relic-index");
   const elRelicGrid = document.getElementById("relic-grid");
   const elRelicClose = document.getElementById("relic-close");
   const elEvidenceDescent = document.getElementById("evidence-descent");
+  const elEvidenceSurfaceKind = document.getElementById("evidence-surface-kind");
+  const elEvidenceSurfaceSummary = document.getElementById("evidence-surface-summary");
+  const elStoryPath = document.getElementById("story-path");
+  const elStorySectionLabel = document.getElementById("story-section-label");
   const elStoryIntro = document.getElementById("story-intro");
   const elStoryGroups = document.getElementById("story-groups");
   const elEvidenceIntro = document.getElementById("evidence-intro");
+  const elEvidenceSectionLabel = document.getElementById("evidence-section-label");
   const elEvidenceStrata = document.getElementById("evidence-strata");
   const elEvidenceClose = document.getElementById("evidence-close");
   const elSoundControls = document.getElementById("sound-controls");
@@ -154,6 +161,7 @@
   let view = null;
   let targets = [];
   let portals = [];
+  let fieldNoteTargets = [];
   let choices = [];
   let focusIndex = -1;
   const HOME_YAW = 0.18;
@@ -176,8 +184,12 @@
   let mappedRelicKey = "narrated-claim";
   let layoutGeneration = 0;
   let standingMesh = null;
+  let activeFieldNote = null;
+  let fieldNoteConstruction = null;
+  let eligibilityKey = null;
   const COMPANION_MEMORY_KEY = "thought-archaeology.companions.v1";
   const CIRCUIT_MEMORY_KEY = "thought-archaeology.continuation-circuits.v2";
+  const FIELD_NOTE_MEMORY_KEY = "thought-archaeology.field-notes-entered.v1";
   const knownHeads = new Map();
   const sessionTitles = new Map();
   let liveArrivals = loadCompanionThoughts();
@@ -191,6 +203,29 @@
   let parallelComposerOpen = false;
   let parallelProgress = null;
   let workspaceState = null;
+  const enteredFieldNotes = loadEnteredFieldNotes();
+
+  function loadEnteredFieldNotes() {
+    try {
+      const saved = JSON.parse(
+        window.localStorage.getItem(FIELD_NOTE_MEMORY_KEY) || "[]"
+      );
+      return new Set(Array.isArray(saved) ? saved.filter((item) => typeof item === "string") : []);
+    } catch (_error) {
+      return new Set();
+    }
+  }
+
+  function rememberFieldNoteEntry(noteId) {
+    enteredFieldNotes.add(noteId);
+    try {
+      window.localStorage.setItem(
+        FIELD_NOTE_MEMORY_KEY, JSON.stringify([...enteredFieldNotes].slice(-240))
+      );
+    } catch (_error) {
+      // First-entry atmosphere remains optional browser-local memory.
+    }
+  }
 
   function loadCompanionThoughts() {
     try {
@@ -784,6 +819,7 @@
   let threadReturnFocus = null;
 
   function closeThreadCompass(restoreFocus = true) {
+    sound.setFieldNoteWriting(false);
     elThreadCompass.hidden = true;
     threadLineage = null;
     threadComparison = null;
@@ -885,6 +921,11 @@
       members.append(renderThreadEntry(entry, true));
     }
     section.append(members);
+    appendFieldNoteCards(
+      section,
+      group.field_notes || [],
+      "Human Field Notes · connective inscriptions"
+    );
     return section;
   }
 
@@ -975,6 +1016,7 @@
   }
 
   function renderParallelComparison(comparison) {
+    sound.setFieldNoteWriting(false);
     threadComparison = comparison;
     threadNote = null;
     threadComposer = false;
@@ -1018,7 +1060,22 @@
     writeNote.type = "button";
     writeNote.className = "field-note-write";
     writeNote.textContent = "Write Field Note";
-    writeNote.addEventListener("click", () => renderFieldNoteComposer(comparison));
+    writeNote.addEventListener("click", () => {
+      const standingPath = (comparison.paths || []).find((path) =>
+        path.graph_id === view.graph_id &&
+        (path.selectable_thoughts || []).some((thought) => thought.id === view.node.id)
+      );
+      renderFieldNoteComposer(
+        comparison,
+        standingPath
+          ? {
+              session_id: comparison.session_id,
+              graph_id: view.graph_id,
+              node_id: view.node.id,
+            }
+          : null
+      );
+    });
     elThreadList.append(writeNote);
 
     for (const path of comparison.paths || []) {
@@ -1187,7 +1244,7 @@
     elThreadClose.focus({ preventScroll: true });
   }
 
-  function renderFieldNoteComposer(comparison) {
+  function renderFieldNoteComposer(comparison, initialReference = null) {
     threadComposer = true;
     threadNote = null;
     elThreadTitle.textContent = "Write Field Note";
@@ -1197,6 +1254,7 @@
     elThreadLatest.hidden = true;
     elThreadStatus.textContent = "No provider will be called. Source graphs will not change.";
     elThreadList.replaceChildren();
+    sound.setFieldNoteWriting(true);
 
     const form = document.createElement("form");
     form.className = "field-note-form";
@@ -1222,6 +1280,12 @@
         input.dataset.attribution = `${path.harness_display_name} · ${path.model}`;
         input.dataset.kind = thought.kind.replace(/_/g, " ");
         input.dataset.text = thought.text;
+        input.checked = Boolean(
+          initialReference &&
+          initialReference.session_id === comparison.session_id &&
+          initialReference.graph_id === path.graph_id &&
+          initialReference.node_id === thought.id
+        );
         const copy = document.createElement("span");
         const kind = document.createElement("span");
         kind.className = "field-note-thought-kind";
@@ -1262,6 +1326,10 @@
     textarea.rows = 7;
     textarea.placeholder = "Write the conclusion, unresolved question, or observation in your own words.";
     textLabel.append(textarea);
+    const textHint = document.createElement("span");
+    textHint.className = "field-note-selection-status";
+    textHint.textContent = "enter commits · shift+enter adds a new line · esc returns without writing";
+    textLabel.append(textHint);
     const reviewLabel = document.createElement("div");
     reviewLabel.className = "field-note-review-label";
     reviewLabel.textContent = "selected exact thoughts";
@@ -1309,6 +1377,11 @@
       syncSelection(changed);
     });
     textarea.addEventListener("input", () => syncSelection());
+    textarea.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" || event.shiftKey) return;
+      event.preventDefault();
+      if (!submit.disabled) form.requestSubmit();
+    });
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const selected = selectedInputs();
@@ -1327,10 +1400,22 @@
             node_id: input.dataset.nodeId,
           })),
         });
-        threadComparison = await api(
-          `/api/parallel/${comparison.representative_request_id}`
+        sound.setFieldNoteWriting(false);
+        const summary = fieldNoteSummary(result.note);
+        if (!(comparison.field_notes || []).some((note) => note.id === summary.id)) {
+          comparison.field_notes = [...(comparison.field_notes || []), summary];
+        }
+        const anchoredHere = (result.note.references || []).some((reference) =>
+          reference.session_id === view.session_id &&
+          reference.graph_id === view.graph_id &&
+          reference.node_id === view.node.id
         );
-        renderFieldNote(result.note);
+        if (anchoredHere) {
+          closeThreadCompass(false);
+          beginFieldNoteConstruction(result.note);
+        } else {
+          renderFieldNote(result.note);
+        }
       } catch (error) {
         syncSelection();
         selectionStatus.textContent = String(error.message || error);
@@ -1338,7 +1423,34 @@
     });
     syncSelection();
     elThreadPanel.scrollTop = 0;
-    form.querySelector('.field-note-thought input[type="checkbox"]')?.focus();
+    const initialInput = form.querySelector('.field-note-thought input[type="checkbox"]:checked');
+    (initialInput || form.querySelector('.field-note-thought input[type="checkbox"]'))?.focus();
+  }
+
+  async function openEligibleFieldNoteComposer() {
+    const eligibility = view && view.field_note_eligibility;
+    if (!eligibility || composing || busy || activeFieldNote) return;
+    if (!elLegendMenu.hidden) closeLegendMenu();
+    if (!elWorkspaceMenu.hidden) closeWorkspaceMenu();
+    threadReturnFocus = elFieldNoteEligible;
+    elThreadCompass.hidden = false;
+    elThreadLatest.hidden = true;
+    elThreadList.replaceChildren();
+    elThreadStatus.textContent = "opening the eligible human inscription…";
+    elThreadClose.focus();
+    try {
+      const [lineage, comparison] = await Promise.all([
+        api(`/api/thread/${view.session_id}?graph=${view.graph_id}&node=${view.node.id}`),
+        api(`/api/parallel/${eligibility.comparison_request_id}`),
+      ]);
+      if (elThreadCompass.hidden) return;
+      threadLineage = lineage;
+      threadComparison = comparison;
+      renderFieldNoteComposer(comparison, eligibility.standing_reference);
+    } catch (error) {
+      sound.setFieldNoteWriting(false);
+      elThreadStatus.textContent = String(error.message || error);
+    }
   }
 
   function threadBackOrClose() {
@@ -2021,6 +2133,166 @@
       });
   }
 
+  function mountFieldNoteRelic(group, { hologram, scale, placeholder, generation }) {
+    const model = hologram
+      ? "./assets/models/field-notes-monument-hologram.glb"
+      : "./assets/models/field-notes-monument.glb";
+    const mountToken = (group.userData.fieldNoteMountToken || 0) + 1;
+    group.userData.fieldNoteMountToken = mountToken;
+    RelicGLBLoader.load(model)
+      .then((object) => {
+        if (
+          !group.parent ||
+          generation !== layoutGeneration ||
+          mountToken !== group.userData.fieldNoteMountToken
+        ) return;
+        if (group.userData.relicObject) group.remove(group.userData.relicObject);
+        const box = new THREE.Box3().setFromObject(object);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        const fit = (2.55 * scale) /
+          Math.max(size.y, size.x * 0.76, size.z * 0.76, 0.001);
+        object.scale.setScalar(fit);
+        object.position.set(-center.x * fit, 0.38 - box.min.y * fit, -center.z * fit);
+        object.userData.fieldNoteRestY = object.position.y;
+        if (hologram) {
+          object.traverse((part) => {
+            if (!part.material) return;
+            part.material.transparent = true;
+            part.material.opacity = Math.min(0.72, part.material.opacity);
+            part.material.depthWrite = false;
+            part.material.emissiveIntensity = Math.max(
+              part.material.emissiveIntensity || 0, 0.35
+            );
+          });
+        }
+        placeholder.visible = false;
+        group.userData.relicObject = object;
+        group.add(object);
+      })
+      .catch((error) => {
+        placeholder.material.color.setHex(0x6b3540);
+        placeholder.userData.loadError = String(error.message || error);
+      });
+  }
+
+  function addFieldNoteSwirl(group) {
+    if (group.userData.fieldNoteSwirl || enteredFieldNotes.has(group.userData.fieldNoteId)) {
+      return;
+    }
+    const count = 54;
+    const positions = new Float32Array(count * 3);
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    const material = new THREE.PointsMaterial({
+      color: 0xffcc72,
+      size: 0.075,
+      transparent: true,
+      opacity: 0.88,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const points = new THREE.Points(geometry, material);
+    points.position.y = 1.3;
+    group.add(points);
+    group.userData.fieldNoteSwirl = {
+      points,
+      phases: Array.from({ length: count }, (_item, index) =>
+        (index / count) * Math.PI * 2 + (index % 7) * 0.13
+      ),
+      count,
+      dissipatingAt: null,
+    };
+  }
+
+  function fieldNoteMonument(note, { x, z, scale = 0.78, constructing = false, standing = false }) {
+    const group = new THREE.Group();
+    group.position.set(x, 0, z);
+    group.userData = {
+      fieldNoteId: note.id,
+      note,
+      constructing,
+      focusScale: 1,
+      ghost: false,
+    };
+    const plinth = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.2 * scale, 1.48 * scale, 0.38, 12),
+      stoneMat(0x29231b, 1)
+    );
+    plinth.position.y = 0.19;
+    group.add(plinth);
+    const placeholder = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.52 * scale),
+      new THREE.MeshStandardMaterial({
+        color: constructing ? 0x6ca9df : 0xe2c48a,
+        emissive: constructing ? 0x244e78 : 0x70461a,
+        emissiveIntensity: constructing ? 0.8 : 0.45,
+        transparent: true,
+        opacity: 0.62,
+      })
+    );
+    placeholder.position.y = 1.4 * scale;
+    group.add(placeholder);
+    mountFieldNoteRelic(group, {
+      hologram: constructing,
+      scale,
+      placeholder,
+      generation: layoutGeneration,
+    });
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(1.15 * scale, 0.055, 10, 32),
+      new THREE.MeshStandardMaterial({
+        color: constructing ? 0x79b9ef : 0xffcc72,
+        emissive: constructing ? 0x285f91 : 0x81511d,
+        emissiveIntensity: constructing ? 0.95 : 0.72,
+        metalness: 0.45,
+        roughness: 0.3,
+      })
+    );
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 0.42;
+    group.add(ring);
+    group.userData.fieldNoteRing = ring;
+    const board = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.75 * scale, 1.3 * scale),
+      new THREE.MeshBasicMaterial({
+        map: labelTexture(
+          constructing ? "field note constructing" : `human field note · ${note.kind_label}`,
+          note.text
+        ),
+        transparent: true,
+      })
+    );
+    board.position.set(0, 2.95 * scale, 0.88 * scale);
+    group.add(board);
+    group.userData.fieldNoteBoard = board;
+    group.userData.fieldNotePlaceholder = placeholder;
+    const hit = new THREE.Mesh(
+      new THREE.SphereGeometry(1.75 * scale),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    hit.position.y = 1.3 * scale;
+    hit.userData = { fieldNoteId: note.id };
+    group.add(hit);
+    fieldNoteTargets.push(group);
+    if (!constructing && !standing) addFieldNoteSwirl(group);
+    if (!standing) {
+      addClockChoice(group, {
+        via: constructing ? "human inscription forming" : "human inscription",
+        kind: note.kind,
+        text: note.text,
+        description: constructing
+          ? "Field Notes Monument construction is still in progress"
+          : `human Field Note · ${note.kind_label} — ${note.text}`,
+        audioRole: "field-note",
+        walk: () => {
+          if (!group.userData.constructing) enterFieldNote(note.id, group);
+        },
+      });
+    }
+    return group;
+  }
+
   function chamberMesh(node, { x, z, scale, ghost, relicKey, evidence }) {
     const color = KIND_COLOR[node.kind] || 0xb08d57;
     const g = new THREE.Group();
@@ -2139,6 +2411,7 @@
     }
     targets = [];
     portals = [];
+    fieldNoteTargets = [];
     risers = [];
     choices = [];
     focusIndex = -1;
@@ -2163,6 +2436,16 @@
     return {
       x: side * (CHOICE_ROW + row * CHOICE_ROW_GAP),
       z: (col - (rowCount - 1) / 2) * CHOICE_STRIDE,
+    };
+  }
+
+  function fieldNoteSlot(i, occupiedSideCount) {
+    const firstRow = Math.ceil(occupiedSideCount / 5);
+    const row = firstRow + Math.floor(i / 5);
+    const offsets = [0, -1, 1, -2, 2];
+    return {
+      x: -(CHOICE_ROW + row * CHOICE_ROW_GAP),
+      z: offsets[i % 5] * CHOICE_STRIDE,
     };
   }
 
@@ -2253,6 +2536,7 @@
 
   function layout(payload) {
     layoutGeneration += 1;
+    activeFieldNote = null;
     elEvidenceDescent.hidden = true;
     clearRoot();
     root.add(floor());
@@ -2294,6 +2578,7 @@
       ...rejected.map((n) => ({ node: n, ghost: true, via: "not taken" })),
       ...vetoes.map((n) => ({ node: n, ghost: true, via: "human no" })),
     ];
+    const fieldNotes = payload.field_notes || [];
     const pathCount = storyNodes.length + forks.length;
 
     storyNodes.forEach((item, i) => {
@@ -2336,6 +2621,21 @@
         walk: () => inhabit(payload.graph_id, item.node.id),
       });
       markRise(mesh, 0.12 + i * 0.07);
+    });
+
+    fieldNotes.forEach((note, i) => {
+      const slot = fieldNoteSlot(i, sideNodes.length);
+      const constructing = Boolean(
+        fieldNoteConstruction && fieldNoteConstruction.id === note.id
+      );
+      const monument = fieldNoteMonument(note, {
+        x: slot.x,
+        z: slot.z,
+        constructing,
+      });
+      root.add(monument);
+      if (constructing) fieldNoteConstruction.group = monument;
+      markRise(monument, 0.16 + i * 0.08);
     });
 
     forks.forEach((f, i) => {
@@ -2398,6 +2698,7 @@
     } else {
       plate(payload);
     }
+    renderFieldNoteEligibility(payload);
     renderThreshold(payload);
   }
 
@@ -2507,6 +2808,12 @@
         (payload.vetoes || []).length;
       if (storyCount) bits.push(`${storyCount} direct story ${storyCount === 1 ? "path" : "paths"} ahead`);
       if (sideCount) bits.push(`${sideCount} ${sideCount === 1 ? "road" : "roads"} not taken to the left`);
+      const noteCount = (payload.field_notes || []).length;
+      if (noteCount) {
+        bits.push(
+          `${noteCount} human Field ${noteCount === 1 ? "Note monument" : "Note monuments"} in the left inscription alcove`
+        );
+      }
       const nearbyArrivals = visibleArrivals(payload);
       const atOrigin = payload.origin && payload.origin.id === payload.node.id;
       const atThreshold = Boolean(traversal.terminal || atOrigin);
@@ -2527,6 +2834,168 @@
     elMeta.textContent = bits.join("  ·  ");
     requestAnimationFrame(resize);
     applyClimate(payload.climate);
+  }
+
+  function renderFieldNoteEligibility(payload) {
+    const eligibility = payload && payload.field_note_eligibility;
+    const visible = Boolean(
+      eligibility && !activeFieldNote && !fieldNoteConstruction
+    );
+    elFieldNoteEligible.hidden = !visible;
+    if (!visible) {
+      if (!eligibility) eligibilityKey = null;
+      return;
+    }
+    const nextKey = [
+      eligibility.comparison_request_id,
+      payload.graph_id,
+      payload.node.id,
+    ].join(":");
+    if (nextKey !== eligibilityKey) {
+      eligibilityKey = nextKey;
+      sound.fieldNoteEligible();
+    }
+  }
+
+  function fieldNoteSummary(note) {
+    return {
+      id: note.id,
+      created_at: note.created_at,
+      author: note.author,
+      kind: note.kind,
+      kind_label: note.kind_label,
+      text: note.text,
+      reference_count: note.reference_count,
+      referenced_graph_count: note.referenced_graph_count,
+      integrity: note.integrity,
+    };
+  }
+
+  function beginFieldNoteConstruction(note) {
+    if (!view) return;
+    const summary = fieldNoteSummary(note);
+    if (!(view.field_notes || []).some((item) => item.id === note.id)) {
+      view.field_notes = [...(view.field_notes || []), summary];
+    }
+    fieldNoteConstruction = {
+      id: note.id,
+      note: summary,
+      startedAt: clock.getElapsedTime(),
+      duration: 18,
+      group: null,
+    };
+    sound.setFieldNoteConstruction(true);
+    layout(view);
+  }
+
+  function finishFieldNoteConstruction() {
+    const construction = fieldNoteConstruction;
+    if (!construction) return;
+    fieldNoteConstruction = null;
+    sound.setFieldNoteConstruction(false);
+    sound.fieldNoteComplete();
+    const group = construction.group;
+    if (group && group.parent) {
+      group.userData.constructing = false;
+      const ring = group.userData.fieldNoteRing;
+      if (ring && ring.material) {
+        ring.material.color.setHex(0xffcc72);
+        ring.material.emissive.setHex(0x81511d);
+        ring.material.emissiveIntensity = 0.72;
+      }
+      const board = group.userData.fieldNoteBoard;
+      if (board && board.material) {
+        board.material.map = labelTexture(
+          `human field note · ${construction.note.kind_label}`,
+          construction.note.text
+        );
+        board.material.needsUpdate = true;
+      }
+      mountFieldNoteRelic(group, {
+        hologram: false,
+        scale: 0.78,
+        placeholder: group.userData.fieldNotePlaceholder,
+        generation: layoutGeneration,
+      });
+      addFieldNoteSwirl(group);
+      const choice = choices.find((item) => item.mesh === group);
+      if (choice) {
+        choice.choice.via = "human inscription";
+        choice.choice.description =
+          `human Field Note · ${construction.note.kind_label} — ${construction.note.text}`;
+      }
+    }
+    if (view && !activeFieldNote) {
+      renderFieldNoteEligibility(view);
+      plate(view);
+    }
+  }
+
+  function dissipateFieldNoteSwirl(group) {
+    const swirl = group && group.userData.fieldNoteSwirl;
+    if (swirl && swirl.dissipatingAt === null) {
+      swirl.dissipatingAt = clock.getElapsedTime();
+    }
+  }
+
+  function plateFieldNote(note) {
+    elKind.textContent = `human field note — ${note.kind_label}`;
+    elText.textContent = note.text;
+    elHere.textContent =
+      `inside an immutable human inscription · ${note.reference_count} exact thoughts across ${note.referenced_graph_count} paths · e reveals the selected sources`;
+    elMeta.textContent = [
+      note.created_at.replace("T", " ").replace("Z", " UTC"),
+      note.integrity === "verified" ? "source integrity verified" : "source integrity failed",
+      "b returns to the referenced chamber",
+    ].join("  ·  ");
+    requestAnimationFrame(resize);
+    applyClimate(null);
+  }
+
+  function layoutFieldNote(note) {
+    layoutGeneration += 1;
+    elEvidenceDescent.hidden = true;
+    elFieldNoteEligible.hidden = true;
+    elThreshold.hidden = true;
+    clearRoot();
+    root.add(floor());
+    const monument = fieldNoteMonument(note, {
+      x: 0,
+      z: 0,
+      scale: 1,
+      standing: true,
+    });
+    root.add(monument);
+    standingMesh = monument;
+    markRise(monument, 0);
+    plateFieldNote(note);
+  }
+
+  async function enterFieldNote(noteId, monument = null) {
+    if (busy || activeFieldNote || (fieldNoteConstruction && fieldNoteConstruction.id === noteId)) {
+      return;
+    }
+    busy = true;
+    try {
+      const note = await api(`/api/field-notes/${noteId}`);
+      sound.fieldNoteEntry();
+      if (!enteredFieldNotes.has(noteId)) {
+        dissipateFieldNoteSwirl(monument);
+        await new Promise((resolve) => window.setTimeout(resolve, 1050));
+        rememberFieldNoteEntry(noteId);
+      }
+      activeFieldNote = note;
+      layoutFieldNote(note);
+    } finally {
+      busy = false;
+    }
+  }
+
+  function leaveFieldNote() {
+    if (!activeFieldNote) return false;
+    activeFieldNote = null;
+    if (view) layout(view);
+    return true;
   }
 
   function syncParallelProgress(progress) {
@@ -2584,6 +3053,10 @@
   }
 
   function renderThreshold(payload) {
+    if (activeFieldNote) {
+      elThreshold.hidden = true;
+      return;
+    }
     const traversal = (payload.read && payload.read.traversal) || {};
     if (!traversal.terminal) {
       elThreshold.hidden = true;
@@ -2733,6 +3206,7 @@
     if (
       !arrivalsDirty ||
       !view ||
+      activeFieldNote ||
       composing ||
       !elWorkspaceMenu.hidden ||
       !elRelicIndex.hidden ||
@@ -2745,7 +3219,7 @@
   }
 
   async function revealWaitingArrivals() {
-    if (!view) return;
+    if (!view || activeFieldNote) return;
     const graphId = view.graph_id;
     const nodeId = view.node.id;
     const q = new URLSearchParams({ graph: graphId });
@@ -2901,6 +3375,17 @@
     pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
+    const fieldNoteHit = pickUserData(
+      raycaster.intersectObjects(fieldNoteTargets, true),
+      (data) => data.fieldNoteId
+    );
+    if (fieldNoteHit) {
+      const monument = fieldNoteTargets.find(
+        (item) => item.userData.fieldNoteId === fieldNoteHit.fieldNoteId
+      );
+      enterFieldNote(fieldNoteHit.fieldNoteId, monument);
+      return;
+    }
     const portalHit = pickUserData(
       raycaster.intersectObjects(portals, true),
       (d) => d.portal && d.portal.graphId && d.portal.nodeId
@@ -3157,6 +3642,10 @@
     }
     if (!choices[focusIndex]) return;
     const role = choices[focusIndex].choice.audioRole || "story";
+    if (role === "field-note") {
+      choices[focusIndex].choice.walk();
+      return;
+    }
     sound.traverse(role === "back" ? "back" : "forward", role);
     choices[focusIndex].choice.walk();
   }
@@ -3217,6 +3706,51 @@
 
   function renderEvidenceDescent() {
     const read = (view && view.read) || {};
+    if (activeFieldNote) {
+      elEvidenceSurfaceKind.textContent = "Field Note source selections";
+      elEvidenceSurfaceSummary.textContent =
+        "Exact thoughts selected by the inhabitant; this is source context, not causal evidence.";
+      elStoryPath.hidden = true;
+      elEvidenceSectionLabel.textContent = "selected exact thoughts · human interpretation";
+      elEvidenceIntro.textContent =
+        `${activeFieldNote.reference_count} selections preserved in commit order. The Field Note does not alter or rank them.`;
+      elEvidenceStrata.replaceChildren();
+      for (const [index, reference] of (activeFieldNote.references || []).entries()) {
+        const stratum = document.createElement("article");
+        stratum.className = "evidence-stratum";
+        const position = document.createElement("div");
+        position.className = "evidence-position";
+        position.textContent = `selection ${index + 1} of ${activeFieldNote.reference_count}`;
+        const heading = document.createElement("div");
+        heading.className = "evidence-heading";
+        const harness = reference.harness
+          ? reference.harness.replace(/(^|-)([a-z])/g, (_match, dash, letter) =>
+            `${dash ? " " : ""}${letter.toUpperCase()}`
+          )
+          : "Human or imported graph";
+        heading.textContent = reference.thought
+          ? `${harness} · ${reference.model.name} · ${reference.thought.kind.replace(/_/g, " ")}`
+          : "referenced source unavailable";
+        const summary = document.createElement("p");
+        summary.className = "evidence-summary";
+        summary.textContent = reference.thought
+          ? reference.thought.text
+          : `${reference.session_id}/${reference.graph_id}/${reference.node_id}`;
+        const origin = document.createElement("div");
+        origin.className = "evidence-origin";
+        origin.textContent =
+          `${reference.graph_id} · ${reference.node_id} · source integrity ${reference.integrity}`;
+        stratum.append(position, heading, summary, origin);
+        elEvidenceStrata.append(stratum);
+      }
+      return;
+    }
+    elEvidenceSurfaceKind.textContent = "archaeological record";
+    elEvidenceSurfaceSummary.textContent =
+      "Why the answer took this path, then what has tested it.";
+    elStoryPath.hidden = false;
+    elStorySectionLabel.textContent = "why this path · story graph";
+    elEvidenceSectionLabel.textContent = "evidence beneath this thought";
     const story = read.story_path || {};
     const layers = read.evidence_layers || [];
     elStoryIntro.textContent = Object.prototype.hasOwnProperty.call(read, "story_path")
@@ -3309,6 +3843,7 @@
   }
 
   elEvidenceClose.addEventListener("click", closeEvidenceDescent);
+  elFieldNoteEligible.addEventListener("click", openEligibleFieldNoteComposer);
   elThresholdOrigin.addEventListener("click", walkOrigin);
   elThresholdContinue.addEventListener("click", toggleContinuationReady);
   elThresholdAsk.addEventListener("click", toggleContinuationComposer);
@@ -3437,6 +3972,26 @@
     if (e.key === "m" || e.key === "M") {
       e.preventDefault();
       openWorkspaceMenu();
+      return;
+    }
+    if (activeFieldNote) {
+      if (e.key === "e" || e.key === "E") {
+        e.preventDefault();
+        openEvidenceDescent();
+        return;
+      }
+      if (e.key === "Escape" || e.key === "b" || e.key === "B" || e.key === "ArrowDown") {
+        e.preventDefault();
+        leaveFieldNote();
+        return;
+      }
+      if (!["c", "C", "s", "S"].includes(e.key)) return;
+    }
+    if (e.key === "w" || e.key === "W") {
+      if (view && view.field_note_eligibility) {
+        e.preventDefault();
+        openEligibleFieldNoteComposer();
+      }
       return;
     }
     if (e.key === "p" || e.key === "P") {
@@ -3584,6 +4139,54 @@
     } else selectionSpot.intensity = 0;
   }
 
+  function updateFieldNoteAtmosphere(t) {
+    if (
+      fieldNoteConstruction &&
+      t - fieldNoteConstruction.startedAt >= fieldNoteConstruction.duration
+    ) {
+      finishFieldNoteConstruction();
+    }
+    for (const group of fieldNoteTargets) {
+      if (group.userData.constructing) {
+        const relic = group.userData.relicObject;
+        if (relic) {
+          relic.position.y = relic.userData.fieldNoteRestY + Math.sin(t * 2.1) * 0.035;
+          relic.traverse((part) => {
+            if (part.material && part.material.transparent) {
+              part.material.opacity = 0.5 + Math.sin(t * 3.4) * 0.14;
+            }
+          });
+        }
+      }
+      const swirl = group.userData.fieldNoteSwirl;
+      if (!swirl) continue;
+      const dissipation = swirl.dissipatingAt === null
+        ? 0
+        : Math.max(0, t - swirl.dissipatingAt);
+      const fade = swirl.dissipatingAt === null
+        ? 1
+        : Math.max(0, 1 - dissipation / 1.05);
+      if (fade <= 0) {
+        group.remove(swirl.points);
+        delete group.userData.fieldNoteSwirl;
+        continue;
+      }
+      const position = swirl.points.geometry.attributes.position.array;
+      for (let index = 0; index < swirl.count; index += 1) {
+        const phase = swirl.phases[index];
+        const radius = (1.2 + (index % 9) * 0.055) * (1 + dissipation * 1.45);
+        const angle = phase + t * (0.46 + (index % 5) * 0.018);
+        position[index * 3] = Math.cos(angle) * radius;
+        position[index * 3 + 1] =
+          -0.25 + ((index * 7) % 31) * 0.085 + Math.sin(t * 1.2 + phase) * 0.16;
+        position[index * 3 + 2] = Math.sin(angle) * radius * 0.72;
+      }
+      swirl.points.geometry.attributes.position.needsUpdate = true;
+      swirl.points.material.opacity = 0.88 * fade;
+      swirl.points.material.size = 0.075 + dissipation * 0.08;
+    }
+  }
+
   function tick() {
     const t = clock.getElapsedTime();
     if (overhead) {
@@ -3611,6 +4214,7 @@
     updateNeuralSky(t);
     updateContinuationCircuit(t);
     tickRise(t);
+    updateFieldNoteAtmosphere(t);
     updateNavigationLights(t);
     renderer.render(scene, camera);
     requestAnimationFrame(tick);

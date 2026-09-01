@@ -196,6 +196,9 @@ def test_thread_compass_and_legend_controls_are_chamber_overlays():
     assert "Red ring" in html and "return to conversation origin" in html
     assert "Green beam" in html and "AI request in flight" in html
     assert "Blue beam" in html and "completed path waiting for entry" in html
+    assert "Field Note Eligible" in html
+    assert "press W to write" in html
+    assert "Amber monument" in html
 
     assert 'id="thread-compass"' in html
     assert "Thread Compass" in html
@@ -241,8 +244,15 @@ def test_thread_compass_and_legend_controls_are_chamber_overlays():
     assert 'api(`/api/field-notes/${noteId}`)' in js
     assert "renderFieldNoteComposer" in js
     assert "Human Field Note" in js
+    assert "openEligibleFieldNoteComposer" in js
+    assert "beginFieldNoteConstruction" in js
+    assert "field-notes-monument-hologram.glb" in js
+    assert "Field Note source selections" in js
+    assert "thought-archaeology.field-notes-entered.v1" in js
     assert ".field-note-form" in css
     assert ".field-note-reference" in css
+    assert "#field-note-eligible" in css
+    assert "@keyframes field-note-float" in css
     assert 'if (textEntryOwnsKey(e.target) && e.key !== "Escape") return;' in js
     key_handler = js.index('window.addEventListener("keydown", (e) =>')
     assert js.index('if (textEntryOwnsKey(e.target)', key_handler) < js.index(
@@ -617,6 +627,10 @@ def test_space_sound_field_uses_cinematic_pack_and_is_event_bound():
         "camera-cycle-transition.ogg",
         "green-beam-activate.ogg",
         "green-beam-sparks-loop.ogg",
+        "field-notes-monument-complete.ogg",
+        "field-notes-monument-construction-loop.ogg",
+        "field-notes-scribe-entry.ogg",
+        "field-notes-writing-loop.ogg",
         "neural-atmosphere-loop.ogg",
         "object-cycle.ogg",
         "red-return-activate.ogg",
@@ -659,6 +673,11 @@ def test_space_sound_field_uses_cinematic_pack_and_is_event_bound():
     assert 'sound.setBeam("waiting"' in js
     assert 'sound.setBeam("arrival")' in js
     assert "sound.arrivalSplash()" in js
+    assert "sound.fieldNoteEligible()" in js
+    assert "sound.setFieldNoteWriting(true)" in js
+    assert "sound.setFieldNoteConstruction(true)" in js
+    assert "sound.fieldNoteComplete()" in js
+    assert "sound.fieldNoteEntry()" in js
     assert "sound.setWorking(Boolean(ready || (batchLive && batch.counts.responding)))" in js
     assert "sound.cameraShift(overhead)" in js
     assert "sound.edit(kind)" in js
