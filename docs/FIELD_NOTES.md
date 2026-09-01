@@ -27,7 +27,7 @@ does not modify its source graphs, invoke a provider, select a winner, or
 synthesize an AI consensus graph.
 
 This is the complete Phase 1 boundary. Portability, publication, remote
-references, identity, and the Master Atlas remain later work.
+references, identity, and The Atlas shared layer remain later work.
 
 ## Product rules
 
@@ -468,9 +468,9 @@ Phase 1 does not add:
 - evidence bindings derived from Field Notes;
 - portable reference envelopes, bundles, imports, or migrations;
 - runtime instance identity, signatures, handles, accounts, permissions,
-  publication, remote references, networking, presence, or a Master Atlas
+  publication, remote references, networking, presence, or The Atlas
   service (the accepted GitHub-gated identity bootstrap is preserved in the
-  Master Atlas specification for that later slice);
+  shared-world specification for that later slice);
 - generalized annotation geometry, note-to-note links, remote monuments,
   monument publication, or a social feed.
 

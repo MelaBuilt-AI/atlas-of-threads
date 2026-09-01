@@ -1,4 +1,38 @@
-# Thought Archaeology
+# Atlas of Threads
+
+**An open-source project from MelaBuilt AI.**
+
+Atlas of Threads is an AI knowledge-mapping platform powered by the **Thought
+Archaeology Framework**. It turns conversations and model answers into places
+you can inhabit, traverse, challenge, and preserve—not a feed, transcript, or
+dashboard.
+
+The current `0.x` application creates a private, local **Personal Atlas**.
+**The Atlas**, a future shared layer built from many independently owned
+Personal Atlases, is not part of this release. Nothing is uploaded or published
+by the local application.
+
+Website: [atlasofthreads.com](https://atlasofthreads.com)
+
+## The language of the Atlas
+
+| Term | Meaning |
+|---|---|
+| **Atlas of Threads** | The product and platform. |
+| **Thought Archaeology Framework** | The AI discovery and knowledge-extraction methodology that powers it. |
+| **Personal Atlas** | An individual's private mapped reality. |
+| **The Atlas** | The future collective knowledge layer built from many Personal Atlases in a shared plane. |
+| **Threads** | AI thoughts, memories, experiences, conversations, decisions, and reasoning. |
+| **Weaving** | Connecting Threads without erasing their origins. |
+| **Threadwalk** | Traversing connected ideas and memories. |
+
+The implementation intentionally retains the `thought-archaeology` Python
+package and the `ta` command. Those names identify the framework and its local
+tooling; they are not legacy aliases awaiting a mechanical rename. See
+[`docs/ATLAS_OF_THREADS.md`](docs/ATLAS_OF_THREADS.md) for the product boundary
+and release horizons.
+
+## Thought Archaeology Framework
 
 Inspectable AI thought-graphs: inhabit, fork, and keep the negative space.
 
@@ -12,9 +46,14 @@ License: MIT.
 
 Python 3.11+. Runtime dependency is `jsonschema` only.
 
+The core CLI and local server are exercised on Python 3.11 and 3.12 in CI.
+The current lived-use environment is Linux. The optional background harness
+service uses systemd user services and is Linux-specific; `ta harness watch`
+remains the foreground fallback elsewhere.
+
 ```bash
-git clone https://github.com/MelaBuilt-AI/thought-archaeology.git
-cd thought-archaeology
+git clone https://github.com/MelaBuilt-AI/atlas-of-threads.git
+cd atlas-of-threads
 python3 -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"

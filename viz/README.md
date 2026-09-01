@@ -12,7 +12,7 @@ Gestures from the chamber:
 - arrows: left/right **preview** a path in front (no walk). Enter walks the focused path. No paths → keys do nothing. Up deeper, down/`b` retrace.
 - `e` descends through the typed evidence strata beneath the standing thought. When nothing is attached, the descent says that absence is not evidence.
 - `c` cycles camera: overhead map of the grid, then back behind the chamber. Drag pans the map overhead. Shift+c returns behind the home chamber. Overhead gets extra sun/hemisphere light.
-- `r` opens the relic index. Its 20 PNG cards document the vocabulary of forms. Choosing one previews its matching GLB at the standing chamber without changing graph data; Escape restores the semantic mapping.
+- `r` opens the relic index. Its 24 PNG cards document the vocabulary of forms. Choosing one previews its matching GLB at the standing chamber without changing graph data; Escape restores the semantic mapping.
 - click a ring to enter that graph
 
 The chamber also polls the local store for newly finalized graph heads. A graph

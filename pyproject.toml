@@ -13,6 +13,10 @@ dependencies = [
   "jsonschema>=4.22",
 ]
 
+[project.urls]
+Homepage = "https://atlasofthreads.com"
+Repository = "https://github.com/MelaBuilt-AI/atlas-of-threads"
+
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
 

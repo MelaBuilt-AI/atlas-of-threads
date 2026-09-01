@@ -154,6 +154,6 @@ duplicates.
 
 This slice adds no upload, publication, recipients, remote execution, portable
 round-trip bundle, import, signing, GitHub or Atlas identity, connection
-request, public discovery, presence, or Master Atlas service. A local launch is
+request, public discovery, presence, or The Atlas shared service. A local launch is
 private and inert. Public Local Preview work starts only after the user performs
 and accepts the first real one-shot Capsule ceremony.
