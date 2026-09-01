@@ -202,6 +202,7 @@
   let workspaceBusy = false;
   let parallelComposerOpen = false;
   let parallelProgress = null;
+  const parallelJobStates = new Map();
   let workspaceState = null;
   const enteredFieldNotes = loadEnteredFieldNotes();
 
@@ -233,7 +234,7 @@
       if (!Array.isArray(saved)) return [];
       return saved.filter(
         (item) => item && item.graphId && item.nodeId && item.text && item.title
-      ).slice(-12);
+      ).slice(-240);
     } catch (_error) {
       return [];
     }
@@ -243,7 +244,7 @@
     try {
       window.localStorage.setItem(
         COMPANION_MEMORY_KEY,
-        JSON.stringify(liveArrivals.slice(-12))
+        JSON.stringify(liveArrivals.slice(-240))
       );
     } catch (_error) {
       // Browser memory is optional; the graph store remains canonical.
@@ -294,7 +295,7 @@
         item.anchorGraphId !== entry.anchorGraphId
     );
     liveArrivals.push(remembered);
-    liveArrivals = liveArrivals.slice(-12);
+    liveArrivals = liveArrivals.slice(-240);
     saveCompanionThoughts();
   }
 
@@ -1509,10 +1510,29 @@
           comparison.field_notes = (comparison.field_notes || []).map((note) =>
             note.id === summary.id ? summary : note
           );
-          if (view && (view.field_notes || []).some((note) => note.id === summary.id)) {
-            view.field_notes = view.field_notes.map((note) =>
-              note.id === summary.id ? summary : note
+          if (view) {
+            const alreadyProjected = (view.field_notes || []).some(
+              (note) => note.id === summary.id
             );
+            const newlyReferencedHere = (result.note.references || []).some(
+              (reference) =>
+                reference.session_id === view.session_id &&
+                reference.graph_id === view.graph_id &&
+                reference.node_id === view.node.id
+            );
+            if (alreadyProjected) {
+              view.field_notes = view.field_notes.map((note) =>
+                note.id === summary.id ? summary : note
+              );
+            } else if (newlyReferencedHere) {
+              view.field_notes = [...(view.field_notes || []), summary];
+            }
+            if (activeFieldNote && activeFieldNote.id === summary.id) {
+              activeFieldNote = result.note;
+              layoutFieldNote(result.note);
+            } else if (alreadyProjected || newlyReferencedHere) {
+              layout(view);
+            }
           }
           renderFieldNote(result.note);
           return;
@@ -2100,7 +2120,16 @@
   }
 
   function updateOneContinuationCircuit(circuit, t) {
-    if (!circuit || !circuit.targetMesh || !circuit.targetMesh.parent) return;
+    if (!circuit) return;
+    const visible = Boolean(
+      view &&
+      view.graph_id === circuit.sourceGraphId &&
+      view.node.id === circuit.sourceNodeId &&
+      circuit.targetMesh &&
+      circuit.targetMesh.parent
+    );
+    circuit.lightning.group.visible = visible;
+    if (!visible) return;
     neuralSky.group.updateMatrixWorld(true);
     circuitNeuron.copy(neuralSky.nodes[circuit.neuronIndex]);
     neuralSky.group.localToWorld(circuitNeuron);
@@ -3134,6 +3163,10 @@
     }
     let addedArrival = false;
     for (const job of progress.jobs || []) {
+      const previousStatus = parallelJobStates.get(job.request_id);
+      const newlyCompleted = previousStatus !== undefined &&
+        previousStatus !== "completed" && job.status === "completed";
+      parallelJobStates.set(job.request_id, job.status);
       if (job.status === "queued" || job.status === "responding") {
         beginContinuationCircuit(
           {
@@ -3159,14 +3192,19 @@
         harness: job.harness,
         modelName: job.arrival.model && job.arrival.model.name,
         requestId: job.request_id,
-        seen: false,
+        seen: !newlyCompleted,
       };
-      const existed = liveArrivals.some(
+      const existing = liveArrivals.find(
         (item) => item.graphId === arrival.graphId &&
           item.nodeId === arrival.nodeId && item.anchorGraphId === arrival.anchorGraphId
       );
+      const retainedUnreadCircuit = rememberedCircuits.some(
+        (item) => item.requestId === job.request_id && item.phase === "arrival"
+      );
+      if (existing) arrival.seen = existing.seen;
+      else if (retainedUnreadCircuit) arrival.seen = false;
       rememberCompanion(arrival);
-      if (!existed) addedArrival = true;
+      if (!existing) addedArrival = true;
     }
     if (addedArrival) arrivalsDirty = true;
     if (!elWorkspaceMenu.hidden && parallelComposerOpen) {

@@ -237,12 +237,21 @@ def test_thread_compass_and_legend_controls_are_chamber_overlays():
     assert "cancel remaining" in html
     assert 'e.key === "p"' in js
     assert "continuationCircuits = new Map()" in js
+    assert "parallelJobStates = new Map()" in js
+    assert 'seen: !newlyCompleted' in js
+    assert "retainedUnreadCircuit" in js
+    assert "circuit.lightning.group.visible = visible" in js
+    assert "view.graph_id === circuit.sourceGraphId" in js
+    assert "liveArrivals.slice(-240)" in js
     assert 'api("/api/workspace")' in js
     assert 'e.key === "m"' in js
     assert "function textEntryOwnsKey(target)" in js
     assert '"/api/field-notes"' in js
     assert '`/api/field-notes/${existingNote.id}/revisions`' in js
     assert "post(endpoint" in js
+    assert "newlyReferencedHere" in js
+    assert "layoutFieldNote(result.note)" in js
+    assert "layout(view)" in js
     assert 'api(`/api/field-notes/${noteId}`)' in js
     assert "renderFieldNoteComposer" in js
     assert "Human Field Note" in js
