@@ -4,9 +4,12 @@ Status: accepted implementation specification
 Accepted by: user and Codex  
 Date: 2026-08-31
 
-Implementation status: Phase 1 was live-accepted by the user on 2026-08-31.
-Phase 2 is implemented and deterministically verified by Codex; its required
-two-collaborator then complete-set live acceptance remains pending.
+Implementation status: Phase 1 and Phase 2 were live-accepted by the user on
+2026-08-31. The Phase 2 gate completed first with Prime Agent plus Claude, then
+with the complete registered set in deterministic Prime Agent, Claude, Codex,
+Grok, OpenCode order. All seven jobs completed once as direct siblings from the
+exact source chamber; circuits, Thread Compass grouping, default selection,
+source immutability, and final store integrity passed.
 
 ## Purpose
 
