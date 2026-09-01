@@ -234,6 +234,12 @@ def test_thread_compass_and_legend_controls_are_chamber_overlays():
     assert "continuationCircuits = new Map()" in js
     assert 'api("/api/workspace")' in js
     assert 'e.key === "m"' in js
+    assert "function textEntryOwnsKey(target)" in js
+    assert 'if (textEntryOwnsKey(e.target) && e.key !== "Escape") return;' in js
+    key_handler = js.index('window.addEventListener("keydown", (e) =>')
+    assert js.index('if (textEntryOwnsKey(e.target)', key_handler) < js.index(
+        'if (!elWorkspaceMenu.hidden)', key_handler
+    )
     assert "#workspace-menu" in css
     assert "left: 0" in css
 

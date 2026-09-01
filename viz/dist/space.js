@@ -3040,6 +3040,13 @@
     if (event.target === elThreadCompass) closeThreadCompass();
   });
 
+  function textEntryOwnsKey(target) {
+    return target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLSelectElement ||
+      (target instanceof HTMLElement && target.isContentEditable);
+  }
+
   window.addEventListener("keydown", (e) => {
     if (!elThreadCompass.hidden) {
       if (e.key === "Escape") {
@@ -3070,6 +3077,7 @@
       }
       return;
     }
+    if (textEntryOwnsKey(e.target) && e.key !== "Escape") return;
     if (!elWorkspaceMenu.hidden) {
       if (e.key === "Escape" || e.key === "m" || e.key === "M") {
         e.preventDefault();
