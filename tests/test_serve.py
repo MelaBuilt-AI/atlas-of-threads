@@ -770,6 +770,7 @@ def test_live_companion_uses_finalized_store_heads_as_optional_doorways(tmp_path
     assert "RETURN_COLOR" in js
     assert "NEW_PATH_SELECTION_COLOR" in js
     assert "choice.selectionColor || DEFAULT_SELECTION_COLOR" in js
+    assert ': !arrival.seen ? NEW_PATH_SELECTION_COLOR : null' in js
     assert "WAITING_BEAM_COLOR" in js
     assert "visibleNeuronIndex" in js
     assert "neuronAtOrAboveMesh" in js
@@ -788,6 +789,7 @@ def test_live_companion_uses_finalized_store_heads_as_optional_doorways(tmp_path
     assert "CIRCUIT_MEMORY_KEY" in js
     assert "window.localStorage" in js
     assert "restoreArrivalCircuit(ring, arrival)" in js
+    assert '.filter((item) => item.parallel && item.phase === "waiting")' in js
     assert "clearContinuationCircuit();" in js
     assert "updateContinuationCircuit(t)" in js
     assert '<canvas id="c" tabindex="-1"></canvas>' in html

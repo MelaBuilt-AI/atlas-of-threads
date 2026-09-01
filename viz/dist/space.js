@@ -1949,7 +1949,7 @@
       description: arrival.description,
       selectionColor: arrival.returnOrigin
         ? RETURN_COLOR
-        : autoFocus ? NEW_PATH_SELECTION_COLOR : null,
+        : !arrival.seen ? NEW_PATH_SELECTION_COLOR : null,
       autoFocus,
       audioRole,
       arrivalKey: arrivalKey(arrival),
@@ -2244,7 +2244,7 @@
     );
     if (!anchored) {
       [...continuationCircuits.values()]
-        .filter((item) => item.parallel)
+        .filter((item) => item.parallel && item.phase === "waiting")
         .forEach((item) => clearContinuationCircuit(item.requestId));
       return;
     }
