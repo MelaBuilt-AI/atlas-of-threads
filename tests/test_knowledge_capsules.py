@@ -270,10 +270,23 @@ def test_capsule_assets_and_chamber_contract_are_present():
     sound = (dist / "sound.js").read_text(encoding="utf-8")
     assert "Knowledge Capsule Earned" in html
     assert "press K to construct" in html
+    assert "Press Enter to Launch Capsule" in html
     assert "Launch Capsule" in js
     assert "duration: 18" in js
     assert "/api/knowledge-capsules" in js
     assert "visibleNeuronIndex(group)" in js
+    assert "readyCapsuleTarget" in js
+    assert "launchReadyCapsule" in js
+    assert "!capsuleConstruction && !readyCapsuleTarget()" in js
+    assert "addCapsuleConstructionEffects" in js
+    assert "beginCapsuleCompletionBurst" in js
+    assert "const count = 156" in js
+    assert "smokeTrail" in js
+    assert "setFromUnitVectors(flight.upAxis, flight.tangent)" in js
+    assert "outerFlame" in js
+    assert "exhaustLight" in js
+    assert "function capsuleSlot(occupied)" in js
+    assert "occupiedSlots.push(arrivalSlot(index))" in js
     for name in (
         "knowledge-capsule-launcher-earned.ogg",
         "launcher-construction-loop.ogg",

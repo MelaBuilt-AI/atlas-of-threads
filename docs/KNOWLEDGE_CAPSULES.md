@@ -124,13 +124,20 @@ and read wording. JavaScript does not infer achievement or export scope.
 - At the qualifying source chamber, **Knowledge Capsule Earned · Press K to
   construct** appears and its supplied cue plays once per browser memory.
 - `K` freezes the manifest. The supplied hologram and construction loop run for
-  18 seconds on a raised rear-right outbound terrace.
+  18 seconds on the first raised rear-right outbound terrace that clears every
+  planned chamber object. During construction, the Field Note invitation and
+  other floating actions are suppressed; layered energy rings and particles
+  make the build state visible.
 - Completion swaps to the ready launcher, plays the completion cue, crossfades
-  into the ready hum, starts an orange neuron orbit, and exposes one spatial
-  **Launch Capsule** action.
+  into the ready hum, emits a bounded flash/shockwave/smoke cloud, starts a
+  larger bright orange neuron orbit, and exposes only **Press Enter to Launch
+  Capsule**. Enter performs the same server-success-gated one-shot launch.
 - Successful launch plays the supplied launch cue and a bounded flash while the
-  charged Capsule rises and curves toward one visible canopy neuron. The target
-  is local atmosphere, not evidence or a recipient.
+  charged Capsule fires a pulsing exhaust, points its crown along the live
+  flight-path tangent, rises with a bright core and broad smoke trail, then
+  curves toward one visible canopy neuron. It does not tumble or travel
+  sideways. The target is local atmosphere, not evidence or a recipient. Once
+  launch succeeds, ordinary chamber invitations may return.
 - The launcher becomes the permanent post-launch model and remains selectable.
   Its reading shows identity, pinned scope, launch time, integrity, and local
   Markdown path. It never becomes a graph generation.

@@ -113,6 +113,14 @@
   const elThresholdAskInput = document.getElementById("threshold-ask-input");
   const elFieldNoteEligible = document.getElementById("field-note-eligible");
   const elKnowledgeCapsuleEligible = document.getElementById("knowledge-capsule-eligible");
+  const elKnowledgeCapsuleReady = document.getElementById("knowledge-capsule-ready");
+  const elStartMenu = document.getElementById("start-menu");
+  const elStartStatus = document.getElementById("start-status");
+  const elStartResume = document.getElementById("start-resume");
+  const elStartResumeDetail = document.getElementById("start-resume-detail");
+  const elStartHead = document.getElementById("start-head");
+  const elStartHeadDetail = document.getElementById("start-head-detail");
+  const elStartHome = document.getElementById("start-home");
   const elRelicIndex = document.getElementById("relic-index");
   const elRelicGrid = document.getElementById("relic-grid");
   const elRelicClose = document.getElementById("relic-close");
@@ -178,6 +186,9 @@
   let yaw = HOME_YAW;
   let pitch = HOME_PITCH;
   let overheadLook = { x: 0, z: 0 };
+  let overheadLookTarget = { x: 0, z: 0 };
+  let shoulderLook = { x: 0, z: 0 };
+  let shoulderLookTarget = { x: 0, z: 0 };
   let climateFog = 0.045;
   let composing = null;
   let busy = false;
@@ -194,12 +205,14 @@
   let fieldNoteConstruction = null;
   let capsuleConstruction = null;
   let capsuleFlight = null;
+  let startupState = null;
   let eligibilityKey = null;
   let capsuleEligibilityKey = null;
   const COMPANION_MEMORY_KEY = "thought-archaeology.companions.v1";
   const CIRCUIT_MEMORY_KEY = "thought-archaeology.continuation-circuits.v2";
   const FIELD_NOTE_MEMORY_KEY = "thought-archaeology.field-notes-entered.v1";
   const CAPSULE_EARNED_MEMORY_KEY = "thought-archaeology.knowledge-capsules-earned.v1";
+  const LAST_STAND_MEMORY_KEY = "thought-archaeology.last-stand.v1";
   const knownHeads = new Map();
   const sessionTitles = new Map();
   let liveArrivals = loadCompanionThoughts();
@@ -216,6 +229,28 @@
   let workspaceState = null;
   const enteredFieldNotes = loadEnteredFieldNotes();
   const announcedCapsuleMilestones = loadAnnouncedCapsuleMilestones();
+
+  function loadLastStand() {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(LAST_STAND_MEMORY_KEY) || "null");
+      return saved && saved.graphId && saved.nodeId ? saved : null;
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function rememberLastStand(payload) {
+    try {
+      window.localStorage.setItem(LAST_STAND_MEMORY_KEY, JSON.stringify({
+        sessionId: payload.session_id,
+        graphId: payload.graph_id,
+        nodeId: payload.node.id,
+        text: payload.node.text,
+      }));
+    } catch (_error) {
+      // Browser-local resume is optional; inhabitation remains fully usable.
+    }
+  }
 
   function loadAnnouncedCapsuleMilestones() {
     try {
@@ -495,6 +530,55 @@
     const m = location.hash.match(/^#\/g\/([^/]+)\/n\/([^/]+)/);
     if (!m) return null;
     return { graphId: m[1], nodeId: m[2] };
+  }
+
+  function showStartup(boot, resume) {
+    const sessions = boot.sessions || [];
+    const headSession = (
+      resume && resume.sessionId
+        ? sessions.find((session) => session.id === resume.sessionId && session.spawn)
+        : null
+    ) || [...sessions].reverse().find((session) => session.spawn) || null;
+    startupState = {
+      resume: resume && resume.graphId && resume.nodeId ? resume : null,
+      head: headSession && headSession.spawn ? {
+        graphId: headSession.spawn.graph_id,
+        nodeId: headSession.spawn.node_id,
+      } : null,
+      headSession,
+    };
+    elStartResume.disabled = !startupState.resume;
+    elStartHead.disabled = !startupState.head;
+    elStartResumeDetail.textContent = startupState.resume
+      ? (startupState.resume.text || `${startupState.resume.graphId}/${startupState.resume.nodeId}`)
+      : "no browser-local chamber has been remembered yet";
+    elStartHeadDetail.textContent = headSession
+      ? `${headSession.title} · latest generation`
+      : "no session head exists in this local store";
+    elStartStatus.textContent = sessions.length
+      ? `${sessions.length} local ${sessions.length === 1 ? "inquiry" : "inquiries"} available. Nothing moves until you choose.`
+      : "This local store has no thought-graphs yet. Home can begin a new inquiry.";
+    elStartMenu.hidden = false;
+    (startupState.resume ? elStartResume : startupState.head ? elStartHead : elStartHome).focus();
+  }
+
+  async function chooseStartup(target, home = false) {
+    if (!startupState) return;
+    for (const button of [elStartResume, elStartHead, elStartHome]) button.disabled = true;
+    elStartStatus.textContent = home ? "Opening Home…" : "Entering the local archaeology…";
+    try {
+      if (target) await inhabit(target.graphId, target.nodeId, "boot");
+      elStartMenu.hidden = true;
+      startupState = null;
+      if (home) await openWorkspaceMenu();
+    } catch (error) {
+      elStartStatus.textContent = String(error.message || error);
+      if (startupState) {
+        elStartResume.disabled = !startupState.resume;
+        elStartHead.disabled = !startupState.head;
+        elStartHome.disabled = false;
+      }
+    }
   }
 
   async function api(path, opts) {
@@ -2479,23 +2563,151 @@
       });
   }
 
-  function addCapsuleOrbit(group) {
-    if (group.userData.capsuleOrbit) return;
-    const count = 66;
+  let capsuleSmokeTexture = null;
+
+  function getCapsuleSmokeTexture() {
+    if (capsuleSmokeTexture) return capsuleSmokeTexture;
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 96;
+    const ctx = canvas.getContext("2d");
+    const cloud = ctx.createRadialGradient(48, 48, 3, 48, 48, 46);
+    cloud.addColorStop(0, "rgba(255,244,218,0.9)");
+    cloud.addColorStop(0.24, "rgba(205,220,222,0.7)");
+    cloud.addColorStop(0.62, "rgba(91,111,122,0.32)");
+    cloud.addColorStop(1, "rgba(44,55,64,0)");
+    ctx.fillStyle = cloud;
+    ctx.fillRect(0, 0, 96, 96);
+    capsuleSmokeTexture = new THREE.CanvasTexture(canvas);
+    return capsuleSmokeTexture;
+  }
+
+  function addCapsuleConstructionEffects(group) {
+    if (group.userData.capsuleBuild) return;
+    const count = 180;
     const positions = new Float32Array(count * 3);
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
     const material = new THREE.PointsMaterial({
-      color: 0xffa43d,
+      color: 0x9edcff,
       map: neuralSky && neuralSky.glow,
-      size: 0.11,
+      size: 0.22,
       transparent: true,
-      opacity: 0.9,
+      opacity: 0.95,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const particles = new THREE.Points(geometry, material);
+    particles.position.y = 0.85;
+    group.add(particles);
+    const rings = [0, 1, 2].map((index) => {
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(1.35 + index * 0.34, 0.025, 8, 64),
+        new THREE.MeshBasicMaterial({
+          color: index === 1 ? 0xffb75e : 0x78c8ff,
+          transparent: true,
+          opacity: 0.46,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        })
+      );
+      ring.position.y = 0.75 + index * 0.75;
+      ring.rotation.x = Math.PI / 2 + (index - 1) * 0.18;
+      group.add(ring);
+      return ring;
+    });
+    group.userData.capsuleBuild = {
+      particles,
+      count,
+      rings,
+      phases: Array.from({ length: count }, (_item, index) =>
+        (index / count) * Math.PI * 2 + (index % 13) * 0.17
+      ),
+      completedAt: null,
+    };
+  }
+
+  function beginCapsuleCompletionBurst(group) {
+    if (!group || group.userData.capsuleCompletionBurst) return;
+    const count = 132;
+    const positions = new Float32Array(count * 3);
+    const velocities = [];
+    const origins = [];
+    for (let index = 0; index < count; index += 1) {
+      const angle = index * 2.399963;
+      const lift = 0.35 + ((index * 17) % 31) / 31;
+      const speed = 1.1 + (index % 11) * 0.11;
+      const radius = 0.22 + (index % 9) * 0.1;
+      const origin = new THREE.Vector3(
+        Math.cos(angle) * radius,
+        (lift - 0.25) * radius,
+        Math.sin(angle) * radius
+      );
+      origins.push(origin);
+      origin.toArray(positions, index * 3);
+      velocities.push(new THREE.Vector3(
+        Math.cos(angle) * speed,
+        lift * speed,
+        Math.sin(angle) * speed
+      ));
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    const material = new THREE.PointsMaterial({
+      color: 0xd6d9d2,
+      map: getCapsuleSmokeTexture(),
+      size: 1.85,
+      transparent: true,
+      opacity: 0.46,
+      depthWrite: false,
+    });
+    const cloud = new THREE.Points(geometry, material);
+    cloud.position.y = 1.25;
+    cloud.renderOrder = 7;
+    group.add(cloud);
+    const shockwave = new THREE.Mesh(
+      new THREE.TorusGeometry(1.1, 0.09, 12, 72),
+      new THREE.MeshBasicMaterial({
+        color: 0xffc66f,
+        transparent: true,
+        opacity: 0.9,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    shockwave.position.y = 1.45;
+    shockwave.rotation.x = Math.PI / 2;
+    group.add(shockwave);
+    const flash = new THREE.PointLight(0xffbd68, 5200, 25, 2);
+    flash.position.y = 1.7;
+    group.add(flash);
+    group.userData.capsuleCompletionBurst = {
+      cloud,
+      count,
+      velocities,
+      origins,
+      shockwave,
+      flash,
+      startedAt: clock.getElapsedTime(),
+    };
+  }
+
+  function addCapsuleOrbit(group) {
+    if (group.userData.capsuleOrbit) return;
+    const count = 156;
+    const positions = new Float32Array(count * 3);
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    const material = new THREE.PointsMaterial({
+      color: 0xffbd68,
+      map: neuralSky && neuralSky.glow,
+      size: 0.3,
+      transparent: true,
+      opacity: 1,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
     const points = new THREE.Points(geometry, material);
-    points.position.y = 1.7;
+    points.position.y = 1.85;
     group.add(points);
     group.userData.capsuleOrbit = { points, count, dissipatingAt: null };
   }
@@ -2588,6 +2800,7 @@
     hit.userData = { capsuleId: capsule.id };
     group.add(hit);
     capsuleTargets.push(group);
+    if (state === "constructing") addCapsuleConstructionEffects(group);
     if (state === "ready" && !standing) addCapsuleOrbit(group);
     if (!standing) {
       addClockChoice(group, {
@@ -2842,6 +3055,27 @@
     risers.push(obj);
   }
 
+  function resetCameraFocus(immediate = false) {
+    shoulderLookTarget = { x: 0, z: 0 };
+    overheadLookTarget = { x: 0, z: 0 };
+    if (immediate) {
+      shoulderLook = { x: 0, z: 0 };
+      overheadLook = { x: 0, z: 0 };
+    }
+  }
+
+  function focusCameraOn(mesh) {
+    if (!mesh) {
+      resetCameraFocus();
+      return;
+    }
+    scene.updateMatrixWorld(true);
+    const position = new THREE.Vector3();
+    mesh.getWorldPosition(position);
+    shoulderLookTarget = { x: position.x, z: position.z };
+    overheadLookTarget = { x: position.x, z: position.z };
+  }
+
   function clearRoot() {
     while (root.children.length) {
       const ch = root.children[0];
@@ -2854,6 +3088,7 @@
     if (capsuleFlight) {
       scene.remove(capsuleFlight.group);
       scene.remove(capsuleFlight.trail);
+      scene.remove(capsuleFlight.smokeTrail);
       capsuleFlight = null;
     }
     risers = [];
@@ -2861,6 +3096,7 @@
     focusIndex = -1;
     standingMesh = null;
     selectionSpot.intensity = 0;
+    resetCameraFocus(true);
   }
 
   function choiceSlot(i, n) {
@@ -2893,11 +3129,27 @@
     };
   }
 
-  function capsuleSlot(index = 0) {
-    return {
-      x: CHOICE_ROW + index * CHOICE_STRIDE,
-      z: -CHOICE_ROW * 1.25 - index * CHOICE_ROW_GAP,
-    };
+  function capsuleSlot(occupied) {
+    const clearance = CHOICE_STRIDE * 1.02;
+    let best = null;
+    let bestClearance = -1;
+    for (let row = 0; row < 4; row += 1) {
+      for (let col = 0; col < 4; col += 1) {
+        const candidate = {
+          x: CHOICE_ROW + col * CHOICE_STRIDE,
+          z: -CHOICE_ROW * 1.25 - row * CHOICE_ROW_GAP,
+        };
+        const nearest = Math.min(...occupied.map((slot) =>
+          Math.hypot(candidate.x - slot.x, candidate.z - slot.z)
+        ));
+        if (nearest > bestClearance) {
+          best = candidate;
+          bestClearance = nearest;
+        }
+        if (nearest >= clearance) return candidate;
+      }
+    }
+    return best;
   }
 
   function arrivalSlot(i) {
@@ -2991,6 +3243,7 @@
     activeCapsule = null;
     elEvidenceDescent.hidden = true;
     elKnowledgeCapsuleEligible.hidden = true;
+    elKnowledgeCapsuleReady.hidden = true;
     clearRoot();
     root.add(floor());
     mappedRelicKey = relicForNode(payload.node, payload.evidence || []);
@@ -3033,6 +3286,25 @@
     ];
     const fieldNotes = payload.field_notes || [];
     const pathCount = storyNodes.length + forks.length;
+    const occupiedSlots = [{ x: 0, z: 0 }];
+    storyNodes.forEach((_item, index) => {
+      occupiedSlots.push(choiceSlot(index, pathCount));
+    });
+    forks.forEach((_item, index) => {
+      occupiedSlots.push(choiceSlot(storyNodes.length + index, pathCount));
+    });
+    sideNodes.forEach((_item, index) => {
+      occupiedSlots.push(sideSlot(index, sideNodes.length, -1));
+    });
+    fieldNotes.forEach((_item, index) => {
+      occupiedSlots.push(fieldNoteSlot(index, sideNodes.length));
+    });
+    arrivals.forEach((_item, index) => {
+      occupiedSlots.push(arrivalSlot(index));
+    });
+    if (payload.parent && payload.parent.graph_id && payload.parent.node_id) {
+      occupiedSlots.push({ x: 0, z: CHOICE_ROW });
+    }
 
     storyNodes.forEach((item, i) => {
       const slot = choiceSlot(i, pathCount);
@@ -3093,7 +3365,8 @@
 
     const capsules = payload.knowledge_capsules || [];
     capsules.forEach((capsule, i) => {
-      const slot = capsuleSlot(i);
+      const slot = capsuleSlot(occupiedSlots);
+      occupiedSlots.push(slot);
       const constructing = Boolean(
         capsuleConstruction && capsuleConstruction.id === capsule.id
       );
@@ -3171,6 +3444,7 @@
     }
     renderFieldNoteEligibility(payload);
     renderKnowledgeCapsuleEligibility(payload);
+    renderKnowledgeCapsuleReady();
     renderThreshold(payload);
   }
 
@@ -3288,7 +3562,9 @@
       }
       const capsuleCount = (payload.knowledge_capsules || []).length;
       if (capsuleCount) {
-        const states = payload.knowledge_capsules.map((item) => item.state);
+        const states = capsuleConstruction
+          ? ["constructing"]
+          : payload.knowledge_capsules.map((item) => item.state);
         bits.push(states.includes("ready")
           ? "one charged Knowledge Ark Launcher waits on the rear-right terrace"
           : states.includes("launched")
@@ -3320,7 +3596,8 @@
   function renderFieldNoteEligibility(payload) {
     const eligibility = payload && payload.field_note_eligibility;
     const visible = Boolean(
-      eligibility && !activeFieldNote && !fieldNoteConstruction
+      eligibility && !activeFieldNote && !fieldNoteConstruction &&
+      !capsuleConstruction && !readyCapsuleTarget()
     );
     elFieldNoteEligible.hidden = !visible;
     if (!visible) {
@@ -3341,7 +3618,8 @@
   function renderKnowledgeCapsuleEligibility(payload) {
     const eligibility = payload && payload.knowledge_capsule_eligibility;
     const visible = Boolean(
-      eligibility && !activeFieldNote && !activeCapsule && !capsuleConstruction
+      eligibility && !activeFieldNote && !activeCapsule && !capsuleConstruction &&
+      !readyCapsuleTarget()
     );
     elKnowledgeCapsuleEligible.hidden = !visible;
     if (!visible) {
@@ -3354,6 +3632,18 @@
       rememberCapsuleMilestone(nextKey);
       sound.capsuleEarned();
     }
+  }
+
+  function readyCapsuleTarget() {
+    return capsuleTargets.find((group) => group.userData.capsuleState === "ready") || null;
+  }
+
+  function renderKnowledgeCapsuleReady() {
+    const launcher = !capsuleConstruction && !activeFieldNote && !activeCapsule
+      ? readyCapsuleTarget()
+      : null;
+    elKnowledgeCapsuleReady.hidden = !launcher;
+    elKnowledgeCapsuleReady.disabled = Boolean(busy);
   }
 
   function fieldNoteSummary(note) {
@@ -3461,6 +3751,8 @@
     layoutGeneration += 1;
     elEvidenceDescent.hidden = true;
     elFieldNoteEligible.hidden = true;
+    elKnowledgeCapsuleEligible.hidden = true;
+    elKnowledgeCapsuleReady.hidden = true;
     elThreshold.hidden = true;
     clearRoot();
     root.add(floor());
@@ -3527,6 +3819,8 @@
     const eligibility = view && view.knowledge_capsule_eligibility;
     if (!eligibility || busy || activeFieldNote || activeCapsule || capsuleConstruction) return;
     busy = true;
+    elFieldNoteEligible.hidden = true;
+    elKnowledgeCapsuleEligible.hidden = true;
     elKnowledgeCapsuleEligible.disabled = true;
     try {
       const result = await post("/api/knowledge-capsules", {
@@ -3548,6 +3842,8 @@
     } catch (error) {
       elKind.textContent = "Knowledge Capsule was not constructed";
       elHere.textContent = String(error.message || error);
+      renderFieldNoteEligibility(view);
+      renderKnowledgeCapsuleEligibility(view);
     } finally {
       busy = false;
       elKnowledgeCapsuleEligible.disabled = false;
@@ -3564,6 +3860,9 @@
     const capsule = construction.capsule;
     const group = construction.group;
     if (group && group.parent) {
+      const build = group.userData.capsuleBuild;
+      if (build) build.completedAt = clock.getElapsedTime();
+      beginCapsuleCompletionBurst(group);
       group.userData.capsuleState = "ready";
       const ring = group.userData.capsuleRing;
       if (ring && ring.material) {
@@ -3595,7 +3894,10 @@
       }
     }
     if (view && !activeCapsule) {
+      renderFieldNoteEligibility(view);
       renderKnowledgeCapsuleEligibility(view);
+      renderKnowledgeCapsuleReady();
+      renderThreshold(view);
       plate(view);
     }
   }
@@ -3622,6 +3924,40 @@
       })
     );
     flight.add(placeholder);
+    const exhaust = new THREE.Group();
+    exhaust.position.y = -0.72;
+    const outerFlame = new THREE.Mesh(
+      new THREE.ConeGeometry(0.22, 1.05, 16, 1, true),
+      new THREE.MeshBasicMaterial({
+        color: 0xff7b20,
+        transparent: true,
+        opacity: 0.82,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      })
+    );
+    outerFlame.rotation.z = Math.PI;
+    outerFlame.position.y = -0.42;
+    exhaust.add(outerFlame);
+    const innerFlame = new THREE.Mesh(
+      new THREE.ConeGeometry(0.11, 0.68, 12, 1, true),
+      new THREE.MeshBasicMaterial({
+        color: 0xe9f7ff,
+        transparent: true,
+        opacity: 0.96,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      })
+    );
+    innerFlame.rotation.z = Math.PI;
+    innerFlame.position.y = -0.22;
+    exhaust.add(innerFlame);
+    const exhaustLight = new THREE.PointLight(0xff8a32, 1300, 8, 2);
+    exhaustLight.position.y = -0.25;
+    exhaust.add(exhaustLight);
+    flight.add(exhaust);
     RelicGLBLoader.load("./assets/models/charged-knowledge-capsule.glb")
       .then((object) => {
         if (!capsuleFlight || capsuleFlight.group !== flight) return;
@@ -3636,15 +3972,16 @@
       });
     const flash = new THREE.PointLight(0xffa43d, 3800, 24, 2);
     flight.add(flash);
+    const trailCount = 88;
     const trailGeometry = new THREE.BufferGeometry();
-    const trailPositions = new Float32Array(42 * 3);
+    const trailPositions = new Float32Array(trailCount * 3);
     trailGeometry.setAttribute("position", new THREE.BufferAttribute(trailPositions, 3));
     const trail = new THREE.Points(
       trailGeometry,
       new THREE.PointsMaterial({
         color: 0xffa43d,
         map: neuralSky.glow,
-        size: 0.28,
+        size: 0.4,
         transparent: true,
         opacity: 0.88,
         depthWrite: false,
@@ -3652,18 +3989,47 @@
       })
     );
     scene.add(trail);
+    const smokeGeometry = new THREE.BufferGeometry();
+    const smokePositions = new Float32Array(trailCount * 3);
+    smokeGeometry.setAttribute("position", new THREE.BufferAttribute(smokePositions, 3));
+    const smokeTrail = new THREE.Points(
+      smokeGeometry,
+      new THREE.PointsMaterial({
+        color: 0xc9c6bc,
+        map: getCapsuleSmokeTexture(),
+        size: 1.5,
+        transparent: true,
+        opacity: 0.62,
+        depthWrite: false,
+      })
+    );
+    scene.add(smokeTrail);
+    const control1 = start.clone().add(new THREE.Vector3(0, 13, 0));
+    const control2 = end.clone().lerp(start, 0.32).add(new THREE.Vector3(8, 7, 0));
     capsuleFlight = {
       group: flight,
       trail,
+      smokeTrail,
       trailPositions,
+      smokePositions,
+      trailCount,
       points: [],
       start,
-      control1: start.clone().add(new THREE.Vector3(0, 13, 0)),
-      control2: end.clone().lerp(start, 0.32).add(new THREE.Vector3(8, 7, 0)),
+      control1,
+      control2,
       end,
       startedAt: clock.getElapsedTime(),
       duration: 7.0,
       flash,
+      exhaust,
+      outerFlame,
+      innerFlame,
+      exhaustLight,
+      upAxis: new THREE.Vector3(0, 1, 0),
+      tangent: new THREE.Vector3(),
+      tangentStart: control1.clone().sub(start),
+      tangentMiddle: control2.clone().sub(control1),
+      tangentEnd: end.clone().sub(control2),
     };
   }
 
@@ -3698,11 +4064,18 @@
       choice.choice.description = `Knowledge Capsule launched · select to inspect ${capsule.id}`;
       choice.choice.walk = () => enterCapsule(capsule.id);
     }
+    if (view) {
+      renderFieldNoteEligibility(view);
+      renderKnowledgeCapsuleEligibility(view);
+      renderKnowledgeCapsuleReady();
+      renderThreshold(view);
+    }
   }
 
   async function launchCapsule(capsuleId, group) {
     if (busy || !group || group.userData.capsuleState !== "ready") return;
     busy = true;
+    elKnowledgeCapsuleReady.disabled = true;
     try {
       const result = await post(`/api/knowledge-capsules/${capsuleId}/launch`, {});
       const capsule = capsuleSummary(result.capsule);
@@ -3718,7 +4091,14 @@
       elHere.textContent = `${String(error.message || error)} · the launcher remains ready`;
     } finally {
       busy = false;
+      renderKnowledgeCapsuleReady();
     }
+  }
+
+  function launchReadyCapsule() {
+    const launcher = readyCapsuleTarget();
+    if (!launcher) return;
+    launchCapsule(launcher.userData.capsuleId, launcher);
   }
 
   function plateCapsule(capsule) {
@@ -3747,6 +4127,7 @@
     elEvidenceDescent.hidden = true;
     elFieldNoteEligible.hidden = true;
     elKnowledgeCapsuleEligible.hidden = true;
+    elKnowledgeCapsuleReady.hidden = true;
     elThreshold.hidden = true;
     sound.setCapsuleReady(false);
     clearRoot();
@@ -3846,7 +4227,7 @@
   }
 
   function renderThreshold(payload) {
-    if (activeFieldNote || activeCapsule) {
+    if (activeFieldNote || activeCapsule || capsuleConstruction || readyCapsuleTarget()) {
       elThreshold.hidden = true;
       return;
     }
@@ -3950,6 +4331,7 @@
       }
     }
     view = payload;
+    rememberLastStand(payload);
     if (origin !== "hash") hashTo(payload.graph_id, payload.node.id);
     layout(payload);
   }
@@ -3963,7 +4345,12 @@
       }
       companionReady = true;
       const fromHash = parseHash();
-      if (fromHash) {
+      const lastStand = loadLastStand();
+      const explicitDeepLink = Boolean(
+        fromHash && (!lastStand || fromHash.graphId !== lastStand.graphId ||
+          fromHash.nodeId !== lastStand.nodeId)
+      );
+      if (explicitDeepLink) {
         await inhabit(fromHash.graphId, fromHash.nodeId, "boot");
         const currentSession = (boot.sessions || []).find(
           (session) => view && session.id === view.session_id
@@ -3983,12 +4370,9 @@
         }
         return;
       }
-      const spawn = (boot.sessions || []).map((s) => s.spawn).find(Boolean);
-      if (!spawn) {
-        elEmpty.classList.add("visible");
-        return;
-      }
-      await inhabit(spawn.graph_id, spawn.node_id, "boot");
+      showStartup(boot, fromHash && lastStand
+        ? { ...lastStand, graphId: fromHash.graphId, nodeId: fromHash.nodeId }
+        : lastStand);
     } catch (err) {
       elEmpty.classList.add("visible");
       elEmpty.querySelector("p").textContent = String(err.message || err);
@@ -4147,6 +4531,7 @@
       overheadLook.z += dy * k;
       overheadLook.x = Math.max(-lim, Math.min(lim, overheadLook.x));
       overheadLook.z = Math.max(-lim, Math.min(lim, overheadLook.z));
+      overheadLookTarget = { x: overheadLook.x, z: overheadLook.z };
     } else {
       yaw -= dx * 0.005;
     }
@@ -4440,6 +4825,7 @@
       const next = (at + dir + clock.length) % clock.length;
       focusIndex = clock[next].index;
     }
+    focusCameraOn(choices[focusIndex].mesh);
     showFocus();
     sound.cycle(choices[focusIndex].choice.audioRole || "story", dir);
   }
@@ -4462,6 +4848,7 @@
   function clearFocus() {
     if (focusIndex < 0) return;
     focusIndex = -1;
+    resetCameraFocus();
     showFocus();
     showWaitingArrivals();
   }
@@ -4654,6 +5041,16 @@
   elEvidenceClose.addEventListener("click", closeEvidenceDescent);
   elFieldNoteEligible.addEventListener("click", openEligibleFieldNoteComposer);
   elKnowledgeCapsuleEligible.addEventListener("click", constructKnowledgeCapsule);
+  elKnowledgeCapsuleReady.addEventListener("click", launchReadyCapsule);
+  elStartResume.addEventListener("click", () => {
+    if (startupState && startupState.resume) chooseStartup(startupState.resume);
+  });
+  elStartHead.addEventListener("click", () => {
+    if (startupState && startupState.head) chooseStartup(startupState.head);
+  });
+  elStartHome.addEventListener("click", () => {
+    chooseStartup(startupState && startupState.head, true);
+  });
   elThresholdOrigin.addEventListener("click", walkOrigin);
   elThresholdContinue.addEventListener("click", toggleContinuationReady);
   elThresholdAsk.addEventListener("click", toggleContinuationComposer);
@@ -4686,6 +5083,7 @@
   }
 
   window.addEventListener("keydown", (e) => {
+    if (!elStartMenu.hidden) return;
     if (!elThreadCompass.hidden) {
       if (textEntryOwnsKey(e.target) && e.key !== "Escape") return;
       if (e.key === "Escape") {
@@ -4804,6 +5202,11 @@
       }
       if (!["c", "C", "s", "S"].includes(e.key)) return;
     }
+    if (e.key === "Enter" && readyCapsuleTarget() && !capsuleConstruction) {
+      e.preventDefault();
+      launchReadyCapsule();
+      return;
+    }
     if (e.key === "w" || e.key === "W") {
       if (view && view.field_note_eligibility) {
         e.preventDefault();
@@ -4855,8 +5258,7 @@
         overhead = false;
         yaw = HOME_YAW;
         pitch = HOME_PITCH;
-        overheadLook.x = 0;
-        overheadLook.z = 0;
+        resetCameraFocus(true);
       } else {
         overhead = !overhead;
       }
@@ -5030,6 +5432,62 @@
           });
         }
       }
+      const build = group.userData.capsuleBuild;
+      if (build) {
+        const fade = build.completedAt === null
+          ? 1
+          : Math.max(0, 1 - (t - build.completedAt) / 0.9);
+        if (fade <= 0) {
+          group.remove(build.particles);
+          build.rings.forEach((ring) => group.remove(ring));
+          delete group.userData.capsuleBuild;
+        } else {
+          const positions = build.particles.geometry.attributes.position.array;
+          for (let index = 0; index < build.count; index += 1) {
+            const phase = build.phases[index];
+            const tier = index % 9;
+            const radius = 0.8 + tier * 0.12 + Math.sin(t * 1.7 + phase) * 0.08;
+            const angle = phase + t * (1.05 + (index % 7) * 0.035);
+            positions[index * 3] = Math.cos(angle) * radius;
+            positions[index * 3 + 1] = ((index * 19) % 37) * 0.085 + Math.sin(angle * 2) * 0.14;
+            positions[index * 3 + 2] = Math.sin(angle) * radius;
+          }
+          build.particles.geometry.attributes.position.needsUpdate = true;
+          build.particles.material.opacity = (0.72 + Math.sin(t * 5.4) * 0.22) * fade;
+          build.rings.forEach((ring, index) => {
+            ring.rotation.z = t * (index % 2 ? -0.72 : 0.58);
+            ring.rotation.y = t * 0.22 * (index + 1);
+            ring.material.opacity = (0.28 + Math.sin(t * 3.1 + index) * 0.16) * fade;
+          });
+        }
+      }
+      const burst = group.userData.capsuleCompletionBurst;
+      if (burst) {
+        const age = t - burst.startedAt;
+        const fade = Math.max(0, 1 - age / 2.9);
+        if (fade <= 0) {
+          group.remove(burst.cloud);
+          group.remove(burst.shockwave);
+          group.remove(burst.flash);
+          delete group.userData.capsuleCompletionBurst;
+        } else {
+          const positions = burst.cloud.geometry.attributes.position.array;
+          for (let index = 0; index < burst.count; index += 1) {
+            const velocity = burst.velocities[index];
+            const origin = burst.origins[index];
+            const drag = 1 + age * 0.42;
+            positions[index * 3] = origin.x + velocity.x * age / drag;
+            positions[index * 3 + 1] = origin.y + velocity.y * age / drag + age * 0.36;
+            positions[index * 3 + 2] = origin.z + velocity.z * age / drag;
+          }
+          burst.cloud.geometry.attributes.position.needsUpdate = true;
+          burst.cloud.material.opacity = 0.46 * fade;
+          burst.cloud.material.size = 1.85 + age * 1.5;
+          burst.shockwave.scale.setScalar(1 + age * 3.4);
+          burst.shockwave.material.opacity = 0.9 * Math.max(0, 1 - age / 0.85);
+          burst.flash.intensity = 5200 * Math.max(0, 1 - age / 0.45);
+        }
+      }
       const orbit = group.userData.capsuleOrbit;
       if (!orbit) continue;
       const dissipation = orbit.dissipatingAt === null
@@ -5045,15 +5503,15 @@
       }
       const positions = orbit.points.geometry.attributes.position.array;
       for (let index = 0; index < orbit.count; index += 1) {
-        const band = index % 3;
-        const angle = (index / orbit.count) * Math.PI * 2 + t * (0.48 + band * 0.08);
-        const radius = (1.35 + (index % 11) * 0.035) * (1 + dissipation * 1.2);
+        const band = index % 5;
+        const angle = (index / orbit.count) * Math.PI * 2 + t * (0.54 + band * 0.055);
+        const radius = (1.58 + (index % 17) * 0.04) * (1 + dissipation * 1.2);
         positions[index * 3] = Math.cos(angle) * radius;
-        positions[index * 3 + 1] = (band - 1) * 0.42 + Math.sin(angle * 2.2) * 0.22;
-        positions[index * 3 + 2] = Math.sin(angle) * radius * 0.72;
+        positions[index * 3 + 1] = (band - 2) * 0.36 + Math.sin(angle * 2.2) * 0.32;
+        positions[index * 3 + 2] = Math.sin(angle) * radius * 0.78;
       }
       orbit.points.geometry.attributes.position.needsUpdate = true;
-      orbit.points.material.opacity = 0.9 * fade;
+      orbit.points.material.opacity = fade;
     }
 
     if (!capsuleFlight) return;
@@ -5065,28 +5523,48 @@
       .addScaledVector(flight.control1, 3 * one * one * u)
       .addScaledVector(flight.control2, 3 * one * u * u)
       .addScaledVector(flight.end, u * u * u);
-    flight.group.rotation.y = t * 2.8;
-    flight.group.rotation.z = Math.sin(u * Math.PI) * 0.24;
+    flight.tangent.set(0, 0, 0)
+      .addScaledVector(flight.tangentStart, 3 * one * one)
+      .addScaledVector(flight.tangentMiddle, 6 * one * u)
+      .addScaledVector(flight.tangentEnd, 3 * u * u)
+      .normalize();
+    flight.group.quaternion.setFromUnitVectors(flight.upAxis, flight.tangent);
+    const flamePulse = 0.82 + Math.sin(t * 28) * 0.13 + Math.sin(t * 43) * 0.05;
+    flight.outerFlame.scale.set(0.9 + flamePulse * 0.14, flamePulse, 0.9 + flamePulse * 0.14);
+    flight.innerFlame.scale.set(0.88 + flamePulse * 0.1, 0.78 + flamePulse * 0.22, 0.88 + flamePulse * 0.1);
+    flight.exhaustLight.intensity = 1050 + flamePulse * 520;
     flight.flash.intensity = u < 0.12
       ? 3800 * (1 - u / 0.12)
       : u > 0.9 ? 1500 * ((u - 0.9) / 0.1) : 80;
     flight.points.unshift(flight.group.position.clone());
-    flight.points = flight.points.slice(0, 42);
-    for (let index = 0; index < 42; index += 1) {
+    flight.points = flight.points.slice(0, flight.trailCount);
+    for (let index = 0; index < flight.trailCount; index += 1) {
       const point = flight.points[index] || flight.points[flight.points.length - 1] || flight.start;
       point.toArray(flight.trailPositions, index * 3);
+      const spread = Math.min(0.62, index * 0.012);
+      flight.smokePositions[index * 3] = point.x + Math.sin(index * 2.17 + t) * spread;
+      flight.smokePositions[index * 3 + 1] = point.y + Math.cos(index * 1.61 + t * 0.7) * spread * 0.55;
+      flight.smokePositions[index * 3 + 2] = point.z + Math.sin(index * 1.33 - t * 0.8) * spread;
     }
     flight.trail.geometry.attributes.position.needsUpdate = true;
+    flight.smokeTrail.geometry.attributes.position.needsUpdate = true;
     flight.trail.material.opacity = 0.88 * (1 - Math.max(0, u - 0.82) / 0.18);
+    flight.smokeTrail.material.opacity = 0.62 * (1 - Math.max(0, u - 0.78) / 0.22);
+    flight.smokeTrail.material.size = 1.5 + u * 0.7;
     if (u >= 1) {
       scene.remove(flight.group);
       scene.remove(flight.trail);
+      scene.remove(flight.smokeTrail);
       capsuleFlight = null;
     }
   }
 
   function tick() {
     const t = clock.getElapsedTime();
+    shoulderLook.x += (shoulderLookTarget.x - shoulderLook.x) * 0.085;
+    shoulderLook.z += (shoulderLookTarget.z - shoulderLook.z) * 0.085;
+    overheadLook.x += (overheadLookTarget.x - overheadLook.x) * 0.085;
+    overheadLook.z += (overheadLookTarget.z - overheadLook.z) * 0.085;
     if (overhead) {
       camera.up.set(0, 0, -1);
       camera.position.set(overheadLook.x, 26, overheadLook.z);
@@ -5099,10 +5577,10 @@
     } else {
       camera.up.set(0, 1, 0);
       const r = 8.2;
-      camera.position.x = Math.sin(yaw) * r;
-      camera.position.z = Math.cos(yaw) * r;
+      camera.position.x = shoulderLook.x + Math.sin(yaw) * r;
+      camera.position.z = shoulderLook.z + Math.cos(yaw) * r;
       camera.position.y = 2.6 + Math.sin(pitch) * 0.4 + Math.sin(t * 0.4) * 0.05;
-      camera.lookAt(0, 1.4, 0);
+      camera.lookAt(shoulderLook.x, 1.4, shoulderLook.z);
       overSun.intensity = 0;
       overHemi.intensity = 0;
       fill.intensity = 0.7;

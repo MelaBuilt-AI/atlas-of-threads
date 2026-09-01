@@ -39,6 +39,31 @@
     <span>Knowledge Capsule Earned</span>
     <small>press K to construct</small>
   </button>
+  <button id="knowledge-capsule-ready" type="button" hidden aria-label="Press Enter to Launch Capsule.">
+    <span>Press Enter to Launch Capsule</span>
+    <small>the frozen Markdown will be written locally</small>
+  </button>
+  <div id="start-menu" hidden>
+    <section class="start-panel" role="dialog" aria-modal="true" aria-labelledby="start-title">
+      <div class="menu-kicker">local thought world</div>
+      <h1 id="start-title">Where would you like to stand?</h1>
+      <p id="start-status">Reading the local archaeology…</p>
+      <div class="start-actions">
+        <button id="start-resume" type="button">
+          <strong>Resume Last Chamber</strong>
+          <small id="start-resume-detail">return to the exact place you left</small>
+        </button>
+        <button id="start-head" type="button">
+          <strong>Open Session Head</strong>
+          <small id="start-head-detail">stand at the latest generation in that inquiry</small>
+        </button>
+        <button id="start-home" type="button">
+          <strong>Home</strong>
+          <small>open collaborators, new inquiry, and session history</small>
+        </button>
+      </div>
+    </section>
+  </div>
   <div id="workspace-scrim" hidden></div>
   <aside id="workspace-menu" hidden aria-label="Workspace">
     <header class="menu-head">

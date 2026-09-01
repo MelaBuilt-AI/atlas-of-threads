@@ -552,6 +552,9 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert 'id="topbar"' in body
     assert 'id="legend-menu"' in body
     assert 'id="thread-compass"' in body
+    assert 'id="start-menu"' in body
+    assert "Resume Last Chamber" in body
+    assert "Open Session Head" in body
     assert 'id="sound-controls"' in body
     assert 'id="sound-toggle"' in body
     assert 'id="sound-volume"' in body
@@ -577,6 +580,9 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert "CHOICE_STRIDE" in js
     assert "overhead" in js
     assert "overheadLook" in js
+    assert "shoulderLookTarget" in js
+    assert "overheadLookTarget" in js
+    assert "focusCameraOn(choices[focusIndex].mesh)" in js
     assert "overSun" in js
     assert "shiftKey" in js
     assert "--plate-height" in js
@@ -604,6 +610,10 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert "Math.atan2(position.x, -position.z)" in js
     assert js.count("addClockChoice(") == 8
     assert "sparkColors" in js
+    assert "LAST_STAND_MEMORY_KEY" in js
+    assert "showStartup" in js
+    assert "chooseStartup" in js
+    assert "explicitDeepLink" in js
     assert "inhabit(view.graph_id, cycle[" not in js
 
     code, loader, _ = _get(httpd_url + "/relic-loader.js")
@@ -865,6 +875,25 @@ def test_live_companion_uses_finalized_store_heads_as_optional_doorways(tmp_path
     assert '"thought-graph-reliquary"' in js
     assert "setInterval(pollLiveCompanion" in js
     assert "restart ta serve, then refresh" in js
+
+
+def test_space_startup_and_camera_focus_contract_are_present():
+    dist = viz_dist_path()
+    html = (dist / "index.html").read_text(encoding="utf-8")
+    js = (dist / "space.js").read_text(encoding="utf-8")
+    css = (dist / "theme.css").read_text(encoding="utf-8")
+    assert 'id="start-menu"' in html
+    assert "Resume Last Chamber" in html
+    assert "Open Session Head" in html
+    assert "LAST_STAND_MEMORY_KEY" in js
+    assert "showStartup" in js
+    assert "chooseStartup" in js
+    assert "explicitDeepLink" in js
+    assert "focusCameraOn(choices[focusIndex].mesh)" in js
+    assert "shoulderLookTarget" in js
+    assert "overheadLookTarget" in js
+    assert "camera.lookAt(shoulderLook.x, 1.4, shoulderLook.z)" in js
+    assert "#start-menu" in css
 
 
 def test_continuation_endpoint_writes_harness_neutral_request(
