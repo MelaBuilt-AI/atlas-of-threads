@@ -78,6 +78,17 @@ def test_launcher_dispatches_the_packaged_adapter(monkeypatch):
     assert seen == [["describe"]]
 
 
+def test_launcher_bounds_unexpected_adapter_errors(monkeypatch, capsys):
+    def adapter(_args):
+        raise AttributeError("private provider detail")
+
+    monkeypatch.setattr("thought_archaeology.launcher._adapter", lambda _name: adapter)
+    assert launcher_main(["adapter", "grok", "continue"]) == 1
+    error = capsys.readouterr().err
+    assert error == "grok adapter failed unexpectedly (AttributeError)\n"
+    assert "private provider detail" not in error
+
+
 def test_frozen_application_uses_itself_for_packaged_bridges(monkeypatch):
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     monkeypatch.setattr(sys, "executable", "/opt/AtlasOfThreads")

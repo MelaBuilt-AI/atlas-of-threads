@@ -61,7 +61,7 @@ def _run_metadata(argv: list[str], *, timeout: float = 30) -> str:
         raise CodexAdapterError(
             f"Codex CLI metadata command exited {proc.returncode}: {detail}"
         )
-    return proc.stdout.strip()
+    return (proc.stdout or "").strip()
 
 
 def _version(executable: ProviderCommand) -> str:

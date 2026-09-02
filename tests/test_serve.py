@@ -13,6 +13,7 @@ from thought_archaeology.adapters.provider_command import WSLCommand
 from thought_archaeology.continuation import (
     continuation_attempt,
     continuation_completion,
+    continuation_failure,
     continuation_request,
 )
 from thought_archaeology.inhabit import inhabit
@@ -983,6 +984,8 @@ def test_terminal_traversal_separates_story_and_conversation_routes():
     assert 'elThreshold.dataset.ready = ready || batchLive ? "working" : "false"' in js
     assert '"AI working…"' in js
     assert "continuation_attempt" in js
+    assert "continuation_failure" in js
+    assert '"retry continuation · q"' in js
     assert "is responding from this chamber" in js
     assert '"cancel response · q"' in js
     assert '#threshold[data-ready="working"]' in css
@@ -1218,6 +1221,35 @@ def test_continuation_handler_without_socket(tmp_path: Path):
     handler.path = "/api/continuations"
     handler.do_GET()
     assert replies[-1] == (200, {"requests": [], "parallel_batches": []})
+
+
+def test_inhabit_exposes_latest_ordinary_failure_for_retry(tmp_path: Path):
+    store_path = tmp_path / "data"
+    session_id, graph_id = _compile_simple(store_path)
+    store = Store(store_path)
+    graph = store.load_graph(graph_id)
+    node = graph.nodes[0]
+    request = continuation_request(graph, node, source="inhabit_space")
+    store.write_continuation_request(request)
+    store.write_continuation_attempt(continuation_attempt(request.id, "grok"))
+    failure = continuation_failure(
+        request.id,
+        "grok",
+        "adapter_error",
+        "The collaborator could not complete this continuation.",
+    )
+    store.write_continuation_failure(failure)
+
+    replies = []
+    handler = object.__new__(InhabitHandler)
+    handler.store = store
+    handler._json = lambda code, body: replies.append((code, body))
+    handler.path = f"/api/inhabit/{node.id}?graph={graph.id}&session={session_id}"
+    handler.do_GET()
+
+    assert replies[-1][0] == 200
+    assert replies[-1][1]["continuation"] is None
+    assert replies[-1][1]["continuation_failure"] == failure.to_dict()
 
 
 def test_inhabit_climate_none_without_fingerprint(httpd_url: str):

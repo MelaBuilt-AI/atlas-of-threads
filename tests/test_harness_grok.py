@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
+import thought_archaeology.adapters.grok as grok_module
+from thought_archaeology.adapters.grok import GrokAdapterError
 from thought_archaeology.store import Store
 
 from tests.helpers import FIXTURES
@@ -109,3 +114,21 @@ def test_grok_adapter_handshake_and_real_cli_shape(monkeypatch, tmp_path: Path):
     assert "PUBLIC THOUGHT ARCHAEOLOGY CONTEXT" in prompt
     assert "hidden_reasoning" not in prompt
     assert "Do not inspect or modify local files" in prompt
+
+
+def test_grok_empty_captured_stream_is_a_bounded_adapter_error(monkeypatch):
+    monkeypatch.setattr(
+        grok_module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=None, stderr=None
+        ),
+    )
+    envelope = {
+        "request": {},
+        "graph": {},
+        "standing": {},
+        "session": {},
+    }
+    with pytest.raises(GrokAdapterError, match="returned no response"):
+        grok_module._continue("grok", envelope, "grok-test")

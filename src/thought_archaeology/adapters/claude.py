@@ -60,7 +60,7 @@ def _version(executable: ProviderCommand) -> str:
         raise ClaudeAdapterError(
             f"Claude Code CLI metadata command exited {proc.returncode}: {detail}"
         )
-    version = proc.stdout.strip()
+    version = (proc.stdout or "").strip()
     if not version:
         raise ClaudeAdapterError("Claude Code CLI returned no version")
     return version.splitlines()[-1].strip()
@@ -233,8 +233,6 @@ def _continue(
         "--no-session-persistence",
         "--permission-mode",
         "dontAsk",
-        "--prompt-suggestions",
-        "false",
         "--system-prompt",
         (
             "You are a response-only Claude Code process for Thought Archaeology. "

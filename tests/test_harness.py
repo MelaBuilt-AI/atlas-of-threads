@@ -8,7 +8,10 @@ from pathlib import Path
 import pytest
 
 import thought_archaeology.harness as harness_module
-from thought_archaeology.continuation import continuation_cancellation
+from thought_archaeology.continuation import (
+    continuation_attempt,
+    continuation_cancellation,
+)
 from thought_archaeology.harness import (
     HarnessError,
     HarnessRegistry,
@@ -215,6 +218,93 @@ def test_harness_discards_response_canceled_during_model_call(
     with pytest.raises(HarnessError, match="response was discarded"):
         harness_module.process_continuation(store, spec, request_id=request_id)
     assert [item.id for item in store.iter_graphs()] == before_graphs
+    assert list(store.iter_continuation_requests(pending=True)) == []
+
+
+def test_harness_failure_closes_ordinary_request_and_next_request_runs(
+    monkeypatch, tmp_path: Path
+):
+    store_path = tmp_path / "data"
+    _session_id, graph_id = _compiled(store_path)
+    store = Store(store_path)
+    graph = store.load_graph(graph_id)
+    node = graph.nodes[0]
+    spec = HarnessRegistry(tmp_path / "harnesses.json").register(
+        "fake", sys.executable, args=(str(FAKE_ADAPTER),), make_default=True
+    )
+
+    code, out, err = run(
+        ["continuation", "ready", node.id, "--graph", graph.id],
+        store=store_path,
+    )
+    assert code == 0, err
+    failed_request_id = out.strip()
+
+    def fail_adapter(*_args, **_kwargs):
+        raise HarnessError("provider leaked-secret rejected an unknown argument")
+
+    monkeypatch.setattr(harness_module, "_adapter_call", fail_adapter)
+    outcome = process_continuation(store, spec, request_id=failed_request_id)
+    assert outcome["status"] == "failed"
+    assert outcome["reason_code"] == "adapter_error"
+    assert list(store.iter_continuation_requests(pending=True)) == []
+    failure = list(store.iter_continuation_failures())[-1]
+    assert failure.request_id == failed_request_id
+    assert failure.public_summary == (
+        "The installed collaborator CLI rejected the request options. "
+        "Update it, then retry."
+    )
+    assert "leaked-secret" not in failure.public_summary
+
+    code, out, err = run(
+        ["continuation", "ready", node.id, "--graph", graph.id],
+        store=store_path,
+    )
+    assert code == 0, err
+    retry_request_id = out.strip()
+    response = (FIXTURES / "transcripts" / "simple-structured.txt").read_text(
+        encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        harness_module,
+        "_adapter_call",
+        lambda *_args, **_kwargs: {
+            "protocol_version": "1",
+            "response": response,
+            "model_name": "fake-model",
+        },
+    )
+    retry = process_continuation(store, spec, request_id=retry_request_id)
+    assert retry["status"] == "completed"
+
+
+def test_harness_restart_closes_an_attempted_ordinary_request(
+    monkeypatch, tmp_path: Path
+):
+    store_path = tmp_path / "data"
+    _session_id, graph_id = _compiled(store_path)
+    store = Store(store_path)
+    graph = store.load_graph(graph_id)
+    spec = HarnessRegistry(tmp_path / "harnesses.json").register(
+        "fake", sys.executable, args=(str(FAKE_ADAPTER),), make_default=True
+    )
+    code, out, err = run(
+        ["continuation", "ready", graph.nodes[0].id, "--graph", graph.id],
+        store=store_path,
+    )
+    assert code == 0, err
+    request_id = out.strip()
+    store.write_continuation_attempt(continuation_attempt(request_id, "fake"))
+    monkeypatch.setattr(
+        harness_module,
+        "_adapter_call",
+        lambda *_args, **_kwargs: pytest.fail("attempted request was invoked twice"),
+    )
+
+    outcome = process_continuation(store, spec, request_id=request_id)
+
+    assert outcome["status"] == "failed"
+    assert outcome["reason_code"] == "interrupted"
     assert list(store.iter_continuation_requests(pending=True)) == []
 
 

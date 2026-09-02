@@ -258,7 +258,7 @@ def command_path(command: ProviderCommand, path: str | Path) -> str:
         raise ProviderCommandError(
             f"cannot translate a Windows path for WSL: {exc}"
         ) from exc
-    translated = proc.stdout.strip()
+    translated = (proc.stdout or "").strip()
     if proc.returncode != 0 or not translated:
         detail = (proc.stderr or proc.stdout or "").strip() or "no output"
         raise ProviderCommandError(f"WSL path translation failed: {detail}")

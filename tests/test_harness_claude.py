@@ -175,7 +175,7 @@ def test_claude_adapter_handshake_and_real_cli_shape(monkeypatch, tmp_path: Path
     assert "--no-chrome" in argv
     assert "--no-session-persistence" in argv
     assert argv[argv.index("--permission-mode") + 1] == "dontAsk"
-    assert argv[argv.index("--prompt-suggestions") + 1] == "false"
+    assert "--prompt-suggestions" not in argv
     assert argv[argv.index("--model") + 1] == "claude-test-alias"
     assert call["skip_prompt_history"] == "1"
     assert Path(call["cwd"]).name.startswith("ta-claude-")

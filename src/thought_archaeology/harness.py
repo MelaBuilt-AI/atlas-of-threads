@@ -15,6 +15,7 @@ from typing import Any, Iterator, Self
 from thought_archaeology.compile_common import CompileError
 from thought_archaeology.compile_structured import compile_structured
 from thought_archaeology.continuation import (
+    ContinuationFailureReason,
     ContinuationRequest,
     continuation_attempt,
     continuation_completion,
@@ -396,6 +397,98 @@ def _continuation_turns(
     return tuple(turns)
 
 
+def _failure_details(
+    exc: BaseException,
+) -> tuple[ContinuationFailureReason, str]:
+    detail = str(exc).lower()
+    if isinstance(exc.__cause__, subprocess.TimeoutExpired) or "timed out" in detail:
+        return (
+            "timeout",
+            "The collaborator timed out before returning a usable continuation.",
+        )
+    if (
+        "invalid json" in detail
+        or "must return a json object" in detail
+        or "protocol mismatch" in detail
+    ):
+        return (
+            "invalid_response",
+            "The collaborator returned a response that could not be compiled.",
+        )
+    if any(
+        marker in detail
+        for marker in (
+            "not authenticated",
+            "authentication",
+            "sign in",
+            "sign-in",
+            "login",
+            "unauthorized",
+        )
+    ):
+        return (
+            "adapter_error",
+            "The collaborator needs sign-in in the same CLI environment shown in Workspace.",
+        )
+    if any(
+        marker in detail
+        for marker in (
+            "unknown argument",
+            "unexpected argument",
+            "unrecognized argument",
+            "unknown option",
+            "unrecognized option",
+        )
+    ):
+        return (
+            "adapter_error",
+            "The installed collaborator CLI rejected the request options. Update it, then retry.",
+        )
+    if "model" in detail and any(
+        marker in detail for marker in ("not found", "unavailable", "access")
+    ):
+        return (
+            "adapter_error",
+            "The selected collaborator model is unavailable for this account.",
+        )
+    return "adapter_error", "The collaborator could not complete this continuation."
+
+
+def _record_failure(
+    store: Store,
+    request: ContinuationRequest,
+    harness: str,
+    reason: ContinuationFailureReason,
+    summary: str,
+) -> dict[str, Any]:
+    failure = continuation_failure(request.id, harness, reason, summary)
+    with store.continuation_inbox_lock():
+        if not _is_pending(store, request.id):
+            return {
+                "status": "canceled",
+                "harness": harness,
+                "request_id": request.id,
+            }
+        store.write_continuation_failure(failure)
+    store.log(
+        "harness_failure",
+        session_id=request.session_id,
+        graph_id=request.graph_id,
+        request_id=request.id,
+        failure_id=failure.id,
+        harness=harness,
+        reason_code=reason,
+        warnings=[],
+    )
+    return {
+        "status": "failed",
+        "harness": harness,
+        "request_id": request.id,
+        "failure_id": failure.id,
+        "reason_code": reason,
+    }
+
+
 def process_continuation(
     store: Store,
     spec: HarnessSpec,
@@ -408,30 +501,31 @@ def process_continuation(
         request = _select_request(store, request_id)
         if request is None:
             return None
+        prior = [
+            item
+            for item in store.iter_continuation_attempts()
+            if item.request_id == request.id
+        ]
+        if prior:
+            interrupted_harness = request.requested_harness or prior[-1].harness
+            failure = continuation_failure(
+                request.id,
+                interrupted_harness,
+                "interrupted",
+                "The watcher restarted after this job began; it was not invoked again.",
+            )
+            store.write_continuation_failure(failure)
+            return {
+                "status": "failed",
+                "harness": interrupted_harness,
+                "request_id": request.id,
+                "failure_id": failure.id,
+                "reason_code": failure.reason_code,
+            }
         target_spec = spec
         if request.requested_harness:
             if request.parallel_batch_id is None:
                 raise HarnessError("routed continuation request has no parallel batch")
-            prior = [
-                item
-                for item in store.iter_continuation_attempts()
-                if item.request_id == request.id
-            ]
-            if prior:
-                failure = continuation_failure(
-                    request.id,
-                    request.requested_harness,
-                    "interrupted",
-                    "The watcher restarted after this job began; it was not invoked again.",
-                )
-                store.write_continuation_failure(failure)
-                return {
-                    "status": "failed",
-                    "harness": request.requested_harness,
-                    "request_id": request.id,
-                    "failure_id": failure.id,
-                    "reason_code": failure.reason_code,
-                }
             try:
                 target_spec = (registry or HarnessRegistry()).get(
                     request.requested_harness
@@ -470,53 +564,10 @@ def process_continuation(
             timeout=timeout,
         )
     except HarnessError as exc:
-        if request.parallel_batch_id is None:
-            raise
-        detail = str(exc).lower()
-        reason = "timeout" if isinstance(
-            exc.__cause__, subprocess.TimeoutExpired
-        ) else (
-            "invalid_response"
-            if "invalid json" in detail
-            or "must return a json object" in detail
-            or "protocol mismatch" in detail
-            else "adapter_error"
+        reason, summary = _failure_details(exc)
+        return _record_failure(
+            store, request, target_spec.name, reason, summary
         )
-        summary = (
-            "The collaborator timed out before returning a usable continuation."
-            if reason == "timeout"
-            else (
-                "The collaborator returned a response that could not be compiled."
-                if reason == "invalid_response"
-                else "The collaborator could not complete this continuation."
-            )
-        )
-        failure = continuation_failure(request.id, target_spec.name, reason, summary)
-        with store.continuation_inbox_lock():
-            if not _is_pending(store, request.id):
-                return {
-                    "status": "canceled",
-                    "harness": target_spec.name,
-                    "request_id": request.id,
-                }
-            store.write_continuation_failure(failure)
-        store.log(
-            "harness_failure",
-            session_id=request.session_id,
-            graph_id=request.graph_id,
-            request_id=request.id,
-            failure_id=failure.id,
-            harness=target_spec.name,
-            reason_code=reason,
-            warnings=[],
-        )
-        return {
-            "status": "failed",
-            "harness": target_spec.name,
-            "request_id": request.id,
-            "failure_id": failure.id,
-            "reason_code": reason,
-        }
     if not _is_pending(store, request.id):
         if request.parallel_batch_id is not None:
             return {
@@ -555,37 +606,13 @@ def process_continuation(
         )
         validate_graph(graph)
     except (CompileError, HarnessError, ValidationError, ValueError):
-        if request.parallel_batch_id is None:
-            raise
-        failure = continuation_failure(
-            request.id,
+        return _record_failure(
+            store,
+            request,
             target_spec.name,
             "invalid_response",
             "The collaborator returned a response that could not be compiled.",
         )
-        with store.continuation_inbox_lock():
-            if not _is_pending(store, request.id):
-                return {
-                    "status": "canceled",
-                    "harness": target_spec.name,
-                    "request_id": request.id,
-                }
-            store.write_continuation_failure(failure)
-        store.log(
-            "harness_failure",
-            request_id=request.id,
-            failure_id=failure.id,
-            harness=target_spec.name,
-            reason_code="invalid_response",
-            warnings=[],
-        )
-        return {
-            "status": "failed",
-            "harness": target_spec.name,
-            "request_id": request.id,
-            "failure_id": failure.id,
-            "reason_code": "invalid_response",
-        }
     with store.continuation_inbox_lock():
         if not _is_pending(store, request.id):
             if request.parallel_batch_id is not None:

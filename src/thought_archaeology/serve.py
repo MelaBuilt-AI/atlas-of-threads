@@ -269,6 +269,30 @@ def _attempt_by_request(store: Store) -> dict[str, dict]:
     }
 
 
+def _failure_for_source(
+    store: Store, graph_id: str, node_id: str
+) -> dict | None:
+    requests = [
+        request
+        for request in store.iter_continuation_requests()
+        if request.parallel_batch_id is None
+        and request.graph_id == graph_id
+        and request.node_id == node_id
+    ]
+    if not requests:
+        return None
+    latest = max(requests, key=lambda item: (item.created_at, item.id))
+    failure = next(
+        (
+            item
+            for item in store.iter_continuation_failures()
+            if item.request_id == latest.id
+        ),
+        None,
+    )
+    return failure.to_dict() if failure else None
+
+
 def _continuation_source(store: Store, graph_id: str) -> dict | None:
     for completion in store.iter_continuation_completions():
         if completion.graph_id != graph_id:
@@ -976,6 +1000,9 @@ class InhabitHandler(BaseHTTPRequestHandler):
                     ).get(view.continuation["id"])
                 else:
                     payload["continuation_attempt"] = None
+                payload["continuation_failure"] = _failure_for_source(
+                    self.store, view.graph.id, view.node.id
+                )
                 payload["parallel_continuation"] = parallel_progress_for_source(
                     self.store, view.graph.id, view.node.id
                 )

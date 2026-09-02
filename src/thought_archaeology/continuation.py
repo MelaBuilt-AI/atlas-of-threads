@@ -134,7 +134,7 @@ class ParallelContinuationBatch:
 
 @dataclass(frozen=True)
 class ContinuationFailure:
-    """Sanitized terminal receipt for one failed parallel request."""
+    """Sanitized terminal receipt for one failed request."""
 
     schema_version: str
     id: str

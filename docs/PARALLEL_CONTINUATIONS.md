@@ -502,8 +502,10 @@ restart the service between batch members.
 
 ## One attempt and terminal failures
 
-Each batch job gets at most one `ContinuationAttempt`. Automatic retries are
-forbidden for parallel batches because retries would make cell counts and
+Each request gets at most one `ContinuationAttempt`. Automatic retries are
+forbidden because a worker restart must not duplicate a provider call. An
+ordinary chamber may create a new request when the inhabitant chooses retry;
+parallel retries remain forbidden because they would make cell counts and
 comparisons ambiguous.
 
 Add an append-only `ContinuationFailure` terminal receipt rather than
@@ -524,18 +526,21 @@ credentials, prompts beyond the already stored request, or hidden reasoning.
 Useful reason codes include `adapter_error`, `timeout`, `interrupted`,
 `invalid_response`, and `unavailable_harness`.
 
-For batch requests:
+For all requests:
 
 - an adapter exception or timeout appends one failure receipt;
-- the worker continues to the next batch job;
+- the worker remains alive and continues to the next request;
 - a request with an existing attempt but no completion/cancellation/failure
   after worker restart becomes `interrupted` rather than being invoked again;
 - pending enumeration treats completion, cancellation, or failure as terminal;
+
+For batch requests:
+
 - the batch may finish `4 returned · 1 failed`;
 - failures are inspectable in Thread Compass but produce no graph doorway.
 
-Ordinary non-batch request retry behavior remains unchanged unless separately
-designed and accepted later.
+For an ordinary request, the terminal chamber shows the sanitized failure and
+offers a new retry while leaving collaborator switching available in Workspace.
 
 ## Cancellation
 

@@ -39,7 +39,16 @@ def main(argv: list[str] | None = None) -> int:
         except ValueError as exc:
             print(exc, file=sys.stderr)
             return 2
-        return adapter(args[2:])
+        try:
+            return adapter(args[2:])
+        except Exception as exc:
+            if sys.stderr is not None:
+                print(
+                    f"{args[1]} adapter failed unexpectedly "
+                    f"({type(exc).__name__})",
+                    file=sys.stderr,
+                )
+            return 1
     app_args = args or ["launch"]
     if (
         getattr(sys, "frozen", False)

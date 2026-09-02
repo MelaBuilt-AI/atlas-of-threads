@@ -732,6 +732,10 @@ Thought Archaeology owns the durable boundary and graph compilation; the
 harness owns credentials, model invocation, and provider-specific prompt
 assembly. No vendor SDK or callback URL is required by the core.
 
+Provider errors close the current request without stopping the watcher. The
+terminal chamber shows a sanitized failure and offers a retry; raw provider
+output and credentials are not stored in the failure receipt.
+
 Restart `ta serve` after updating project code. Static HTML/JavaScript reload on
 refresh, but an existing Python process cannot emit newly added read fields; the
 descent names this mismatch when `why this path` data is unavailable.

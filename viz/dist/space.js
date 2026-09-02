@@ -4991,7 +4991,9 @@
     const batch = payload.parallel_continuation || null;
     const batchLive = Boolean(batch && !batch.terminal);
     const ready = payload.continuation || null;
+    const failure = payload.continuation_failure || null;
     if (ready) beginContinuationCircuit(ready);
+    if (failure) clearContinuationCircuit(failure.request_id);
     sound.setWorking(Boolean(ready || (batchLive && batch.counts.responding)));
     const attempt = payload.continuation_attempt || null;
     const harness = attempt && attempt.harness
@@ -5004,14 +5006,18 @@
       ? `${workingLabel}${harness ? ` · ${harness}` : ""}`
       : batchLive
         ? "parallel continuation"
-      : "end of this graph path";
+        : failure
+          ? `${failure.harness.charAt(0).toUpperCase() + failure.harness.slice(1)} could not complete`
+          : "end of this graph path";
     elThresholdText.textContent = ready
       ? harness
         ? `${harness} is responding from this chamber. The new path will arrive automatically.`
         : "The continuation is queued. This chamber will update when a harness begins responding."
       : batchLive
         ? `${batch.counts.responding} responding · ${batch.counts.queued} queued · ${batch.counts.completed} completed · ${batch.counts.failed} failed · ${batch.counts.canceled} canceled`
-        : traversal.state_line;
+        : failure
+          ? `${failure.public_summary} Retry here or choose another collaborator in Workspace.`
+          : traversal.state_line;
     elThresholdOrigin.disabled = Boolean(
       payload.origin && payload.origin.id === payload.node.id
     );
@@ -5023,7 +5029,11 @@
       : "parallel continuation · p";
     elThresholdContinue.textContent = ready
       ? "cancel response · q"
-      : batchLive ? "parallel batch in progress" : "ready for continuation · q";
+      : batchLive
+        ? "parallel batch in progress"
+        : failure
+          ? "retry continuation · q"
+          : "ready for continuation · q";
     requestAnimationFrame(resize);
   }
 

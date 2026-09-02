@@ -1067,10 +1067,14 @@ class Store:
     def write_continuation_failure(self, failure: ContinuationFailure) -> Path:
         self._require()
         request = self.load_continuation_request(failure.request_id)
-        if request.parallel_batch_id is None:
-            raise StoreError("failure receipts are only for parallel requests")
-        if request.requested_harness != failure.harness:
-            raise StoreError("failure harness does not match requested harness")
+        if request.requested_harness:
+            if request.requested_harness != failure.harness:
+                raise StoreError("failure harness does not match requested harness")
+        elif not any(
+            item.request_id == failure.request_id and item.harness == failure.harness
+            for item in self.iter_continuation_attempts()
+        ):
+            raise StoreError("failure harness does not match a recorded attempt")
         terminal = {
             item.request_id for item in self.iter_continuation_completions()
         } | {

@@ -58,7 +58,7 @@ def _run_metadata(argv: list[str], *, timeout: float = 30) -> tuple[str, str]:
         raise GrokAdapterError(
             f"Grok CLI metadata command exited {proc.returncode}: {detail}"
         )
-    return proc.stdout.strip(), proc.stderr.strip()
+    return (proc.stdout or "").strip(), (proc.stderr or "").strip()
 
 
 def _version(executable: ProviderCommand) -> str:
@@ -186,9 +186,9 @@ def _continue(
         raise GrokAdapterError(
             f"Grok model call exited {proc.returncode}: {detail}"
         )
-    response = proc.stdout.strip()
+    response = (proc.stdout or "").strip()
     if not response:
-        detail = proc.stderr.strip()
+        detail = (proc.stderr or "").strip()
         raise GrokAdapterError(
             "Grok model call returned no response"
             + (f": {detail}" if detail else "")
