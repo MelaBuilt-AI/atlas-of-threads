@@ -145,8 +145,13 @@
   const elEvidenceClose = document.getElementById("evidence-close");
   const elSoundControls = document.getElementById("sound-controls");
   const sound = window.TASound;
+  const cinematicMode = new URLSearchParams(window.location.search).get("cinematic") === "1";
 
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: true,
+    preserveDrawingBuffer: cinematicMode,
+  });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setClearColor(0x12100e, 1);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -213,6 +218,7 @@
   let fieldNoteConstruction = null;
   let capsuleConstruction = null;
   let capsuleFlight = null;
+  let cinematicCapture = null;
   let startupState = null;
   let onboardingState = null;
   let onboardingBusy = false;
@@ -5298,6 +5304,38 @@
       (target instanceof HTMLElement && target.isContentEditable);
   }
 
+  function startCinematicCapture() {
+    if (!cinematicMode || cinematicCapture || !canvas.captureStream || !window.MediaRecorder) return;
+    const stream = canvas.captureStream(60);
+    const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+      ? "video/webm;codecs=vp9"
+      : "video/webm";
+    const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 12000000 });
+    const chunks = [];
+    const capture = {
+      recorder,
+      stream,
+      chunks,
+      startedAt: clock.getElapsedTime(),
+      duration: 11,
+    };
+    cinematicCapture = capture;
+    recorder.addEventListener("dataavailable", (event) => {
+      if (event.data && event.data.size) chunks.push(event.data);
+    });
+    recorder.addEventListener("stop", () => {
+      const blob = new Blob(chunks, { type: mimeType });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `atlas-ta-capsule-launch-${Date.now()}.webm`;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      stream.getTracks().forEach((track) => track.stop());
+      if (cinematicCapture === capture) cinematicCapture = null;
+    });
+    recorder.start(200);
+  }
+
   window.addEventListener("keydown", (e) => {
     if (!elOnboardingMenu.hidden) {
       if (textEntryOwnsKey(e.target) && e.key !== "Escape") return;
@@ -5308,6 +5346,11 @@
       return;
     }
     if (!elStartMenu.hidden) return;
+    if (cinematicMode && (e.key === "x" || e.key === "X")) {
+      e.preventDefault();
+      startCinematicCapture();
+      return;
+    }
     if (!elThreadCompass.hidden) {
       if (textEntryOwnsKey(e.target) && e.key !== "Escape") return;
       if (e.key === "Escape") {
@@ -5810,6 +5853,28 @@
       fill.intensity = 0.7;
       neuralFill.intensity = 0.22;
       scene.fog.density = climateFog;
+    }
+    if (cinematicCapture) {
+      const elapsed = t - cinematicCapture.startedAt;
+      const u = Math.min(1, Math.max(0, elapsed / cinematicCapture.duration));
+      const target = new THREE.Vector3();
+      const subject = capsuleFlight && capsuleFlight.group
+        ? capsuleFlight.group
+        : readyCapsuleTarget() || standingMesh;
+      if (subject) subject.getWorldPosition(target);
+      target.y += capsuleFlight ? 0.2 : 1.25;
+      const angle = -0.72 + u * 1.28;
+      const radius = 7.4 - Math.sin(Math.PI * u) * 2.7;
+      camera.up.set(0, 1, 0);
+      camera.position.set(
+        target.x + Math.sin(angle) * radius,
+        target.y + 2.1 + Math.sin(Math.PI * u) * 1.5,
+        target.z + Math.cos(angle) * radius
+      );
+      camera.lookAt(target);
+      if (u >= 1 && cinematicCapture.recorder.state === "recording") {
+        cinematicCapture.recorder.stop();
+      }
     }
     updateNeuralSky(t);
     updateContinuationCircuit(t);

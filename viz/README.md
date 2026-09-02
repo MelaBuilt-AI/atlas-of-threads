@@ -68,6 +68,14 @@ requires no CDN or Node build.
 
 Dev with Node is optional — edit `viz/dist/space.js` directly.
 
+## Cinematic capture
+
+For an event recording, open an isolated store with `?cinematic=1` appended to
+the Inhabit Space URL. Press `x` to begin an 11-second, HUD-free WebM recording
+of the WebGL canvas, then trigger the real event. The capture camera tracks a
+ready Knowledge Capsule and its flight; ordinary sessions retain the normal
+camera and renderer behavior.
+
 ## Sound
 
 The twelve runtime files under `dist/assets/audio/` are the browser-ready
