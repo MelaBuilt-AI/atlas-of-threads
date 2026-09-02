@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -10,6 +9,14 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
+from thought_archaeology.adapters.provider_command import (
+    ProviderCommand,
+    ProviderCommandError,
+    command_argv,
+    command_path,
+    discover_provider_command,
+    read_wsl_config,
+)
 from thought_archaeology.harness import HARNESS_PROTOCOL_VERSION
 from thought_archaeology.schema import read_prompt
 
@@ -20,13 +27,16 @@ class CodexAdapterError(Exception):
     """Installed Codex CLI discovery or invocation failure."""
 
 
-def _codex_bin() -> str:
+def _codex_bin() -> ProviderCommand:
     configured = os.environ.get("TA_CODEX_BIN")
-    executable = shutil.which(configured) if configured else shutil.which("codex")
+    executable = discover_provider_command("codex", configured)
     if executable is None:
         raise CodexAdapterError(
-            "Codex CLI not found; install it or set TA_CODEX_BIN to its executable"
+            "Codex CLI not found on Windows or in the default WSL distro; "
+            "install it, set TA_WSL_DISTRO, or set TA_CODEX_BIN"
         )
+    if not isinstance(executable, str):
+        return executable
     # Preserve launcher symlinks such as mise's `codex -> mise` shim. Mise
     # dispatches from argv[0]; resolving the link would invoke bare `mise`.
     return str(Path(executable).absolute())
@@ -42,6 +52,7 @@ def _run_metadata(argv: list[str], *, timeout: float = 30) -> str:
             timeout=timeout,
             check=False,
             env={**os.environ, "NO_COLOR": "1"},
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise CodexAdapterError(f"cannot inspect Codex CLI: {exc}") from exc
@@ -53,27 +64,32 @@ def _run_metadata(argv: list[str], *, timeout: float = 30) -> str:
     return proc.stdout.strip()
 
 
-def _version(executable: str) -> str:
-    stdout = _run_metadata([executable, "--version"])
+def _version(executable: ProviderCommand) -> str:
+    stdout = _run_metadata(command_argv(executable, "--version"))
     if not stdout:
         raise CodexAdapterError("Codex CLI returned no version")
     return stdout.splitlines()[-1].strip()
 
 
-def _default_model(executable: str) -> str:
+def _default_model(executable: ProviderCommand) -> str:
     configured = os.environ.get("TA_CODEX_MODEL")
     if configured:
         return configured.strip()
-    codex_root = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
-    config_path = codex_root / "config.toml"
-    if config_path.is_file():
+    config_text = read_wsl_config(executable, "CODEX_HOME", ".codex", "config.toml")
+    if config_text is None:
+        codex_root = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
+        config_path = codex_root / "config.toml"
         try:
-            saved = tomllib.loads(config_path.read_text(encoding="utf-8")).get("model")
-        except (OSError, tomllib.TOMLDecodeError):
-            saved = None
-        if isinstance(saved, str) and saved.strip():
-            return saved.strip()
-    stdout = _run_metadata([executable, "debug", "models", "--bundled"])
+            config_text = config_path.read_text(encoding="utf-8")
+        except OSError:
+            config_text = None
+    try:
+        saved = tomllib.loads(config_text).get("model") if config_text else None
+    except tomllib.TOMLDecodeError:
+        saved = None
+    if isinstance(saved, str) and saved.strip():
+        return saved.strip()
+    stdout = _run_metadata(command_argv(executable, "debug", "models", "--bundled"))
     try:
         models = json.loads(stdout)["models"]
         eligible = [
@@ -151,11 +167,13 @@ def _model_timeout() -> float:
     return timeout
 
 
-def _continue(executable: str, envelope: dict[str, Any], model: str) -> str:
+def _continue(
+    executable: ProviderCommand, envelope: dict[str, Any], model: str
+) -> str:
     prompt = _prompt(envelope)
     with tempfile.TemporaryDirectory(prefix="ta-codex-") as temp_dir:
         output_path = Path(temp_dir) / "final.txt"
-        argv = [
+        argv = command_argv(
             executable,
             "exec",
             "--ephemeral",
@@ -169,11 +187,11 @@ def _continue(executable: str, envelope: dict[str, Any], model: str) -> str:
             "--model",
             model,
             "--output-last-message",
-            str(output_path),
+            command_path(executable, output_path),
             "--cd",
-            temp_dir,
+            command_path(executable, temp_dir),
             "-",
-        ]
+        )
         try:
             proc = subprocess.run(
                 argv,
@@ -184,6 +202,7 @@ def _continue(executable: str, envelope: dict[str, Any], model: str) -> str:
                 timeout=_model_timeout(),
                 check=False,
                 env={**os.environ, "NO_COLOR": "1"},
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
         except subprocess.TimeoutExpired as exc:
             raise CodexAdapterError(
@@ -239,7 +258,7 @@ def main(argv: list[str] | None = None) -> int:
             }
         )
         return 0
-    except (CodexAdapterError, json.JSONDecodeError) as exc:
+    except (CodexAdapterError, ProviderCommandError, json.JSONDecodeError) as exc:
         print(exc, file=sys.stderr)
         return 1
 

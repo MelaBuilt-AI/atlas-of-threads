@@ -483,13 +483,17 @@ request, and the completed graph keeps the model actually reported for that run.
 
 On first run, the browser names the destination as a private local Personal
 Atlas and keeps Online collaboration as a quiet future note. It detects the five
-supported provider CLIs already present on the machine. One click connects,
-tests, and selects a collaborator through its packaged bridge; Atlas accepts no
-credentials or arbitrary executable path. The inhabitant writes an inquiry and
-selects **Start a Threadwalk**. That creates the private store when needed,
-starts the one local collaborator worker, queues the opening inquiry, and enters
-its first chamber. Provider installation and sign-in remain entirely outside
-Atlas. The same setup surface remains available from Workspace.
+supported provider CLIs already present on the machine. On Windows, native CLIs
+are detected along with Codex, Claude Code, and Grok Build in the default WSL
+distribution; `TA_WSL_DISTRO` can select another distribution. A vendor desktop
+app alone does not qualify—the supported CLI must be callable and signed in in
+the detected environment. One click connects, tests, and selects a collaborator
+through its packaged bridge; Atlas accepts no credentials or arbitrary
+executable path. The inhabitant writes an inquiry and selects **Start a
+Threadwalk**. That creates the private store when needed, starts the one local
+collaborator worker, queues the opening inquiry, and enters its first chamber.
+Provider installation and sign-in remain entirely outside Atlas. The same setup
+surface remains available from Workspace.
 
 **Start a Threadwalk** expands a clean opening-inquiry composer. Submission
 creates a new session with one human-authored uncertainty as its origin, queues

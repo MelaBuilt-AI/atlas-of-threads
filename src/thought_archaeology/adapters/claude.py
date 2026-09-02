@@ -2,13 +2,19 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 from typing import Any
 
+from thought_archaeology.adapters.provider_command import (
+    ProviderCommand,
+    ProviderCommandError,
+    command_argv,
+    discover_provider_command,
+    read_wsl_config,
+)
 from thought_archaeology.harness import HARNESS_PROTOCOL_VERSION
 from thought_archaeology.schema import read_prompt
 
@@ -20,28 +26,32 @@ class ClaudeAdapterError(Exception):
     """Installed Claude Code CLI discovery or invocation failure."""
 
 
-def _claude_bin() -> str:
+def _claude_bin() -> ProviderCommand:
     configured = os.environ.get("TA_CLAUDE_BIN")
-    executable = shutil.which(configured) if configured else shutil.which("claude")
+    executable = discover_provider_command("claude", configured)
     if executable is None:
         raise ClaudeAdapterError(
-            "Claude Code CLI not found; install it or set TA_CLAUDE_BIN to its executable"
+            "Claude Code CLI not found on Windows or in the default WSL distro; "
+            "install it, set TA_WSL_DISTRO, or set TA_CLAUDE_BIN"
         )
+    if not isinstance(executable, str):
+        return executable
     # Preserve launcher symlinks such as mise's `claude -> mise` shim. Mise
     # dispatches from argv[0]; resolving the link would invoke bare `mise`.
     return str(Path(executable).absolute())
 
 
-def _version(executable: str) -> str:
+def _version(executable: ProviderCommand) -> str:
     try:
         proc = subprocess.run(
-            [executable, "--version"],
+            command_argv(executable, "--version"),
             capture_output=True,
             text=True,
             shell=False,
             timeout=30,
             check=False,
             env={**os.environ, "NO_COLOR": "1"},
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise ClaudeAdapterError(f"cannot inspect Claude Code CLI: {exc}") from exc
@@ -56,29 +66,39 @@ def _version(executable: str) -> str:
     return version.splitlines()[-1].strip()
 
 
-def _configured_model() -> str | None:
+def _configured_model(executable: ProviderCommand | None = None) -> str | None:
     model = os.environ.get("TA_CLAUDE_MODEL")
     if model is not None:
         model = model.strip()
         if not model:
             raise ClaudeAdapterError("TA_CLAUDE_MODEL must not be empty")
         return model
-    claude_root = Path(
-        os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude"
+    settings_text = (
+        read_wsl_config(executable, "CLAUDE_CONFIG_DIR", ".claude", "settings.json")
+        if executable is not None
+        else None
     )
-    settings_path = claude_root / "settings.json"
-    if not settings_path.is_file():
-        return None
+    if settings_text is None:
+        claude_root = Path(
+            os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude"
+        )
+        settings_path = claude_root / "settings.json"
+        if not settings_path.is_file():
+            return None
+        try:
+            settings_text = settings_path.read_text(encoding="utf-8")
+        except OSError:
+            return None
     try:
-        settings = json.loads(settings_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        settings = json.loads(settings_text)
+    except json.JSONDecodeError:
         return None
     saved = settings.get("model") if isinstance(settings, dict) else None
     return saved.strip() if isinstance(saved, str) and saved.strip() else None
 
 
-def _selected_model() -> str:
-    return _configured_model() or PROVIDER_DEFAULT
+def _selected_model(executable: ProviderCommand | None = None) -> str:
+    return _configured_model(executable) or PROVIDER_DEFAULT
 
 
 def _validate_envelope(raw: Any) -> dict[str, Any]:
@@ -193,11 +213,10 @@ def _reported_model(
 
 
 def _continue(
-    executable: str, envelope: dict[str, Any], configured_model: str
+    executable: ProviderCommand, envelope: dict[str, Any], configured_model: str
 ) -> tuple[str, str]:
     prompt = _prompt(envelope)
-    argv = [
-        executable,
+    base_args = [
         "--print",
         "--input-format",
         "text",
@@ -222,8 +241,9 @@ def _continue(
             "Use no tools and return only the requested final response."
         ),
     ]
-    argv.extend(["--model", configured_model])
+    base_args.extend(["--model", configured_model])
     with tempfile.TemporaryDirectory(prefix="ta-claude-") as temp_dir:
+        argv = command_argv(executable, *base_args, cwd=temp_dir)
         try:
             proc = subprocess.run(
                 argv,
@@ -231,7 +251,7 @@ def _continue(
                 capture_output=True,
                 text=True,
                 shell=False,
-                cwd=temp_dir,
+                cwd=temp_dir if isinstance(executable, str) else None,
                 timeout=_model_timeout(),
                 check=False,
                 env={
@@ -239,6 +259,7 @@ def _continue(
                     "NO_COLOR": "1",
                     "CLAUDE_CODE_SKIP_PROMPT_HISTORY": "1",
                 },
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
         except subprocess.TimeoutExpired as exc:
             raise ClaudeAdapterError(
@@ -277,7 +298,7 @@ def main(argv: list[str] | None = None) -> int:
             raise ClaudeAdapterError("usage: ta-harness-claude describe|continue")
         executable = _claude_bin()
         version = _version(executable)
-        configured_model = _selected_model()
+        configured_model = _selected_model(executable)
         if args[0] == "describe":
             _emit(
                 {
@@ -299,7 +320,7 @@ def main(argv: list[str] | None = None) -> int:
             }
         )
         return 0
-    except (ClaudeAdapterError, json.JSONDecodeError) as exc:
+    except (ClaudeAdapterError, ProviderCommandError, json.JSONDecodeError) as exc:
         print(exc, file=sys.stderr)
         return 1
 

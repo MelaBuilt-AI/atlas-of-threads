@@ -10,7 +10,10 @@ from pathlib import Path
 from types import MappingProxyType
 from urllib.parse import parse_qs, urlparse
 
-from thought_archaeology.edits import commit, plan_fork, plan_veto
+from thought_archaeology.adapters.provider_command import (
+    command_location,
+    discover_provider_commands,
+)
 from thought_archaeology.continuation import (
     continuation_cancellation,
     continuation_request,
@@ -20,6 +23,7 @@ from thought_archaeology.continuation import (
     parallel_group_summaries,
     parallel_progress_for_source,
 )
+from thought_archaeology.edits import commit, plan_fork, plan_veto
 from thought_archaeology.fork import ForkError
 from thought_archaeology.field_notes import (
     create_field_note,
@@ -71,7 +75,10 @@ KNOWN_HARNESS_ADAPTERS = (
         "executable": "ta-harness-codex",
         "provider_executable": "codex",
         "provider_override": "TA_CODEX_BIN",
-        "setup_hint": "Install and sign in through the official Codex CLI, then connect here.",
+        "setup_hint": (
+            "Install and sign in through the official Codex CLI on Windows or WSL2. "
+            "The ChatGPT desktop app alone is not an Atlas automation connector."
+        ),
     },
     {
         "name": "claude",
@@ -79,7 +86,10 @@ KNOWN_HARNESS_ADAPTERS = (
         "executable": "ta-harness-claude",
         "provider_executable": "claude",
         "provider_override": "TA_CLAUDE_BIN",
-        "setup_hint": "Install and sign in through the official Claude Code CLI, then connect here.",
+        "setup_hint": (
+            "Install and sign in through the official Claude Code CLI on Windows or WSL. "
+            "Claude Desktop alone is not an Atlas automation connector."
+        ),
     },
     {
         "name": "grok",
@@ -87,7 +97,10 @@ KNOWN_HARNESS_ADAPTERS = (
         "executable": "ta-harness-grok",
         "provider_executable": "grok",
         "provider_override": "TA_GROK_BIN",
-        "setup_hint": "Install and sign in through the official Grok CLI, then connect here.",
+        "setup_hint": (
+            "Install and sign in through the official Grok CLI on Windows or WSL. "
+            "A Grok desktop app alone is not an Atlas automation connector."
+        ),
     },
     {
         "name": "opencode",
@@ -125,19 +138,6 @@ def _packaged_harness_command(name: str) -> tuple[str, tuple[str, ...]] | None:
         if sibling.is_file() and os.access(sibling, os.X_OK):
             return str(sibling.absolute()), ()
     return None
-
-
-def _provider_available(item: dict[str, str]) -> bool:
-    configured = os.environ.get(item["provider_override"])
-    if configured:
-        candidate = shutil.which(configured) or configured
-        return Path(candidate).expanduser().is_file()
-    if shutil.which(item["provider_executable"]):
-        return True
-    if item["name"] == "grok":
-        grok_home = Path(os.environ.get("GROK_HOME") or Path.home() / ".grok")
-        return (grok_home / "bin" / "grok").is_file()
-    return False
 
 
 class ServeError(Exception):
@@ -260,20 +260,33 @@ def workspace_payload(store: Store) -> dict:
         for spec in registry.specs()
     ]
     registered = {item["name"]: item for item in harnesses}
-    available_harnesses = [
-        {
-            "name": item["name"],
-            "display_name": item["display_name"],
-            "adapter_available": _packaged_harness_command(item["executable"])
-            is not None,
-            "provider_available": _provider_available(item),
-            "registered": item["name"] in registered,
-            "selected": bool(registered.get(item["name"], {}).get("selected")),
-            "model": registered.get(item["name"], {}).get("model"),
-            "setup_hint": item["setup_hint"],
-        }
-        for item in KNOWN_HARNESS_ADAPTERS
-    ]
+    provider_commands = discover_provider_commands(
+        (
+            (
+                item["provider_executable"],
+                os.environ.get(item["provider_override"]),
+            )
+            for item in KNOWN_HARNESS_ADAPTERS
+        ),
+        wsl_names={"codex", "claude", "grok"},
+    )
+    available_harnesses = []
+    for item in KNOWN_HARNESS_ADAPTERS:
+        provider_command = provider_commands[item["provider_executable"]]
+        available_harnesses.append(
+            {
+                "name": item["name"],
+                "display_name": item["display_name"],
+                "adapter_available": _packaged_harness_command(item["executable"])
+                is not None,
+                "provider_available": provider_command is not None,
+                "provider_location": command_location(provider_command),
+                "registered": item["name"] in registered,
+                "selected": bool(registered.get(item["name"], {}).get("selected")),
+                "model": registered.get(item["name"], {}).get("model"),
+                "setup_hint": item["setup_hint"],
+            }
+        )
     completions = (
         {
             completion.graph_id: completion.harness

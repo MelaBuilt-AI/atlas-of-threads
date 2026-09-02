@@ -634,7 +634,11 @@
       detail.textContent = harness.registered
         ? harness.model || "connected · model refresh available in Workspace"
         : harness.provider_available
-          ? "Ready on this machine"
+          ? harness.provider_location === "Windows"
+            ? "Ready on Windows"
+            : harness.provider_location?.startsWith("WSL")
+              ? `Ready in ${harness.provider_location}`
+              : "Ready on this machine"
           : "Agent not detected";
       copy.append(name, detail);
       const action = document.createElement("small");

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -14,6 +15,14 @@ from thought_archaeology.harness_service import (
     stop_application_worker,
 )
 from thought_archaeology.launcher import main as launcher_main
+from thought_archaeology.adapters import provider_command as provider_command_module
+from thought_archaeology.adapters.provider_command import (
+    WSLCommand,
+    command_argv,
+    command_path,
+    discover_provider_command,
+    discover_provider_commands,
+)
 from thought_archaeology.serve import _packaged_harness_command
 from thought_archaeology.store import Store
 
@@ -76,6 +85,87 @@ def test_frozen_application_uses_itself_for_packaged_bridges(monkeypatch):
         str(Path("/opt/AtlasOfThreads").absolute()),
         ("adapter", "prime-agent"),
     )
+
+
+def test_windows_discovers_the_official_native_codex_install(monkeypatch, tmp_path: Path):
+    local_app_data = tmp_path / "local"
+    codex = local_app_data / "Programs" / "OpenAI" / "Codex" / "bin" / "codex.exe"
+    codex.parent.mkdir(parents=True)
+    codex.write_bytes(b"test")
+    monkeypatch.setattr(provider_command_module.sys, "platform", "win32")
+    monkeypatch.setenv("LOCALAPPDATA", str(local_app_data))
+    monkeypatch.setattr(provider_command_module.shutil, "which", lambda _name: None)
+
+    assert discover_provider_command("codex") == str(codex.absolute())
+
+
+def test_windows_discovers_and_invokes_provider_clis_in_wsl(monkeypatch):
+    wsl = Path("C:/Windows/System32/wsl.exe")
+    monkeypatch.setattr(provider_command_module.sys, "platform", "win32")
+    monkeypatch.setenv("GROK_HOME", "/provider-not-installed")
+    monkeypatch.setattr(provider_command_module, "_known_windows_paths", lambda _name: ())
+    monkeypatch.setattr(
+        provider_command_module.shutil,
+        "which",
+        lambda name: str(wsl) if name in {"wsl.exe", "wsl"} else None,
+    )
+
+    def fake_run(argv, **_kwargs):
+        assert argv[-3:] == ["codex", "claude", "grok"]
+        return subprocess.CompletedProcess(
+            argv,
+            0,
+            "codex\t/home/test/.local/bin/codex\n"
+            "claude\t/home/test/.local/bin/claude\n"
+            "grok\t\n",
+            "",
+        )
+
+    monkeypatch.setattr(provider_command_module.subprocess, "run", fake_run)
+    commands = discover_provider_commands(
+        [("codex", None), ("claude", None), ("grok", None)]
+    )
+
+    codex = commands["codex"]
+    assert codex == WSLCommand(str(wsl.absolute()), "/home/test/.local/bin/codex")
+    assert command_argv(codex, "--version") == [
+        str(wsl.absolute()),
+        "--exec",
+        "/home/test/.local/bin/codex",
+        "--version",
+    ]
+    assert isinstance(commands["claude"], WSLCommand)
+    assert commands["grok"] is None
+
+
+def test_wsl_command_translates_paths_and_selects_a_distribution(monkeypatch):
+    command = WSLCommand("C:/Windows/System32/wsl.exe", "/usr/bin/codex", "Ubuntu")
+
+    def fake_run(argv, **_kwargs):
+        assert argv == [
+            "C:/Windows/System32/wsl.exe",
+            "--distribution",
+            "Ubuntu",
+            "--exec",
+            "wslpath",
+            "-a",
+            str(Path("C:/Temp/Atlas").absolute()),
+        ]
+        return subprocess.CompletedProcess(argv, 0, "/mnt/c/Temp/Atlas\n", "")
+
+    monkeypatch.setattr(provider_command_module.subprocess, "run", fake_run)
+
+    assert command_path(command, "C:/Temp/Atlas") == "/mnt/c/Temp/Atlas"
+    assert command_argv(command, "--version", cwd="C:/Temp/Atlas") == [
+        "C:/Windows/System32/wsl.exe",
+        "--distribution",
+        "Ubuntu",
+        "--cd",
+        "/mnt/c/Temp/Atlas",
+        "--exec",
+        "/usr/bin/codex",
+        "--version",
+    ]
 
 
 def test_application_worker_supervises_the_portable_fallback(monkeypatch, tmp_path: Path):

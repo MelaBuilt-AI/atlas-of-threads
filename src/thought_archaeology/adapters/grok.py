@@ -3,13 +3,19 @@ from __future__ import annotations
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 from typing import Any
 
+from thought_archaeology.adapters.provider_command import (
+    ProviderCommand,
+    ProviderCommandError,
+    command_argv,
+    command_path,
+    discover_provider_command,
+)
 from thought_archaeology.harness import HARNESS_PROTOCOL_VERSION
 from thought_archaeology.schema import read_prompt
 
@@ -20,20 +26,16 @@ class GrokAdapterError(Exception):
     """Installed Grok CLI discovery or invocation failure."""
 
 
-def _grok_bin() -> str:
+def _grok_bin() -> ProviderCommand:
     configured = os.environ.get("TA_GROK_BIN")
-    executable = shutil.which(configured) if configured else None
-    if executable is None and configured is None:
-        grok_home = Path(os.environ.get("GROK_HOME") or Path.home() / ".grok")
-        canonical = grok_home / "bin" / "grok"
-        if canonical.is_file() and os.access(canonical, os.X_OK):
-            executable = str(canonical)
-    if executable is None and configured is None:
-        executable = shutil.which("grok")
+    executable = discover_provider_command("grok", configured)
     if executable is None:
         raise GrokAdapterError(
-            "Grok CLI not found; install it or set TA_GROK_BIN to its executable"
+            "Grok CLI not found on Windows or in the default WSL distro; "
+            "install it, set TA_WSL_DISTRO, or set TA_GROK_BIN"
         )
+    if not isinstance(executable, str):
+        return executable
     return str(Path(executable).resolve())
 
 
@@ -47,6 +49,7 @@ def _run_metadata(argv: list[str], *, timeout: float = 30) -> tuple[str, str]:
             timeout=timeout,
             check=False,
             env={**os.environ, "NO_COLOR": "1"},
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise GrokAdapterError(f"cannot inspect Grok CLI: {exc}") from exc
@@ -58,18 +61,18 @@ def _run_metadata(argv: list[str], *, timeout: float = 30) -> tuple[str, str]:
     return proc.stdout.strip(), proc.stderr.strip()
 
 
-def _version(executable: str) -> str:
-    stdout, _stderr = _run_metadata([executable, "--version"])
+def _version(executable: ProviderCommand) -> str:
+    stdout, _stderr = _run_metadata(command_argv(executable, "--version"))
     if not stdout:
         raise GrokAdapterError("Grok CLI returned no version")
     return stdout.splitlines()[-1].strip()
 
 
-def _default_model(executable: str) -> str:
+def _default_model(executable: ProviderCommand) -> str:
     configured = os.environ.get("TA_GROK_MODEL")
     if configured:
         return configured.strip()
-    stdout, _stderr = _run_metadata([executable, "models"])
+    stdout, _stderr = _run_metadata(command_argv(executable, "models"))
     match = re.search(r"^Default model:\s*(\S+)\s*$", stdout, re.MULTILINE)
     if not match:
         raise GrokAdapterError(
@@ -136,13 +139,15 @@ def _model_timeout() -> float:
     return timeout
 
 
-def _continue(executable: str, envelope: dict[str, Any], model: str) -> str:
+def _continue(
+    executable: ProviderCommand, envelope: dict[str, Any], model: str
+) -> str:
     prompt = _prompt(envelope)
     with tempfile.TemporaryDirectory(prefix="ta-grok-") as temp_dir:
         prompt_path = Path(temp_dir) / "prompt.txt"
         prompt_path.write_text(prompt, encoding="utf-8")
         os.chmod(prompt_path, 0o600)
-        argv = [
+        argv = command_argv(
             executable,
             "--verbatim",
             "--no-plan",
@@ -157,8 +162,8 @@ def _continue(executable: str, envelope: dict[str, Any], model: str) -> str:
             "--model",
             model,
             "--prompt-file",
-            str(prompt_path),
-        ]
+            command_path(executable, prompt_path),
+        )
         try:
             proc = subprocess.run(
                 argv,
@@ -168,6 +173,7 @@ def _continue(executable: str, envelope: dict[str, Any], model: str) -> str:
                 timeout=_model_timeout(),
                 check=False,
                 env={**os.environ, "NO_COLOR": "1"},
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
         except subprocess.TimeoutExpired as exc:
             raise GrokAdapterError(
@@ -223,7 +229,7 @@ def main(argv: list[str] | None = None) -> int:
             }
         )
         return 0
-    except (GrokAdapterError, json.JSONDecodeError) as exc:
+    except (GrokAdapterError, ProviderCommandError, json.JSONDecodeError) as exc:
         print(exc, file=sys.stderr)
         return 1
 

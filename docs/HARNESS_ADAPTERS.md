@@ -39,6 +39,15 @@ store/collaborator worker through the platform backend. Linux uses the user
 systemd service; Windows and macOS supervise the worker while Atlas is open.
 The Online note is presentation scaffolding only and performs no networking.
 
+On Windows, Atlas checks the native process path and common per-user CLI install
+locations. It also checks the default WSL distribution for Codex, Claude Code,
+and Grok Build, and forwards their health checks and model calls across the WSL
+boundary with translated temporary paths. `TA_WSL_DISTRO` selects a non-default
+distribution. A ChatGPT, Claude, or Grok desktop installation alone is not a
+provider bridge: the corresponding supported CLI must be installed, callable,
+and authenticated in the environment Atlas detects. Atlas does not inspect
+vendor desktop-app state or drive desktop UI automation.
+
 ## Operations
 
 TA appends one operation argument to the registered argv.
