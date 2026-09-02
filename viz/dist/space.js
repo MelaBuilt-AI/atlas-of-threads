@@ -145,7 +145,15 @@
   const elEvidenceClose = document.getElementById("evidence-close");
   const elSoundControls = document.getElementById("sound-controls");
   const sound = window.TASound;
-  const cinematicMode = new URLSearchParams(window.location.search).get("cinematic") === "1";
+  const cinematicParams = new URLSearchParams(window.location.search);
+  const cinematicMode = cinematicParams.get("cinematic") === "1";
+  const cinematicShot = cinematicParams.get("shot") || "capsule";
+  const cinematicDurations = {
+    capsule: 11,
+    "single-green": 13,
+    "parallel-green": 13,
+    "blue-arrival": 22,
+  };
 
   const renderer = new THREE.WebGLRenderer({
     canvas,
@@ -2513,12 +2521,40 @@
   const circuitLift = new THREE.Vector3();
   const circuitPoint = new THREE.Vector3();
   const circuitNeuron = new THREE.Vector3();
+  const cinematicTarget = new THREE.Vector3();
+  const cinematicFocus = new THREE.Vector3();
+  let cinematicFocusReady = false;
+  const cinematicStart = new THREE.Vector3();
+  const cinematicEnd = new THREE.Vector3();
+  const cinematicPortal = new THREE.Vector3();
 
   function meshTop(mesh, out) {
     circuitBox.setFromObject(mesh);
     circuitBox.getCenter(out);
     out.y = circuitBox.max.y + 0.08;
     return out;
+  }
+
+  function cinematicBeamTarget(out) {
+    const active = [...continuationCircuits.values()].filter((circuit) =>
+      circuit.lightning.group.visible && circuit.targetMesh && circuit.targetMesh.parent
+    );
+    if (!active.length || !neuralSky) return null;
+    neuralSky.group.updateMatrixWorld(true);
+    out.set(0, 0, 0);
+    active.forEach((circuit) => {
+      meshTop(circuit.targetMesh, cinematicStart);
+      cinematicEnd.copy(neuralSky.nodes[circuit.neuronIndex]);
+      neuralSky.group.localToWorld(cinematicEnd);
+      out.add(cinematicStart).add(cinematicEnd);
+    });
+    out.multiplyScalar(1 / (active.length * 2));
+    const arrival = active.find((circuit) => circuit.phase === "arrival");
+    if (arrival) {
+      meshTop(arrival.targetMesh, cinematicPortal);
+      out.lerp(cinematicPortal, 0.9);
+    }
+    return { count: active.length, arrival: Boolean(arrival) };
   }
 
   function updateContinuationCircuit(t) {
@@ -5306,6 +5342,7 @@
 
   function startCinematicCapture() {
     if (!cinematicMode || cinematicCapture || !canvas.captureStream || !window.MediaRecorder) return;
+    cinematicFocusReady = false;
     const stream = canvas.captureStream(30);
     const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp8")
       ? "video/webm;codecs=vp8"
@@ -5317,7 +5354,7 @@
       stream,
       chunks,
       startedAt: clock.getElapsedTime(),
-      duration: 11,
+      duration: cinematicDurations[cinematicShot] || 11,
     };
     cinematicCapture = capture;
     recorder.addEventListener("dataavailable", (event) => {
@@ -5327,7 +5364,7 @@
       const blob = new Blob(chunks, { type: mimeType });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
-      link.download = `atlas-ta-capsule-launch-${Date.now()}.webm`;
+      link.download = `atlas-ta-${cinematicShot}-${Date.now()}.webm`;
       link.click();
       window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
       stream.getTracks().forEach((track) => track.stop());
@@ -5857,21 +5894,45 @@
     if (cinematicCapture) {
       const elapsed = t - cinematicCapture.startedAt;
       const u = Math.min(1, Math.max(0, elapsed / cinematicCapture.duration));
-      const target = new THREE.Vector3();
-      const subject = capsuleFlight && capsuleFlight.group
-        ? capsuleFlight.group
-        : readyCapsuleTarget() || standingMesh;
-      if (subject) subject.getWorldPosition(target);
-      target.y += capsuleFlight ? 0.2 : 1.25;
-      const angle = -0.72 + u * 1.28;
-      const radius = 7.4 - Math.sin(Math.PI * u) * 2.7;
-      camera.up.set(0, 1, 0);
-      camera.position.set(
-        target.x + Math.sin(angle) * radius,
-        target.y + 2.1 + Math.sin(Math.PI * u) * 1.5,
-        target.z + Math.cos(angle) * radius
-      );
-      camera.lookAt(target);
+      if (cinematicShot === "capsule") {
+        const subject = capsuleFlight && capsuleFlight.group
+          ? capsuleFlight.group
+          : readyCapsuleTarget() || standingMesh;
+        if (subject) subject.getWorldPosition(cinematicTarget);
+        cinematicTarget.y += capsuleFlight ? 0.2 : 1.25;
+        const angle = -0.72 + u * 1.28;
+        const radius = 7.4 - Math.sin(Math.PI * u) * 2.7;
+        camera.up.set(0, 1, 0);
+        camera.position.set(
+          cinematicTarget.x + Math.sin(angle) * radius,
+          cinematicTarget.y + 2.1 + Math.sin(Math.PI * u) * 1.5,
+          cinematicTarget.z + Math.cos(angle) * radius
+        );
+        camera.lookAt(cinematicTarget);
+      } else {
+        const beam = cinematicBeamTarget(cinematicTarget);
+        if (!beam && standingMesh) {
+          standingMesh.getWorldPosition(cinematicTarget);
+          cinematicTarget.y += 1.1;
+        }
+        if (!cinematicFocusReady) {
+          cinematicFocus.copy(cinematicTarget);
+          cinematicFocusReady = true;
+        } else {
+          cinematicFocus.lerp(cinematicTarget, beam && beam.arrival ? 0.045 : 0.08);
+        }
+        const angle = -0.98 + u * 1.08;
+        const radius = cinematicShot === "parallel-green"
+          ? 14.8
+          : beam && beam.arrival ? 5.4 : 8.6;
+        camera.up.set(0, 1, 0);
+        camera.position.set(
+          cinematicFocus.x + Math.sin(angle) * radius,
+          cinematicFocus.y + 2.5 + Math.sin(Math.PI * u) * 1.2,
+          cinematicFocus.z + Math.cos(angle) * radius
+        );
+        camera.lookAt(cinematicFocus);
+      }
       if (u >= 1 && cinematicCapture.recorder.state === "recording") {
         cinematicCapture.recorder.stop();
       }

@@ -71,10 +71,12 @@ Dev with Node is optional — edit `viz/dist/space.js` directly.
 ## Cinematic capture
 
 For an event recording, open an isolated store with `?cinematic=1` appended to
-the Inhabit Space URL. Press `x` to begin an 11-second, HUD-free WebM recording
-of the WebGL canvas, then trigger the real event. The capture camera tracks a
-ready Knowledge Capsule and its flight; ordinary sessions retain the normal
-camera and renderer behavior.
+the Inhabit Space URL. Press `x` to begin a HUD-free WebM recording of the WebGL
+canvas, then trigger the real event. The default camera tracks a ready Knowledge
+Capsule and its flight. Add `&shot=single-green`, `&shot=parallel-green`, or
+`&shot=blue-arrival` for a slow circuit fly-by whose duration includes the
+event's appearance, natural hold, expiration, or arrival hold. Ordinary
+sessions retain the normal camera and renderer behavior.
 
 ## Sound
 
