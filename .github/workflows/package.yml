@@ -130,7 +130,7 @@ jobs:
       - name: Validate and stage release
         run: |
           printf '%s' "$RELEASE_VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$'
-          package_version="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+          package_version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' pyproject.toml | head -n 1)"
           test "${RELEASE_VERSION#v}" = "$package_version"
 
           linux_binary="$(find packages/linux -type f -name atlas-of-threads-linux-x86_64 -print -quit)"
