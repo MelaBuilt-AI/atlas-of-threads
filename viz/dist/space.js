@@ -152,7 +152,7 @@
     antialias: true,
     preserveDrawingBuffer: cinematicMode,
   });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(cinematicMode ? 1 : Math.min(window.devicePixelRatio, 2));
   renderer.setClearColor(0x12100e, 1);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -5306,11 +5306,11 @@
 
   function startCinematicCapture() {
     if (!cinematicMode || cinematicCapture || !canvas.captureStream || !window.MediaRecorder) return;
-    const stream = canvas.captureStream(60);
-    const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-      ? "video/webm;codecs=vp9"
+    const stream = canvas.captureStream(30);
+    const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp8")
+      ? "video/webm;codecs=vp8"
       : "video/webm";
-    const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 12000000 });
+    const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 6000000 });
     const chunks = [];
     const capture = {
       recorder,
