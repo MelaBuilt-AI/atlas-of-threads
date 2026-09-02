@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 from dataclasses import dataclass
@@ -39,6 +40,14 @@ def resolve_harness_config_path() -> Path:
     if override:
         return Path(override).expanduser().resolve()
     xdg = os.environ.get("XDG_CONFIG_HOME")
+    app_data = os.environ.get("APPDATA")
+    if sys.platform == "win32" and app_data:
+        return (
+            Path(app_data)
+            / "MelaBuilt AI"
+            / "Atlas of Threads"
+            / "harnesses.json"
+        ).resolve()
     root = Path(xdg).expanduser() if xdg else Path.home() / ".config"
     return (root / "thought-archaeology" / "harnesses.json").resolve()
 

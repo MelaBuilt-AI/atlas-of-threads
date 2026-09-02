@@ -42,7 +42,26 @@ the **story** of the answer, stored as objects — not a circuit trace.
 
 License: MIT.
 
-## Install
+## Packaged local application
+
+Atlas is packaged as a self-contained local application. Provider agents,
+authentication, subscriptions, and model selection remain external and
+provider-owned.
+
+The release-gated Linux command is:
+
+```bash
+curl -fsSL https://atlasofthreads.com/install.sh | sh
+```
+
+It installs and starts Atlas, then prints the clickable local URL. Windows uses
+one per-user `AtlasOfThreadsSetup.exe`; completing the installer starts Atlas
+and opens the browser automatically. Neither path requires Git, Python, a
+virtual environment, or pip. Private acceptance artifacts are built by the
+`package` workflow; the command and installer are not publicly hosted until the
+publication gates close. See [`docs/INSTALLERS.md`](docs/INSTALLERS.md).
+
+## Source/development install
 
 Python 3.11+. Runtime dependency is `jsonschema` only.
 
@@ -69,6 +88,9 @@ ta inhabit <node> --session <id>
 ta serve
 # open http://127.0.0.1:7462/ — Inhabit Space (stand at a node, not a dashboard)
 ```
+
+`atlas-of-threads` or `ta launch` starts the same local application and opens
+the default browser. `ta launch --no-browser` starts it and prints the URL only.
 
 ## Origin playbook (first real graph)
 
@@ -208,6 +230,7 @@ ta probe plan --graph G --kind drop_premise|invert_constraint|resample|steer_lat
 ta probe diff GRAPH_A GRAPH_B [--spec PATH]
 ta probe run --spec PATH --provider-cmd CMD
 ta serve [--port 7462] [--bind 127.0.0.1]
+ta launch [--port 7462] [--bind 127.0.0.1] [--no-browser]
 ```
 
 Global flags: `--store PATH`, `--strict`, `--quiet`.
@@ -456,14 +479,15 @@ It does not activate the collaborator, restart the watcher, or change an existin
 graph. The adapter reads the provider setting again when it handles a future
 request, and the completed graph keeps the model actually reported for that run.
 
-On first run, the browser leads with **Local** storage; **Online** is shown only
-as a disabled future scaffold. It can detect and test the five packaged harness
-bridges, register a chosen collaborator without accepting credentials or an
-arbitrary executable path, and let the inhabitant choose who opens the first
-path. **Start a Threadwalk** creates the private local store when needed, binds
-the user watcher to it, queues the opening inquiry, and enters its first chamber.
-Provider installation and sign-in remain in each provider's official CLI. The
-same setup surface remains available from Workspace.
+On first run, the browser names the destination as a private local Personal
+Atlas and keeps Online collaboration as a quiet future note. It detects the five
+supported provider CLIs already present on the machine. One click connects,
+tests, and selects a collaborator through its packaged bridge; Atlas accepts no
+credentials or arbitrary executable path. The inhabitant writes an inquiry and
+selects **Start a Threadwalk**. That creates the private store when needed,
+starts the one local collaborator worker, queues the opening inquiry, and enters
+its first chamber. Provider installation and sign-in remain entirely outside
+Atlas. The same setup surface remains available from Workspace.
 
 **Start a Threadwalk** expands a clean opening-inquiry composer. Submission
 creates a new session with one human-authored uncertainty as its origin, queues
@@ -563,6 +587,11 @@ graph is written.
 Run one watcher per store in this first implementation. Grok, Codex, Claude
 Code, OpenCode, and Prime Agent adapters are implemented. See
 [`docs/HARNESS_ADAPTERS.md`](docs/HARNESS_ADAPTERS.md).
+
+The packaged application owns one collaborator worker. On systemd Linux it uses
+the user service below; on Windows and macOS it supervises the worker while the
+local application is open. This keeps the browser contract portable without
+turning Atlas into a provider installer.
 
 On systemd Linux, `ta harness service install` writes one user-owned
 `thought-archaeology-harness.service` bound to the resolved store and selected

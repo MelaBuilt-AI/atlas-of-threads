@@ -6,6 +6,8 @@ import re
 import shlex
 import sys
 import time
+import urllib.request
+import webbrowser
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -611,6 +613,19 @@ def _parser() -> argparse.ArgumentParser:
     )
     p_serve.add_argument("--port", type=int, default=DEFAULT_PORT)
     p_serve.add_argument("--bind", default=DEFAULT_BIND)
+
+    p_launch = sub.add_parser(
+        "launch",
+        parents=[sub_globals],
+        help="launch the local Atlas application",
+    )
+    p_launch.add_argument("--port", type=int, default=DEFAULT_PORT)
+    p_launch.add_argument("--bind", default=DEFAULT_BIND)
+    p_launch.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="print the local URL without opening a browser",
+    )
 
     return parser
 
@@ -1895,6 +1910,30 @@ def cmd_serve(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_launch(args: argparse.Namespace) -> int:
+    if args.bind not in ("127.0.0.1", "localhost", "::1"):
+        raise UsageError("Atlas binds localhost only")
+    url = f"http://{args.bind}:{args.port}/"
+    try:
+        with urllib.request.urlopen(url + "api/sessions", timeout=1) as response:
+            already_running = response.status == 200
+    except OSError:
+        already_running = False
+    if already_running:
+        print(f"Atlas of Threads is ready: {url}")
+        if not args.no_browser:
+            webbrowser.open(url)
+        return EXIT_OK
+    store = _store(args)
+    serve_forever(
+        store,
+        bind=args.bind,
+        port=args.port,
+        open_browser=not args.no_browser,
+    )
+    return EXIT_OK
+
+
 def cmd_continuation(args: argparse.Namespace) -> int:
     store = _store(args)
     if args.continuation_cmd == "ready":
@@ -2420,6 +2459,7 @@ def main(argv: list[str] | None = None) -> int:
         "canvas": cmd_canvas,
         "export-wiki": cmd_export_wiki,
         "serve": cmd_serve,
+        "launch": cmd_launch,
     }
     try:
         return handlers[args.cmd](args)

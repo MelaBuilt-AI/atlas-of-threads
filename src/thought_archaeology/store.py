@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import fcntl
 import hashlib
 import json
 import os
+import sys
 import tempfile
 import time
 from collections.abc import Iterator
@@ -28,6 +28,11 @@ from thought_archaeology.ids import new_ulid, now_iso
 from thought_archaeology.models import SCHEMA_VERSION, Session, ThoughtGraph, ThoughtNode, Turn
 from thought_archaeology.schema import ValidationError, validate_graph, validate_schema
 
+if os.name == "nt":
+    import msvcrt
+else:
+    import fcntl
+
 STORE_VERSION = "1"
 
 FILE_MODE = 0o600
@@ -39,10 +44,18 @@ class StoreError(Exception):
 
 
 def fallback_store_path() -> Path:
-    """XDG data dir, not a machine-specific absolute path."""
+    """User application data dir, not a machine-specific absolute path."""
     xdg = os.environ.get("XDG_DATA_HOME")
     if xdg:
         return Path(xdg).expanduser().resolve() / "thought-archaeology"
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if sys.platform == "win32" and local_app_data:
+        return (
+            Path(local_app_data)
+            / "MelaBuilt AI"
+            / "Atlas of Threads"
+            / "Personal Atlas"
+        ).resolve()
     return (Path.home() / ".local" / "share" / "thought-archaeology").resolve()
 
 
@@ -69,6 +82,27 @@ def _chmod_file(path: Path) -> None:
 def _mkdir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
     os.chmod(path, DIR_MODE)
+
+
+def _try_lock(fd: int) -> None:
+    if os.name != "nt":
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return
+    if os.fstat(fd).st_size == 0:
+        os.write(fd, b"\0")
+    os.lseek(fd, 0, os.SEEK_SET)
+    try:
+        msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+    except OSError as exc:
+        raise BlockingIOError from exc
+
+
+def _unlock(fd: int) -> None:
+    if os.name != "nt":
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        return
+    os.lseek(fd, 0, os.SEEK_SET)
+    msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
 
 
 def _write_json(path: Path, obj: dict) -> None:
@@ -354,7 +388,7 @@ class Store:
         try:
             while True:
                 try:
-                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    _try_lock(fd)
                     acquired = True
                     break
                 except BlockingIOError:
@@ -364,7 +398,7 @@ class Store:
             yield
         finally:
             if acquired:
-                fcntl.flock(fd, fcntl.LOCK_UN)
+                _unlock(fd)
             os.close(fd)
 
     def field_note_revisions_dir(self, note_id: str) -> Path:
@@ -394,7 +428,7 @@ class Store:
         try:
             while True:
                 try:
-                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    _try_lock(fd)
                     acquired = True
                     break
                 except BlockingIOError:
@@ -404,7 +438,7 @@ class Store:
             yield
         finally:
             if acquired:
-                fcntl.flock(fd, fcntl.LOCK_UN)
+                _unlock(fd)
             os.close(fd)
 
     def write_knowledge_capsule(self, manifest: KnowledgeCapsuleManifest) -> Path:
@@ -714,7 +748,7 @@ class Store:
         try:
             while True:
                 try:
-                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    _try_lock(fd)
                     break
                 except BlockingIOError:
                     if time.monotonic() - started >= timeout:
@@ -722,7 +756,7 @@ class Store:
                     time.sleep(0.05)
             yield
         finally:
-            fcntl.flock(fd, fcntl.LOCK_UN)
+            _unlock(fd)
             os.close(fd)
 
     def write_continuation_request(self, request: ContinuationRequest) -> Path:

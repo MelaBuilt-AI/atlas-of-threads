@@ -125,7 +125,6 @@
   const elOnboardingClose = document.getElementById("onboarding-close");
   const elOnboardingStatus = document.getElementById("onboarding-status");
   const elOnboardingHarnesses = document.getElementById("onboarding-harnesses");
-  const elOnboardingFirstCollaborator = document.getElementById("onboarding-first-collaborator");
   const elOnboardingInquiryForm = document.getElementById("onboarding-inquiry-form");
   const elOnboardingInquiry = document.getElementById("onboarding-inquiry");
   const elOnboardingStart = document.getElementById("onboarding-start");
@@ -217,6 +216,7 @@
   let startupState = null;
   let onboardingState = null;
   let onboardingBusy = false;
+  let onboardingCanStart = false;
   let eligibilityKey = null;
   let capsuleEligibilityKey = null;
   const COMPANION_MEMORY_KEY = "thought-archaeology.companions.v1";
@@ -604,7 +604,7 @@
     const firstRun = !(payload.history || []).length;
     const firstCollaboratorReady = Boolean(
       payload.active_harness && (watcherActive || firstRun) &&
-      onboardingState && onboardingState.choiceConfirmed
+      (payload.harnesses || []).some((harness) => harness.selected)
     );
     elOnboardingHarnesses.replaceChildren();
     for (const harness of payload.available_harnesses || []) {
@@ -612,58 +612,38 @@
       button.type = "button";
       button.className = "onboarding-collaborator";
       if (harness.registered) button.classList.add("connected");
+      if (harness.selected && firstCollaboratorReady) button.classList.add("active");
       const copy = document.createElement("span");
       const name = document.createElement("strong");
       name.textContent = harness.display_name || workspaceName(harness.name);
       const detail = document.createElement("small");
       detail.textContent = harness.registered
         ? harness.model || "connected · model refresh available in Workspace"
-        : harness.adapter_available
-          ? "packaged bridge found"
-          : "packaged bridge unavailable";
+        : harness.provider_available
+          ? "Ready on this machine"
+          : "Agent not detected";
       copy.append(name, detail);
       const action = document.createElement("small");
-      action.textContent = harness.registered
-        ? "Connected"
-        : harness.adapter_available
-          ? "Connect and test"
-          : harness.setup_hint;
+      action.textContent = harness.selected && firstCollaboratorReady
+        ? "Selected"
+        : harness.registered
+          ? "Select"
+        : harness.provider_available
+          ? "Connect and select"
+          : "Check again";
       button.append(copy, action);
       button.title = harness.setup_hint;
-      button.disabled = onboardingBusy || harness.registered || !harness.adapter_available;
-      if (!harness.registered) {
-        button.addEventListener("click", () => connectOnboardingHarness(harness.name));
-      }
+      button.disabled = onboardingBusy || (harness.selected && firstCollaboratorReady) || !harness.adapter_available;
+      button.addEventListener("click", () => {
+        if (harness.registered) selectOnboardingHarness(harness.name);
+        else if (harness.provider_available) connectOnboardingHarness(harness.name);
+        else refreshOnboarding();
+      });
       elOnboardingHarnesses.append(button);
     }
 
-    elOnboardingFirstCollaborator.replaceChildren();
-    if (!(payload.harnesses || []).length) {
-      elOnboardingFirstCollaborator.className = "onboarding-empty";
-      elOnboardingFirstCollaborator.textContent = "Connect at least one collaborator first.";
-    } else {
-      elOnboardingFirstCollaborator.className = "onboarding-first-list";
-      for (const harness of payload.harnesses) {
-        const active = Boolean(
-          harness.selected && (watcherActive || firstRun) &&
-          onboardingState && onboardingState.choiceConfirmed
-        );
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "onboarding-first-choice";
-        if (active) button.classList.add("active");
-        button.textContent = active
-          ? `${workspaceName(harness.name)} · ${watcherActive ? "ready" : "chosen"} for the first path`
-          : harness.selected
-            ? `Activate ${workspaceName(harness.name)} for the first path`
-            : `Choose ${workspaceName(harness.name)} for the first path`;
-        button.disabled = onboardingBusy || active || pending.length > 0;
-        button.addEventListener("click", () => activateOnboardingHarness(harness.name));
-        elOnboardingFirstCollaborator.append(button);
-      }
-    }
-
-    elOnboardingStart.disabled = onboardingBusy || !firstCollaboratorReady || pending.length > 0;
+    onboardingCanStart = !onboardingBusy && firstCollaboratorReady && pending.length === 0;
+    elOnboardingStart.disabled = !onboardingCanStart || !elOnboardingInquiry.value.trim();
     if (pending.length) {
       elOnboardingStatus.textContent = "A collaborator is already responding. Finish or cancel that path before starting another Threadwalk.";
     } else if (firstCollaboratorReady) {
@@ -671,9 +651,12 @@
         ? `${workspaceName(payload.active_harness)} is ready. Write the inquiry that should open your first chamber.`
         : `${workspaceName(payload.active_harness)} will open the first path. Starting the Threadwalk will activate its local worker.`;
     } else if ((payload.harnesses || []).length) {
-      elOnboardingStatus.textContent = "Choose one connected collaborator to open the first path.";
+      elOnboardingStatus.textContent = "Select the collaborator that should open this path.";
     } else {
-      elOnboardingStatus.textContent = "Connect one locally installed collaborator. Provider credentials remain outside Atlas of Threads.";
+      const detected = (payload.available_harnesses || []).some((harness) => harness.provider_available);
+      elOnboardingStatus.textContent = detected
+        ? "Choose one collaborator already installed and configured on this machine."
+        : "No compatible collaborator is detected yet. Finish agent setup outside Atlas, then check again.";
     }
   }
 
@@ -682,13 +665,13 @@
       boot: bootState,
       resume,
       returnToWorkspace,
-      choiceConfirmed: false,
     };
     elStartMenu.hidden = true;
     elOnboardingMenu.hidden = false;
     renderOnboarding(workspace);
+    const selected = (workspace.harnesses || []).some((harness) => harness.selected);
     const firstAction = elOnboardingHarnesses.querySelector("button:not(:disabled)");
-    (firstAction || elOnboardingClose).focus();
+    (selected ? elOnboardingInquiry : firstAction || elOnboardingClose).focus();
   }
 
   async function connectOnboardingHarness(name) {
@@ -698,8 +681,10 @@
     elOnboardingStatus.textContent = `Connecting and testing ${workspaceName(name)}…`;
     try {
       const result = await post("/api/onboarding/harness", { harness: name });
+      const selected = await post("/api/workspace/harness", { harness: name });
       onboardingBusy = false;
-      renderOnboarding(result.workspace);
+      renderOnboarding(selected.workspace || result.workspace);
+      elOnboardingInquiry.focus();
     } catch (error) {
       onboardingBusy = false;
       const payload = await api("/api/workspace").catch(() => workspaceState);
@@ -708,7 +693,21 @@
     }
   }
 
-  async function activateOnboardingHarness(name) {
+  async function refreshOnboarding() {
+    if (onboardingBusy) return;
+    onboardingBusy = true;
+    elOnboardingStatus.textContent = "Checking this machine again…";
+    try {
+      const workspace = await api("/api/workspace");
+      onboardingBusy = false;
+      renderOnboarding(workspace);
+    } catch (error) {
+      onboardingBusy = false;
+      elOnboardingStatus.textContent = String(error.message || error);
+    }
+  }
+
+  async function selectOnboardingHarness(name) {
     if (onboardingBusy) return;
     onboardingBusy = true;
     renderOnboarding(workspaceState || { available_harnesses: [], harnesses: [] });
@@ -716,7 +715,6 @@
     try {
       const result = await post("/api/workspace/harness", { harness: name });
       onboardingBusy = false;
-      if (onboardingState) onboardingState.choiceConfirmed = true;
       renderOnboarding(result.workspace);
       elOnboardingInquiry.focus();
     } catch (error) {
@@ -738,9 +736,11 @@
     }
     onboardingBusy = true;
     elOnboardingStart.disabled = true;
-    elOnboardingStatus.textContent = "Opening your first chamber…";
+    const collaborator = workspaceName((workspaceState || {}).active_harness || "collaborator");
+    elOnboardingStatus.textContent = `Creating your Personal Atlas and starting ${collaborator}…`;
     try {
       const result = await post("/api/workspace/inquiry", { prompt });
+      elOnboardingStatus.textContent = `${collaborator} is mapping a response. Opening the first chamber…`;
       elOnboardingInquiry.value = "";
       elOnboardingMenu.hidden = true;
       onboardingState = null;
@@ -5254,6 +5254,9 @@
   elKnowledgeCapsuleReady.addEventListener("click", launchReadyCapsule);
   elOnboardingClose.addEventListener("click", closeOnboarding);
   elOnboardingInquiryForm.addEventListener("submit", submitOnboardingInquiry);
+  elOnboardingInquiry.addEventListener("input", () => {
+    elOnboardingStart.disabled = !onboardingCanStart || !elOnboardingInquiry.value.trim();
+  });
   elWorkspaceOnboarding.addEventListener("click", openOnboardingFromWorkspace);
   elStartResume.addEventListener("click", () => {
     if (startupState && startupState.resume) chooseStartup(startupState.resume);

@@ -76,33 +76,19 @@
       </header>
       <p id="onboarding-status">Reading this local installation…</p>
 
-      <section class="onboarding-step">
-        <div class="onboarding-step-label">01 · where will your Atlas live?</div>
-        <div class="onboarding-modes">
-          <button type="button" class="selected" aria-pressed="true">
-            <strong>Local</strong>
-            <small>Available now · private store on this machine</small>
-          </button>
-          <button type="button" disabled>
-            <strong>Online</strong>
-            <small>Coming later · no shared Atlas is implied yet</small>
-          </button>
-        </div>
-      </section>
+      <div class="onboarding-local">
+        <strong>Local Personal Atlas</strong>
+        <span>Private on this machine. Online collaboration comes later.</span>
+      </div>
 
       <section class="onboarding-step">
-        <div class="onboarding-step-label">02 · connect collaborators</div>
-        <p>Atlas of Threads stores no provider credentials. Install and sign in through each collaborator's official CLI; this local screen registers and tests the packaged bridge.</p>
+        <div class="onboarding-step-label">01 · choose a collaborator</div>
+        <p>Select an agent already installed and configured on this machine. Atlas stores no provider credentials.</p>
         <div id="onboarding-harnesses"></div>
       </section>
 
       <section class="onboarding-step">
-        <div class="onboarding-step-label">03 · choose who opens the first path</div>
-        <div id="onboarding-first-collaborator" class="onboarding-empty">Connect at least one collaborator first.</div>
-      </section>
-
-      <section class="onboarding-step">
-        <div class="onboarding-step-label">04 · start a Threadwalk</div>
+        <div class="onboarding-step-label">02 · open your first Threadwalk</div>
         <form id="onboarding-inquiry-form">
           <label for="onboarding-inquiry">What do you want to explore?</label>
           <input id="onboarding-inquiry" type="text" maxlength="400" autocomplete="off" spellcheck="false" placeholder="Ask the question that should open your first chamber." />

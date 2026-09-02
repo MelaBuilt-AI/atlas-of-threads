@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import sys
+import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import MappingProxyType
@@ -34,11 +35,12 @@ from thought_archaeology.harness import (
     describe_harness,
 )
 from thought_archaeology.harness_service import (
-    control_harness_service,
+    application_worker_status,
+    ensure_application_worker,
     harness_service_options,
-    harness_service_status,
-    install_harness_service,
+    resume_application_worker,
     resolve_harness_service_path,
+    stop_application_worker,
 )
 from thought_archaeology.ids import new_ulid, now_iso
 from thought_archaeology.inhabit import entry_node, inhabit
@@ -67,44 +69,75 @@ KNOWN_HARNESS_ADAPTERS = (
         "name": "codex",
         "display_name": "Codex",
         "executable": "ta-harness-codex",
+        "provider_executable": "codex",
+        "provider_override": "TA_CODEX_BIN",
         "setup_hint": "Install and sign in through the official Codex CLI, then connect here.",
     },
     {
         "name": "claude",
         "display_name": "Claude",
         "executable": "ta-harness-claude",
+        "provider_executable": "claude",
+        "provider_override": "TA_CLAUDE_BIN",
         "setup_hint": "Install and sign in through the official Claude Code CLI, then connect here.",
     },
     {
         "name": "grok",
         "display_name": "Grok",
         "executable": "ta-harness-grok",
+        "provider_executable": "grok",
+        "provider_override": "TA_GROK_BIN",
         "setup_hint": "Install and sign in through the official Grok CLI, then connect here.",
     },
     {
         "name": "opencode",
         "display_name": "OpenCode",
         "executable": "ta-harness-opencode",
+        "provider_executable": "opencode",
+        "provider_override": "TA_OPENCODE_BIN",
         "setup_hint": "Install and configure OpenCode, then connect here.",
     },
     {
         "name": "prime-agent",
         "display_name": "Prime Agent",
         "executable": "ta-harness-prime-agent",
+        "provider_executable": "prime-agent",
+        "provider_override": "TA_PRIME_AGENT_BIN",
         "setup_hint": "Install and sign in through Prime Agent, then connect here.",
     },
 )
 
 
-def _packaged_harness_executable(name: str) -> str | None:
+def _packaged_harness_command(name: str) -> tuple[str, tuple[str, ...]] | None:
     """Find a bundled adapter even when its virtualenv is not on PATH."""
+    if getattr(sys, "frozen", False):
+        return str(Path(sys.executable).absolute()), (
+            "adapter",
+            name.removeprefix("ta-harness-"),
+        )
     found = shutil.which(name)
     if found:
-        return found
-    sibling = Path(sys.executable).parent / name
-    if sibling.is_file() and os.access(sibling, os.X_OK):
-        return str(sibling.absolute())
+        return found, ()
+    siblings = [Path(sys.executable).parent / name]
+    if os.name == "nt":
+        siblings.insert(0, Path(sys.executable).parent / f"{name}.exe")
+    for sibling in siblings:
+        if sibling.is_file() and os.access(sibling, os.X_OK):
+            return str(sibling.absolute()), ()
     return None
+
+
+def _provider_available(item: dict[str, str]) -> bool:
+    configured = os.environ.get(item["provider_override"])
+    if configured:
+        candidate = shutil.which(configured) or configured
+        return Path(candidate).expanduser().is_file()
+    if shutil.which(item["provider_executable"]):
+        return True
+    if item["name"] == "grok":
+        grok_home = Path(os.environ.get("GROK_HOME") or Path.home() / ".grok")
+        return (grok_home / "bin" / "grok").is_file()
+    return False
 
 
 class ServeError(Exception):
@@ -115,6 +148,9 @@ def viz_dist_path() -> Path:
     env = os.environ.get("TA_VIZ")
     if env:
         return Path(env).expanduser().resolve()
+    frozen_root = getattr(sys, "_MEIPASS", None)
+    if frozen_root:
+        return Path(frozen_root) / "viz" / "dist"
     here = Path(__file__).resolve()
     repo = here.parents[2] / "viz" / "dist"
     return repo
@@ -206,7 +242,7 @@ def workspace_payload(store: Store) -> dict:
     default = registry.default_name()
     service_path = resolve_harness_service_path()
     try:
-        service = harness_service_status(service_path)
+        service = application_worker_status(service_path)
     except HarnessError as exc:
         service = {
             "installed": service_path.is_file(),
@@ -228,8 +264,9 @@ def workspace_payload(store: Store) -> dict:
         {
             "name": item["name"],
             "display_name": item["display_name"],
-            "adapter_available": _packaged_harness_executable(item["executable"])
+            "adapter_available": _packaged_harness_command(item["executable"])
             is not None,
+            "provider_available": _provider_available(item),
             "registered": item["name"] in registered,
             "selected": bool(registered.get(item["name"], {}).get("selected")),
             "model": registered.get(item["name"], {}).get("model"),
@@ -337,23 +374,15 @@ def create_workspace_inquiry(store: Store, prompt: str) -> dict:
     spec = registry.get()
     if not store.exists():
         store.initialize()
-    has_sessions = any(store.iter_session_ids())
-    service = harness_service_status()
-    if not has_sessions:
-        unit_path = resolve_harness_service_path()
-        installed = unit_path.is_file()
-        options = harness_service_options(unit_path)
-        install_harness_service(
-            store,
-            spec,
-            interval=options["interval"],
-            timeout=options["timeout"],
-            path=unit_path,
-        )
-        if installed:
-            control_harness_service("restart", path=unit_path)
-    elif not service["installed"] or service["active"] not in {"active", "activating"}:
-        raise ServeError("activate a collaborator before starting a new graph")
+    unit_path = resolve_harness_service_path()
+    options = harness_service_options(unit_path)
+    ensure_application_worker(
+        store,
+        spec,
+        interval=options["interval"],
+        timeout=options["timeout"],
+        path=unit_path,
+    )
 
     title = prompt.splitlines()[0].strip()
     if len(title) > 80:
@@ -1241,19 +1270,16 @@ class InhabitHandler(BaseHTTPRequestHandler):
         previous = registry.default_name()
         registry.use(name)
         unit_path = resolve_harness_service_path()
-        installed = unit_path.is_file()
         options = harness_service_options(unit_path)
         if self.store.exists():
             try:
-                install_harness_service(
+                ensure_application_worker(
                     self.store,
                     spec,
                     interval=options["interval"],
                     timeout=options["timeout"],
                     path=unit_path,
                 )
-                if installed:
-                    control_harness_service("restart", path=unit_path)
             except HarnessError:
                 if previous and previous != name:
                     registry.use(previous)
@@ -1278,13 +1304,14 @@ class InhabitHandler(BaseHTTPRequestHandler):
         registry = HarnessRegistry()
         if name in {spec.name for spec in registry.specs()}:
             raise ServeError(f"collaborator {name!r} is already connected")
-        executable = _packaged_harness_executable(known["executable"])
-        if executable is None:
+        command = _packaged_harness_command(known["executable"])
+        if command is None:
             raise ServeError(
                 f"packaged adapter {known['executable']!r} is unavailable; "
                 "reinstall Atlas of Threads, then try again"
             )
-        spec = registry.register(name, executable)
+        executable, args = command
+        spec = registry.register(name, executable, args=args)
         try:
             description = describe_harness(spec, timeout=10)
         except HarnessError:
@@ -1408,15 +1435,21 @@ def serve_forever(
     bind: str = DEFAULT_BIND,
     port: int = DEFAULT_PORT,
     dist: Path | None = None,
+    open_browser: bool = False,
 ) -> None:
     httpd = make_server(store, bind=bind, port=port, dist=dist)
+    url = f"http://{bind}:{port}/"
     print(
-        f"Inhabit Space  http://{bind}:{port}/  "
+        f"Inhabit Space  {url}  "
         "(localhost · fork/veto/continuation from the chamber)"
     )
+    resume_application_worker(store)
+    if open_browser:
+        webbrowser.open(url)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
         print("\nstopped")
     finally:
         httpd.server_close()
+        stop_application_worker()

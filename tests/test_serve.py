@@ -230,7 +230,7 @@ def test_thread_compass_and_legend_controls_are_chamber_overlays():
     assert 'id="onboarding-menu"' in html
     assert "Start a Threadwalk" in html
     assert "Online" in html
-    assert "Coming later" in html
+    assert "Online collaboration comes later" in html
     assert 'id="threshold-parallel"' in html
     assert "Activate ${workspaceName(harness.name)}" in js
     assert 'refresh.textContent = "↻ Refresh"' in js
@@ -251,6 +251,9 @@ def test_thread_compass_and_legend_controls_are_chamber_overlays():
     assert 'api("/api/workspace")' in js
     assert "showOnboarding" in js
     assert "connectOnboardingHarness" in js
+    assert "selectOnboardingHarness" in js
+    assert "refreshOnboarding" in js
+    assert "Connect and select" in js
     assert "#onboarding-menu" in css
     assert ".onboarding-collaborator" in css
     assert 'e.key === "m"' in js
@@ -468,6 +471,7 @@ def test_onboarding_connects_only_a_known_packaged_harness(
     assert codex["registered"] is True
     assert codex["selected"] is True
     assert codex["model"] == "test-model"
+    assert "provider_available" in codex
 
     handler._read_json = lambda: {"harness": "arbitrary-command"}
     with pytest.raises(ServeError, match="packaged collaborators"):

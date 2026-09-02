@@ -332,6 +332,7 @@ def test_harness_service_is_explicit_and_bound_to_store(
     assert f'"{store_path}"' in text
     assert '"--harness" "fake"' in text
     assert "Restart=on-failure" in text
+    assert 'Environment="PATH=' in text
     assert "credential" not in text.lower()
     assert calls.read_text(encoding="utf-8").splitlines()[:2] == [
         "--user daemon-reload",

@@ -28,15 +28,16 @@ the executable to an absolute path. TA stores an argv array and invokes it with
 `shell=False`. Cloning or opening a project never launches an adapter.
 
 Inhabit Space also offers a local-first browser setup for the five packaged
-bridges. It discovers only their installed `ta-harness-*` entry points, accepts
-only the built-in collaborator names, writes the same user-owned registry, and
-runs `describe` as a health check. A failed check removes the new registration.
-Provider installation and sign-in still happen in the provider's official CLI;
-the browser never accepts credentials or arbitrary adapter paths. Choosing the
-first collaborator is separate from connecting it. Starting the first
-Threadwalk then initializes the private store if needed and installs the
-store-bound systemd user watcher. The disabled Online choice is presentation
-scaffolding only and performs no networking.
+bridges. It detects their provider CLIs, accepts only the built-in collaborator
+names, writes the same user-owned registry, and runs `describe` as a health
+check. A failed check removes the new registration. Provider installation,
+authentication, subscriptions, and model selection stay outside Atlas; the
+browser never accepts credentials or arbitrary adapter paths. One click
+connects, tests, and selects the first collaborator. Starting the first
+Threadwalk initializes the private store if needed and starts the exact
+store/collaborator worker through the platform backend. Linux uses the user
+systemd service; Windows and macOS supervise the worker while Atlas is open.
+The Online note is presentation scaffolding only and performs no networking.
 
 ## Operations
 
@@ -120,6 +121,10 @@ re-reads the provider setting when `continue` runs, and the completion's
   enables it, and starts it. Clone/open/register operations remain inert.
 - `ta harness service status|start|stop|restart|remove` inspects and controls
   that unit. The foreground watcher remains the portable fallback.
+- The packaged local application supervises the same one-watcher contract on
+  Windows and macOS, starting it after the first Threadwalk and resuming it when
+  Atlas reopens. It invokes the same `ta harness watch` path and changes no
+  protocol or store artifact.
 - `ta harness status` reports configuration, store availability, and pending
   count; it does not claim that a detached worker is alive.
 - Immediately before adapter invocation, a worker appends a
