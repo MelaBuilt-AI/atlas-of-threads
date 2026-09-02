@@ -74,6 +74,13 @@
   const elLegendScrim = document.getElementById("legend-scrim");
   const elLegendMenu = document.getElementById("legend-menu");
   const elLegendClose = document.getElementById("legend-close");
+  const elThreadTrigger = document.getElementById("thread-trigger");
+  const elAtlasMapTrigger = document.getElementById("atlas-map-trigger");
+  const elAtlasMapHud = document.getElementById("atlas-map-hud");
+  const elAtlasMapTitle = document.getElementById("atlas-map-title");
+  const elAtlasMapStatus = document.getElementById("atlas-map-status");
+  const elAtlasMapClose = document.getElementById("atlas-map-close");
+  const elAtlasMapEntryButtons = document.getElementById("atlas-map-entry-buttons");
   const elWorkspaceScrim = document.getElementById("workspace-scrim");
   const elWorkspaceMenu = document.getElementById("workspace-menu");
   const elWorkspaceClose = document.getElementById("workspace-close");
@@ -232,6 +239,16 @@
   let onboardingState = null;
   let onboardingBusy = false;
   let onboardingCanStart = false;
+  let atlasMapMode = false;
+  let atlasMapBusy = false;
+  let atlasMapTargets = [];
+  let atlasMapLook = { x: 0, z: 0 };
+  let atlasMapHeight = 26;
+  let atlasMapBounds = null;
+  let atlasMapCameraState = null;
+  let atlasMapReturnFocus = null;
+  let atlasMapRequestToken = 0;
+  let atlasMapNavigationPending = false;
   let eligibilityKey = null;
   let capsuleEligibilityKey = null;
   const COMPANION_MEMORY_KEY = "thought-archaeology.companions.v1";
@@ -480,6 +497,9 @@
 
   const root = new THREE.Group();
   scene.add(root);
+  const atlasMapRoot = new THREE.Group();
+  atlasMapRoot.visible = false;
+  scene.add(atlasMapRoot);
 
   scene.add(new THREE.AmbientLight(0x3a342c, 0.55));
   const keyTarget = new THREE.Object3D();
@@ -617,48 +637,73 @@
     const watcherActive = onboardingWatcherActive(payload);
     const pending = payload.pending || [];
     const firstRun = !(payload.history || []).length;
+    const selectedRegistry = (payload.harnesses || []).find(
+      (harness) => harness.selected
+    );
+    const selectedProvider = (payload.available_harnesses || []).find(
+      (harness) => harness.selected
+    );
     const firstCollaboratorReady = Boolean(
       payload.active_harness && (watcherActive || firstRun) &&
-      (payload.harnesses || []).some((harness) => harness.selected)
+      selectedRegistry && (
+        !selectedProvider || (
+          selectedProvider.adapter_available &&
+          selectedProvider.provider_state === "ready"
+        )
+      )
     );
     elOnboardingHarnesses.replaceChildren();
     for (const harness of payload.available_harnesses || []) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "onboarding-collaborator";
-      if (harness.registered) button.classList.add("connected");
-      if (harness.selected && firstCollaboratorReady) button.classList.add("active");
+      const card = document.createElement("article");
+      card.className = "onboarding-collaborator";
+      if (harness.registered) card.classList.add("connected");
+      if (harness.selected && firstCollaboratorReady) card.classList.add("active");
       const copy = document.createElement("span");
       const name = document.createElement("strong");
       name.textContent = harness.display_name || workspaceName(harness.name);
       const detail = document.createElement("small");
-      detail.textContent = harness.registered
+      detail.textContent = harness.registered && harness.provider_state === "ready"
         ? harness.model || "connected · model refresh available in Workspace"
-        : harness.provider_available
-          ? harness.provider_location === "Windows"
-            ? "Ready on Windows"
-            : harness.provider_location?.startsWith("WSL")
-              ? `Ready in ${harness.provider_location}`
-              : "Ready on this machine"
-          : "Agent not detected";
+        : harness.provider_state === "ready"
+          ? `${harness.provider_location === "Windows" ? "Ready on Windows" : harness.provider_location?.startsWith("WSL") ? `Ready in ${harness.provider_location}` : "Ready on this machine"} · provider-owned CLI account`
+          : harness.provider_state === "sign_in_required"
+            ? `Installed ${harness.provider_location ? `in ${harness.provider_location}` : ""} · provider sign-in required`
+            : harness.provider_state === "failed"
+              ? "Installed · setup check failed"
+              : "Agent not detected";
       copy.append(name, detail);
-      const action = document.createElement("small");
-      action.textContent = harness.selected && firstCollaboratorReady
-        ? "Selected"
-        : harness.registered
-          ? "Select"
-        : harness.provider_available
-          ? "Connect and select"
-          : "Check again";
-      button.append(copy, action);
-      button.title = harness.setup_hint;
-      button.disabled = onboardingBusy || (harness.selected && firstCollaboratorReady) || !harness.adapter_available;
-      button.addEventListener("click", () => {
-        if (harness.registered) selectOnboardingHarness(harness.name);
-        else if (harness.provider_available) connectOnboardingHarness(harness.name);
-        else refreshOnboarding();
-      });
-      elOnboardingHarnesses.append(button);
+      card.append(copy);
+      card.title = harness.setup_hint;
+      const actions = document.createElement("div");
+      actions.className = "onboarding-provider-actions";
+      const addAction = (label, handler, primary = false) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = label;
+        if (primary) button.classList.add("primary");
+        button.disabled = onboardingBusy || !harness.adapter_available;
+        button.addEventListener("click", handler);
+        actions.append(button);
+      };
+      if (harness.selected && firstCollaboratorReady) {
+        const selected = document.createElement("small");
+        selected.textContent = "Selected";
+        actions.append(selected);
+      } else if (harness.provider_state !== "ready") {
+        if (harness.can_install) {
+          addAction("Install on Windows", () => launchOnboardingProvider(harness.name, "install"), true);
+        }
+        if (harness.can_sign_in) {
+          addAction("Sign in", () => launchOnboardingProvider(harness.name, "sign_in"), true);
+        }
+        addAction("Check again", refreshOnboarding);
+      } else if (harness.registered) {
+        addAction("Select", () => selectOnboardingHarness(harness.name), true);
+      } else if (harness.provider_state === "ready") {
+        addAction("Connect and select", () => connectOnboardingHarness(harness.name), true);
+      }
+      card.append(actions);
+      elOnboardingHarnesses.append(card);
     }
 
     onboardingCanStart = !onboardingBusy && firstCollaboratorReady && pending.length === 0;
@@ -669,13 +714,21 @@
       elOnboardingStatus.textContent = watcherActive
         ? `${workspaceName(payload.active_harness)} is ready. Write the inquiry that should open your first chamber.`
         : `${workspaceName(payload.active_harness)} will open the first path. Starting the Threadwalk will activate its local worker.`;
+    } else if ((payload.available_harnesses || []).some(
+      (harness) => harness.registered && harness.provider_state !== "ready"
+    )) {
+      elOnboardingStatus.textContent = "Repair provider setup, then Check again before starting this Threadwalk.";
     } else if ((payload.harnesses || []).length) {
       elOnboardingStatus.textContent = "Select the collaborator that should open this path.";
     } else {
-      const detected = (payload.available_harnesses || []).some((harness) => harness.provider_available);
+      const detected = (payload.available_harnesses || []).some(
+        (harness) => harness.provider_state !== "missing"
+      );
       elOnboardingStatus.textContent = detected
-        ? "Choose one collaborator already installed and configured on this machine."
-        : "No compatible collaborator is detected yet. Finish agent setup outside Atlas, then check again.";
+        ? "Complete provider-owned sign-in, then Check again. Atlas never receives or stores those credentials."
+        : payload.platform === "windows"
+          ? "Install a supported native Windows CLI here. WSL remains an optional fallback."
+          : "No compatible collaborator is detected yet. Finish agent setup, then check again.";
     }
   }
 
@@ -688,9 +741,8 @@
     elStartMenu.hidden = true;
     elOnboardingMenu.hidden = false;
     renderOnboarding(workspace);
-    const selected = (workspace.harnesses || []).some((harness) => harness.selected);
     const firstAction = elOnboardingHarnesses.querySelector("button:not(:disabled)");
-    (selected ? elOnboardingInquiry : firstAction || elOnboardingClose).focus();
+    (onboardingCanStart ? elOnboardingInquiry : firstAction || elOnboardingClose).focus();
   }
 
   async function connectOnboardingHarness(name) {
@@ -708,6 +760,27 @@
       onboardingBusy = false;
       const payload = await api("/api/workspace").catch(() => workspaceState);
       if (payload) renderOnboarding(payload);
+      elOnboardingStatus.textContent = String(error.message || error);
+    }
+  }
+
+  async function launchOnboardingProvider(name, action) {
+    if (onboardingBusy) return;
+    onboardingBusy = true;
+    renderOnboarding(workspaceState || { available_harnesses: [], harnesses: [] });
+    elOnboardingStatus.textContent = action === "install"
+      ? `Opening the official ${workspaceName(name)} Windows installer…`
+      : `Opening ${workspaceName(name)}'s provider-owned sign-in…`;
+    try {
+      await post("/api/onboarding/provider", { harness: name, action });
+      onboardingBusy = false;
+      renderOnboarding(workspaceState);
+      elOnboardingStatus.textContent = action === "install"
+        ? `Finish the official ${workspaceName(name)} installation in the terminal, then choose Check again.`
+        : `Finish ${workspaceName(name)} sign-in in the provider window, then choose Check again. Atlas sees no credentials.`;
+    } catch (error) {
+      onboardingBusy = false;
+      if (workspaceState) renderOnboarding(workspaceState);
       elOnboardingStatus.textContent = String(error.message || error);
     }
   }
@@ -813,6 +886,7 @@
   }
 
   function openLegendMenu() {
+    if (atlasMapMode) closeAtlasMap(false);
     if (!elThreadCompass.hidden) closeThreadCompass();
     if (!elWorkspaceMenu.hidden) closeWorkspaceMenu();
     elLegendScrim.hidden = false;
@@ -1127,6 +1201,7 @@
 
   async function openWorkspaceMenu(parallel = false) {
     if (composing || busy) return;
+    if (atlasMapMode) closeAtlasMap(false);
     if (!elLegendMenu.hidden) closeLegendMenu();
     if (!elThreadCompass.hidden) closeThreadCompass();
     elWorkspaceScrim.hidden = false;
@@ -1159,6 +1234,16 @@
   let threadComposer = false;
   let threadReturnFocus = null;
 
+  function renderedFocusTarget(target) {
+    return Boolean(
+      target &&
+      target.isConnected &&
+      target.focus &&
+      target.getClientRects &&
+      target.getClientRects().length
+    );
+  }
+
   function closeThreadCompass(restoreFocus = true) {
     sound.setFieldNoteWriting(false);
     elThreadCompass.hidden = true;
@@ -1170,7 +1255,7 @@
     elThreadTitle.textContent = "Thread Compass";
     elThreadClose.textContent = "close · T / esc";
     if (restoreFocus) {
-      const target = threadReturnFocus && threadReturnFocus.isConnected
+      const target = renderedFocusTarget(threadReturnFocus)
         ? threadReturnFocus
         : canvas;
       target.focus({ preventScroll: true });
@@ -2064,11 +2149,310 @@
     closeThreadCompass();
   }
 
-  async function openThreadCompass() {
-    if (!view || composing || busy) return;
+  function disposeRelicClone(object) {
+    object.traverse((part) => {
+      const materials = Array.isArray(part.material)
+        ? part.material
+        : part.material ? [part.material] : [];
+      materials.forEach((material) => material.dispose());
+    });
+  }
+
+  function disposeAtlasObject(object, sharedResources = false, textures = new Set()) {
+    const shared = sharedResources || Boolean(object.userData.sharedRelicResources);
+    object.children.forEach((child) => disposeAtlasObject(child, shared, textures));
+    if (object.geometry && !shared) object.geometry.dispose();
+    const materials = Array.isArray(object.material)
+      ? object.material
+      : object.material ? [object.material] : [];
+    materials.forEach((material) => {
+      if (!shared) {
+        Object.values(material).forEach((value) => {
+          if (value && value.isTexture && !textures.has(value)) {
+            textures.add(value);
+            value.dispose();
+          }
+        });
+      }
+      material.dispose();
+    });
+  }
+
+  function clearAtlasMapRoot() {
+    const textures = new Set();
+    while (atlasMapRoot.children.length) {
+      const child = atlasMapRoot.children[0];
+      disposeAtlasObject(child, false, textures);
+      atlasMapRoot.remove(child);
+    }
+    atlasMapTargets = [];
+    atlasMapBounds = null;
+    elAtlasMapEntryButtons.replaceChildren();
+  }
+
+  function atlasMapFloor(bounds) {
+    const width = Math.max(18, bounds.maxX - bounds.minX + 7);
+    const depth = Math.max(18, bounds.maxZ - bounds.minZ + 7);
+    const group = new THREE.Group();
+    const slab = new THREE.Mesh(
+      new THREE.PlaneGeometry(width, depth),
+      new THREE.MeshStandardMaterial({
+        color: 0x070d18,
+        roughness: 0.92,
+        metalness: 0.2,
+        emissive: 0x030711,
+        emissiveIntensity: 0.55,
+      })
+    );
+    slab.rotation.x = -Math.PI / 2;
+    slab.position.set((bounds.minX + bounds.maxX) / 2, -0.02, (bounds.minZ + bounds.maxZ) / 2);
+    group.add(slab);
+    const grid = new THREE.GridHelper(
+      Math.max(width, depth),
+      Math.max(12, Math.ceil(Math.max(width, depth) / CELL)),
+      0x4b7658,
+      0x173553
+    );
+    grid.position.set((bounds.minX + bounds.maxX) / 2, 0, (bounds.minZ + bounds.maxZ) / 2);
+    [].concat(grid.material).forEach((material) => {
+      material.transparent = true;
+      material.opacity = 0.58;
+    });
+    group.add(grid);
+    return group;
+  }
+
+  function atlasMapConnection(parent, child, kind) {
+    const geometry = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(parent.x, 0.24, parent.z),
+      new THREE.Vector3(child.x, 0.24, child.z),
+    ]);
+    const color = kind === "veto" || kind === "cut"
+      ? 0x8a7396
+      : kind === "continuation" ? 0x4f8fd6 : 0xb08d57;
+    return new THREE.Line(
+      geometry,
+      new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.78 })
+    );
+  }
+
+  function atlasMapNavigate(entry) {
+    if (!entry || atlasMapNavigationPending) return;
+    atlasMapNavigationPending = true;
+    closeAtlasMap(false);
+    sound.traverse("forward", "story");
+    inhabit(entry.graph_id, entry.node_id)
+      .catch((error) => {
+        elEmpty.classList.add("visible");
+        elEmpty.querySelector("p").textContent = String(error.message || error);
+      })
+      .finally(() => {
+        atlasMapNavigationPending = false;
+      });
+  }
+
+  function renderAtlasMap(lineage) {
+    clearAtlasMapRoot();
+    const entries = [...(lineage.entries || [])]
+      .filter((entry) => entry.node && entry.node_id)
+      .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.graph_id.localeCompare(b.graph_id));
+    const columns = 7;
+    const stride = CELL * 3.45;
+    const positions = new Map();
+    entries.forEach((entry, index) => {
+      positions.set(entry.graph_id, {
+        x: (index % columns) * stride,
+        z: Math.floor(index / columns) * stride,
+      });
+    });
+    const coords = [...positions.values()];
+    const bounds = coords.length ? {
+      minX: Math.min(...coords.map((point) => point.x)),
+      maxX: Math.max(...coords.map((point) => point.x)),
+      minZ: Math.min(...coords.map((point) => point.z)),
+      maxZ: Math.max(...coords.map((point) => point.z)),
+    } : { minX: -4, maxX: 4, minZ: -4, maxZ: 4 };
+    atlasMapBounds = bounds;
+    atlasMapRoot.add(atlasMapFloor(bounds));
+
+    for (const entry of entries) {
+      const child = positions.get(entry.graph_id);
+      const parent = positions.get(entry.parent_graph_id);
+      if (parent) atlasMapRoot.add(atlasMapConnection(parent, child, entry.kind));
+    }
+
+    let hereMesh = null;
+    entries.forEach((entry, index) => {
+      const point = positions.get(entry.graph_id);
+      const evidence = entry.evidence || [];
+      let relicKey = relicForNode(entry.node, evidence);
+      if (
+        entry.parent_graph_id &&
+        entry.node.kind === "claim" &&
+        !evidence.length &&
+        relicKey === "narrated-claim"
+      ) relicKey = "forked-claim";
+      const mesh = chamberMesh(entry.node, {
+        x: point.x,
+        z: point.z,
+        scale: 0.58,
+        ghost: entry.kind === "cut" || entry.kind === "veto",
+        relicKey,
+        evidence,
+      });
+      mesh.userData.mapEntry = entry;
+      mesh.userData.focusScale = 1;
+      atlasMapRoot.add(mesh);
+      atlasMapTargets.push(mesh);
+      if (entry.graph_id === view.graph_id) {
+        hereMesh = mesh;
+        const marker = new THREE.Mesh(
+          new THREE.TorusGeometry(1.15, 0.09, 12, 48),
+          new THREE.MeshStandardMaterial({
+            color: 0xc8f26a,
+            emissive: 0x71952b,
+            emissiveIntensity: 1.4,
+            metalness: 0.2,
+            roughness: 0.3,
+          })
+        );
+        marker.rotation.x = Math.PI / 2;
+        marker.position.set(point.x, 0.5, point.z);
+        marker.userData.atlasHere = true;
+        atlasMapRoot.add(marker);
+      }
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = `${entry.graph_id === view.graph_id ? "Current · " : ""}${index + 1} of ${entries.length} · ${entry.kind.replace("_", " ")} · ${entry.summary}`;
+      button.addEventListener("click", () => atlasMapNavigate(entry));
+      elAtlasMapEntryButtons.append(button);
+    });
+
+    const center = {
+      x: (bounds.minX + bounds.maxX) / 2,
+      z: (bounds.minZ + bounds.maxZ) / 2,
+    };
+    const width = bounds.maxX - bounds.minX + 8;
+    const depth = bounds.maxZ - bounds.minZ + 8;
+    const verticalFov = THREE.MathUtils.degToRad(camera.fov);
+    const fitHeight = Math.max(
+      depth / (2 * Math.tan(verticalFov / 2)),
+      width / (2 * Math.tan(verticalFov / 2) * Math.max(camera.aspect, 0.4))
+    ) + 3;
+    if (fitHeight <= 54) {
+      atlasMapLook = center;
+      atlasMapHeight = Math.max(16, fitHeight);
+    } else {
+      const point = hereMesh ? positions.get(view.graph_id) : center;
+      atlasMapLook = { x: point.x, z: point.z };
+      atlasMapHeight = 54;
+    }
+    elAtlasMapTitle.textContent = lineage.title || "Atlas Map";
+    elAtlasMapStatus.textContent = `${entries.length} mapped ${entries.length === 1 ? "generation" : "generations"} · luminous ring marks you here`;
+  }
+
+  async function openAtlasMap() {
+    if (!view || atlasMapMode || atlasMapBusy || atlasMapNavigationPending || composing || busy || cinematicCapture || capsuleFlight || activeFieldNote || activeCapsule || fieldNoteConstruction || capsuleConstruction) return;
+    if (!elThreadCompass.hidden) closeThreadCompass(false);
     if (!elLegendMenu.hidden) closeLegendMenu();
     if (!elWorkspaceMenu.hidden) closeWorkspaceMenu();
-    threadReturnFocus = document.activeElement && document.activeElement !== document.body
+    atlasMapBusy = true;
+    const requestToken = ++atlasMapRequestToken;
+    const requestedStand = {
+      sessionId: view.session_id,
+      graphId: view.graph_id,
+      nodeId: view.node.id,
+    };
+    atlasMapReturnFocus = document.activeElement !== document.body &&
+      renderedFocusTarget(document.activeElement)
+      ? document.activeElement
+      : canvas;
+    atlasMapCameraState = {
+      overhead,
+      yaw,
+      pitch,
+      overheadLook: { ...overheadLook },
+      overheadLookTarget: { ...overheadLookTarget },
+      shoulderLook: { ...shoulderLook },
+      shoulderLookTarget: { ...shoulderLookTarget },
+    };
+    atlasMapMode = true;
+    root.visible = false;
+    atlasMapRoot.visible = true;
+    renderer.setClearColor(0x03050c, 1);
+    document.body.dataset.atlasMap = "true";
+    elAtlasMapTrigger.setAttribute("aria-pressed", "true");
+    elAtlasMapHud.hidden = false;
+    elAtlasMapTitle.textContent = "Atlas Map";
+    elAtlasMapStatus.textContent = "Reading the current Threadwalk…";
+    elAtlasMapClose.focus();
+    for (const circuit of continuationCircuits.values()) circuit.lightning.group.visible = false;
+    try {
+      const lineage = await api(
+        `/api/thread/${requestedStand.sessionId}?graph=${requestedStand.graphId}&node=${requestedStand.nodeId}`
+      );
+      if (
+        atlasMapMode &&
+        requestToken === atlasMapRequestToken &&
+        view &&
+        view.session_id === requestedStand.sessionId &&
+        view.graph_id === requestedStand.graphId &&
+        view.node.id === requestedStand.nodeId
+      ) renderAtlasMap(lineage);
+    } catch (error) {
+      if (requestToken === atlasMapRequestToken) {
+        elAtlasMapStatus.textContent = "Atlas Map is unavailable from the running server · restart Atlas, then press A again";
+      }
+    } finally {
+      if (requestToken === atlasMapRequestToken) atlasMapBusy = false;
+    }
+  }
+
+  function closeAtlasMap(restoreFocus = true) {
+    if (!atlasMapMode) return;
+    atlasMapMode = false;
+    atlasMapBusy = false;
+    atlasMapRequestToken += 1;
+    clearAtlasMapRoot();
+    atlasMapRoot.visible = false;
+    root.visible = true;
+    document.body.removeAttribute("data-atlas-map");
+    elAtlasMapTrigger.setAttribute("aria-pressed", "false");
+    elAtlasMapHud.hidden = true;
+    if (atlasMapCameraState) {
+      overhead = atlasMapCameraState.overhead;
+      yaw = atlasMapCameraState.yaw;
+      pitch = atlasMapCameraState.pitch;
+      overheadLook = atlasMapCameraState.overheadLook;
+      overheadLookTarget = atlasMapCameraState.overheadLookTarget;
+      shoulderLook = atlasMapCameraState.shoulderLook;
+      shoulderLookTarget = atlasMapCameraState.shoulderLookTarget;
+    }
+    atlasMapCameraState = null;
+    if (view) applyClimate(view.climate);
+    if (restoreFocus) {
+      const target = atlasMapReturnFocus;
+      if (renderedFocusTarget(target)) {
+        target.focus({ preventScroll: true });
+      } else {
+        canvas.focus({ preventScroll: true });
+      }
+    }
+    atlasMapReturnFocus = null;
+    showWaitingArrivals();
+  }
+
+  function toggleAtlasMap() {
+    if (atlasMapMode) closeAtlasMap();
+    else openAtlasMap();
+  }
+
+  async function openThreadCompass() {
+    if (!view || composing || busy) return;
+    if (atlasMapMode) closeAtlasMap(false);
+    if (!elLegendMenu.hidden) closeLegendMenu();
+    if (!elWorkspaceMenu.hidden) closeWorkspaceMenu();
+    threadReturnFocus = renderedFocusTarget(document.activeElement) && document.activeElement !== document.body
       ? document.activeElement
       : canvas;
     elThreadCompass.hidden = false;
@@ -2739,7 +3123,11 @@
     group.userData.relicKey = relic.key;
     RelicGLBLoader.load(relic.model)
       .then((object) => {
-        if (!group.parent || generation !== layoutGeneration) return;
+        if (!group.parent || generation !== layoutGeneration) {
+          disposeRelicClone(object);
+          return;
+        }
+        object.userData.sharedRelicResources = true;
         const box = new THREE.Box3().setFromObject(object);
         const size = box.getSize(new THREE.Vector3());
         const center = box.getCenter(new THREE.Vector3());
@@ -4752,6 +5140,7 @@
     if (
       !arrivalsDirty ||
       !view ||
+      atlasMapMode ||
       activeFieldNote ||
       activeCapsule ||
       composing ||
@@ -4760,18 +5149,27 @@
       !elEvidenceDescent.hidden
     ) return;
     arrivalsDirty = false;
-    revealWaitingArrivals().catch(() => {
-      arrivalsDirty = true;
-    });
+    revealWaitingArrivals()
+      .then((revealed) => {
+        if (!revealed) arrivalsDirty = true;
+      })
+      .catch(() => {
+        arrivalsDirty = true;
+      });
   }
 
   async function revealWaitingArrivals() {
-    if (!view || activeFieldNote || activeCapsule) return;
+    if (!view || atlasMapMode || activeFieldNote || activeCapsule) return false;
     const graphId = view.graph_id;
     const nodeId = view.node.id;
     const q = new URLSearchParams({ graph: graphId });
     const payload = await api(`/api/inhabit/${nodeId}?${q.toString()}`);
-    if (!view || view.graph_id !== graphId || view.node.id !== nodeId) return;
+    if (
+      !view ||
+      atlasMapMode ||
+      view.graph_id !== graphId ||
+      view.node.id !== nodeId
+    ) return false;
     view = payload;
     const traversal = (payload.read && payload.read.traversal) || {};
     const atOrigin = payload.origin && payload.origin.id === payload.node.id;
@@ -4795,6 +5193,7 @@
       plate(payload);
     }
     renderThreshold(payload);
+    return true;
   }
 
   async function refreshContinuationState() {
@@ -4893,7 +5292,15 @@
     if (Math.abs(dx) + Math.abs(dy) > 3) dragMoved = true;
     lastX = e.clientX;
     lastY = e.clientY;
-    if (overhead) {
+    if (atlasMapMode) {
+      const k = atlasMapHeight * 0.0019;
+      atlasMapLook.x -= dx * k;
+      atlasMapLook.z += dy * k;
+      if (atlasMapBounds) {
+        atlasMapLook.x = Math.max(atlasMapBounds.minX - 4, Math.min(atlasMapBounds.maxX + 4, atlasMapLook.x));
+        atlasMapLook.z = Math.max(atlasMapBounds.minZ - 4, Math.min(atlasMapBounds.maxZ + 4, atlasMapLook.z));
+      }
+    } else if (overhead) {
       const k = 0.045;
       const lim = FLOOR_SPAN * 0.42;
       overheadLook.x -= dx * k;
@@ -4923,6 +5330,16 @@
     pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
+    if (atlasMapMode) {
+      const mapHit = pickUserData(
+        raycaster.intersectObjects(atlasMapTargets, true),
+        (data) => data.mapEntry && data.mapEntry.graph_id && data.mapEntry.node_id
+      );
+      if (mapHit) {
+        atlasMapNavigate(mapHit.mapEntry);
+      }
+      return;
+    }
     const capsuleHit = pickUserData(
       raycaster.intersectObjects(capsuleTargets, true),
       (data) => data.capsuleId
@@ -4970,6 +5387,12 @@
       inhabit(view.graph_id, nodeHit.id);
     }
   });
+
+  canvas.addEventListener("wheel", (event) => {
+    if (!atlasMapMode) return;
+    event.preventDefault();
+    atlasMapHeight = Math.max(12, Math.min(54, atlasMapHeight * Math.exp(event.deltaY * 0.0012)));
+  }, { passive: false });
 
   function openComposer(kind) {
     if (!view || busy) return;
@@ -5432,6 +5855,9 @@
   elThresholdAsk.addEventListener("click", toggleContinuationComposer);
   elThresholdParallel.addEventListener("click", () => openWorkspaceMenu(true));
   elLegendTrigger.addEventListener("click", toggleLegendMenu);
+  elThreadTrigger.addEventListener("click", toggleThreadCompass);
+  elAtlasMapTrigger.addEventListener("click", toggleAtlasMap);
+  elAtlasMapClose.addEventListener("click", () => closeAtlasMap());
   elLegendClose.addEventListener("click", closeLegendMenu);
   elLegendScrim.addEventListener("click", closeLegendMenu);
   elWorkspaceClose.addEventListener("click", closeWorkspaceMenu);
@@ -5501,6 +5927,25 @@
       return;
     }
     if (!elStartMenu.hidden) return;
+    if (atlasMapMode) {
+      if (e.key === "Escape" || e.key === "a" || e.key === "A") {
+        e.preventDefault();
+        closeAtlasMap();
+      } else if (e.key === "t" || e.key === "T") {
+        e.preventDefault();
+        closeAtlasMap(false);
+        openThreadCompass();
+      } else if (e.key === "l" || e.key === "L") {
+        e.preventDefault();
+        closeAtlasMap(false);
+        openLegendMenu();
+      } else if (e.key === "m" || e.key === "M") {
+        e.preventDefault();
+        closeAtlasMap(false);
+        openWorkspaceMenu();
+      }
+      return;
+    }
     if (cinematicMode && (e.key === "x" || e.key === "X")) {
       e.preventDefault();
       startCinematicCapture();
@@ -5522,6 +5967,10 @@
         e.preventDefault();
         closeThreadCompass();
         openWorkspaceMenu();
+      } else if (e.key === "a" || e.key === "A") {
+        e.preventDefault();
+        closeThreadCompass(false);
+        openAtlasMap();
       }
       return;
     }
@@ -5549,6 +5998,10 @@
         e.preventDefault();
         closeWorkspaceMenu();
         openThreadCompass();
+      } else if (e.key === "a" || e.key === "A") {
+        e.preventDefault();
+        closeWorkspaceMenu();
+        openAtlasMap();
       }
       return;
     }
@@ -5564,6 +6017,10 @@
         e.preventDefault();
         closeLegendMenu();
         openWorkspaceMenu();
+      } else if (e.key === "a" || e.key === "A") {
+        e.preventDefault();
+        closeLegendMenu();
+        openAtlasMap();
       }
       return;
     }
@@ -5602,6 +6059,11 @@
     if (e.key === "m" || e.key === "M") {
       e.preventDefault();
       openWorkspaceMenu();
+      return;
+    }
+    if (e.key === "a" || e.key === "A") {
+      e.preventDefault();
+      openAtlasMap();
       return;
     }
     if (activeCapsule) {
@@ -5744,6 +6206,7 @@
     const h = parseHash();
     if (!h || !view) return;
     if (h.nodeId !== view.node.id || h.graphId !== view.graph_id) {
+      if (atlasMapMode) closeAtlasMap(false);
       inhabit(h.graphId, h.nodeId, "hash");
     }
   });
@@ -5777,6 +6240,11 @@
   function updateNavigationLights(t) {
     // Three r160 uses physical light units. At this chamber's 6–9 unit throw,
     // single-digit candela values disappear after inverse-distance falloff.
+    if (atlasMapMode) {
+      key.intensity = 0;
+      selectionSpot.intensity = 0;
+      return;
+    }
     if (standingMesh) {
       aimSpot(key, keyTarget, standingMesh, 3, overhead ? 7 : 5.8, 3.5);
       key.intensity = overhead
@@ -5997,7 +6465,16 @@
     shoulderLook.z += (shoulderLookTarget.z - shoulderLook.z) * 0.085;
     overheadLook.x += (overheadLookTarget.x - overheadLook.x) * 0.085;
     overheadLook.z += (overheadLookTarget.z - overheadLook.z) * 0.085;
-    if (overhead) {
+    if (atlasMapMode) {
+      camera.up.set(0, 0, -1);
+      camera.position.set(atlasMapLook.x, atlasMapHeight, atlasMapLook.z);
+      camera.lookAt(atlasMapLook.x, 0, atlasMapLook.z);
+      overSun.intensity = 1.3;
+      overHemi.intensity = 0.6;
+      fill.intensity = 0.14;
+      neuralFill.intensity = 0.6;
+      scene.fog.density = 0.003;
+    } else if (overhead) {
       camera.up.set(0, 0, -1);
       camera.position.set(overheadLook.x, 26, overheadLook.z);
       camera.lookAt(overheadLook.x, 0, overheadLook.z);
@@ -6066,7 +6543,7 @@
       }
     }
     updateNeuralSky(t);
-    updateContinuationCircuit(t);
+    if (!atlasMapMode) updateContinuationCircuit(t);
     tickRise(t);
     updateFieldNoteAtmosphere(t);
     updateCapsuleAtmosphere(t);

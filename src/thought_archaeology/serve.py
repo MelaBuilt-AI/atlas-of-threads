@@ -3,14 +3,17 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import subprocess
 import sys
 import webbrowser
+from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import MappingProxyType
 from urllib.parse import parse_qs, urlparse
 
 from thought_archaeology.adapters.provider_command import (
+    command_argv,
     command_location,
     discover_provider_commands,
 )
@@ -123,6 +126,26 @@ KNOWN_HARNESS_ADAPTERS = (
     },
 )
 
+WINDOWS_PROVIDER_SETUP = MappingProxyType(
+    {
+        "codex": {
+            "install": "irm https://chatgpt.com/codex/install.ps1 | iex",
+            "sign_in": ("login",),
+            "status": ("login", "status"),
+        },
+        "claude": {
+            "install": "irm https://claude.ai/install.ps1 | iex",
+            "sign_in": ("auth", "login"),
+            "status": ("auth", "status"),
+        },
+        "grok": {
+            "install": "irm https://x.ai/cli/install.ps1 | iex",
+            "sign_in": ("login",),
+            "status": ("models",),
+        },
+    }
+)
+
 
 def _packaged_harness_command(name: str) -> tuple[str, tuple[str, ...]] | None:
     """Find a bundled adapter even when its virtualenv is not on PATH."""
@@ -141,6 +164,70 @@ def _packaged_harness_command(name: str) -> tuple[str, tuple[str, ...]] | None:
         if sibling.is_file() and os.access(sibling, os.X_OK):
             return str(sibling.absolute()), ()
     return None
+
+
+def _provider_setup_state(name: str, command) -> str:
+    """Read only the provider CLI's public authentication status."""
+    if command is None:
+        return "missing"
+    setup = WINDOWS_PROVIDER_SETUP.get(name)
+    if sys.platform != "win32" or setup is None:
+        return "ready"
+    try:
+        proc = subprocess.run(
+            command_argv(command, *setup["status"]),
+            capture_output=True,
+            text=True,
+            shell=False,
+            timeout=8,
+            check=False,
+            env={**os.environ, "NO_COLOR": "1"},
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return "failed"
+    if proc.returncode == 0:
+        return "ready"
+    if name in {"codex", "claude"} and proc.returncode == 1:
+        return "sign_in_required"
+    detail = f"{proc.stderr}\n{proc.stdout}".lower()
+    if any(word in detail for word in ("login", "log in", "sign in", "auth", "api key")):
+        return "sign_in_required"
+    return "failed"
+
+
+def _launch_provider_setup(name: str, action: str, command=None) -> None:
+    """Open an allowlisted provider-owned install or sign-in flow visibly."""
+    setup = WINDOWS_PROVIDER_SETUP.get(name)
+    if setup is None or action not in {"install", "sign_in"}:
+        raise ServeError("choose an available provider setup action")
+    if action == "install":
+        if sys.platform != "win32":
+            raise ServeError("native provider installation is available from Windows")
+        powershell = shutil.which("powershell.exe") or shutil.which("powershell")
+        if powershell is None:
+            raise ServeError("Windows PowerShell is required for provider installation")
+        argv = [
+            powershell,
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            setup["install"],
+        ]
+    else:
+        if command is None:
+            raise ServeError("install the provider CLI, then check again")
+        argv = command_argv(command, *setup["sign_in"])
+    try:
+        subprocess.Popen(
+            argv,
+            shell=False,
+            cwd=Path.home(),
+            creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
+        )
+    except OSError as exc:
+        raise ServeError(f"could not open the provider-owned {action.replace('_', ' ')} flow") from exc
 
 
 class ServeError(Exception):
@@ -273,9 +360,33 @@ def workspace_payload(store: Store) -> dict:
         ),
         wsl_names={"codex", "claude", "grok"},
     )
+    if sys.platform == "win32":
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            provider_states = dict(
+                zip(
+                    (item["name"] for item in KNOWN_HARNESS_ADAPTERS),
+                    executor.map(
+                        lambda item: _provider_setup_state(
+                            item["name"],
+                            provider_commands[item["provider_executable"]],
+                        ),
+                        KNOWN_HARNESS_ADAPTERS,
+                    ),
+                    strict=True,
+                )
+            )
+    else:
+        provider_states = {
+            item["name"]: _provider_setup_state(
+                item["name"], provider_commands[item["provider_executable"]]
+            )
+            for item in KNOWN_HARNESS_ADAPTERS
+        }
     available_harnesses = []
     for item in KNOWN_HARNESS_ADAPTERS:
         provider_command = provider_commands[item["provider_executable"]]
+        provider_state = provider_states[item["name"]]
+        windows_setup = WINDOWS_PROVIDER_SETUP.get(item["name"])
         available_harnesses.append(
             {
                 "name": item["name"],
@@ -284,6 +395,11 @@ def workspace_payload(store: Store) -> dict:
                 is not None,
                 "provider_available": provider_command is not None,
                 "provider_location": command_location(provider_command),
+                "provider_state": provider_state,
+                "can_install": bool(
+                    sys.platform == "win32" and windows_setup and provider_command is None
+                ),
+                "can_sign_in": bool(windows_setup and provider_command is not None),
                 "registered": item["name"] in registered,
                 "selected": bool(registered.get(item["name"], {}).get("selected")),
                 "model": registered.get(item["name"], {}).get("model"),
@@ -355,6 +471,7 @@ def workspace_payload(store: Store) -> dict:
     )
     attempts = _attempt_by_request(store) if store.exists() else {}
     return {
+        "platform": "windows" if sys.platform == "win32" else sys.platform,
         "active_harness": default,
         "harnesses": harnesses,
         "available_harnesses": available_harnesses,
@@ -582,6 +699,11 @@ def thread_payload(
 
     entries = []
     visited: set[str] = set()
+    evidence_by_stand: dict[tuple[str, str], list[dict[str, str]]] = {}
+    for raw in store.iter_evidence(session_id):
+        evidence_by_stand.setdefault(
+            (raw["graph_id"], raw["node_id"]), []
+        ).append({"kind": raw["kind"]})
 
     def visit(graph, depth: int) -> None:
         if graph.id in visited:
@@ -626,6 +748,10 @@ def thread_payload(
                 "graph_id": graph.id,
                 "parent_graph_id": graph.parent_graph_id,
                 "node_id": spawn.id if spawn else None,
+                "node": _node_brief(spawn) if spawn else None,
+                "evidence": evidence_by_stand.get((graph.id, spawn.id), [])
+                if spawn
+                else [],
                 "created_at": graph.created_at,
                 "depth": depth,
                 "kind": kind,
@@ -924,6 +1050,21 @@ class InhabitHandler(BaseHTTPRequestHandler):
             raise ServeError("JSON object required")
         return data
 
+    def _require_local_json_request(self) -> None:
+        content_type = (self.headers.get("Content-Type") or "").split(";", 1)[0]
+        if content_type.strip().lower() != "application/json":
+            raise ServeError("provider setup requires a local JSON request")
+        origin = (self.headers.get("Origin") or "").rstrip("/")
+        host = self.headers.get("Host") or ""
+        hostname = urlparse(f"//{host}").hostname
+        if hostname not in {"127.0.0.1", "localhost", "::1"}:
+            raise ServeError("provider setup is available only from this Atlas window")
+        if origin and origin != f"http://{host}":
+            raise ServeError("provider setup is available only from this Atlas window")
+        fetch_site = (self.headers.get("Sec-Fetch-Site") or "").lower()
+        if fetch_site and fetch_site not in {"same-origin", "none"}:
+            raise ServeError("provider setup is available only from this Atlas window")
+
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         path = parsed.path
@@ -979,6 +1120,9 @@ class InhabitHandler(BaseHTTPRequestHandler):
                 return
             if path == "/api/onboarding/harness":
                 self._onboarding_harness()
+                return
+            if path == "/api/onboarding/provider":
+                self._onboarding_provider()
                 return
             if path == "/api/workspace/harness/model":
                 self._workspace_harness_model()
@@ -1437,6 +1581,24 @@ class InhabitHandler(BaseHTTPRequestHandler):
                 cli_version=cli_version if isinstance(cli_version, str) else None,
             )
         self._json(200, {"ok": True, "workspace": workspace_payload(self.store)})
+
+    def _onboarding_provider(self) -> None:
+        self._require_local_json_request()
+        body = self._read_json()
+        name = str(body.get("harness") or "").strip()
+        action = str(body.get("action") or "").strip()
+        known = next(
+            (item for item in KNOWN_HARNESS_ADAPTERS if item["name"] == name),
+            None,
+        )
+        if known is None or name not in WINDOWS_PROVIDER_SETUP:
+            raise ServeError("choose Codex, Claude, or Grok provider setup")
+        command = discover_provider_commands(
+            [(known["provider_executable"], os.environ.get(known["provider_override"]))],
+            wsl_names={"codex", "claude", "grok"},
+        )[known["provider_executable"]]
+        _launch_provider_setup(name, action, command)
+        self._json(200, {"ok": True, "action": action, "harness": name})
 
     def _workspace_harness_model(self) -> None:
         body = self._read_json()

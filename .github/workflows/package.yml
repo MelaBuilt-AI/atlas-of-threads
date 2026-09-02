@@ -69,6 +69,7 @@ jobs:
         run: |
           python -m pip install -e ".[dev,packaging]"
           pytest -q tests/test_launcher.py tests/test_store.py
+          pytest -q tests/test_serve.py -k "windows_provider or onboarding_opens"
           python -m PyInstaller --clean --noconfirm packaging/atlas.spec
       - name: Smoke test packaged application
         shell: pwsh

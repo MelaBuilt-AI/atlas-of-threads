@@ -427,6 +427,20 @@ response, and lets any listed generation re-enter at its first chamber. It does
 not replace local doors or turn every thought-node into a minimap entry. The
 read-only endpoint is `GET /api/thread/SESSION_ID`.
 
+Press `a` for the separate **Atlas Map**. It projects those same server-authored
+generations onto a stable chronological top-down grid with their existing relic
+forms, durable parent connections, and a luminous marker at the inhabited
+generation. Small Threadwalks fit initially; larger ones retain readable relics
+and support drag-to-pan plus wheel zoom. Clicking a relic traverses to its entry
+chamber. Closing the map restores the prior chamber, selection, and camera;
+Thread Compass remains the textual lineage and comparison surface.
+
+On Windows onboarding can open the official native Codex, Claude Code, or Grok
+CLI installer and that CLI's visible sign-in flow. Atlas does not receive or
+store provider credentials, bundle provider executables, or decide whether the
+provider account uses subscription access or API billing. WSL remains an
+optional fallback.
+
 After two or more completions share the exact session, source graph, source
 node, and prompt, Thread Compass groups them as **Parallel continuations**. The
 comparison keeps every attributed graph separate, reports completed/failed/
@@ -469,8 +483,9 @@ selectable spent launcher with scope, integrity, launch time, and output path.
 It uploads or publishes nothing, includes no hidden reasoning, and is not a
 lossless backup or import bundle. See `docs/KNOWLEDGE_CAPSULES.md`.
 
-The chamber edge stays intentionally quiet: its one top line opens the
-**Legend and controls** drawer with `l`. The drawer owns the sound controls,
+The chamber edge stays intentionally quiet: restrained top-line instruments
+open **Thread Compass**, **Atlas Map**, and the **Legend and controls** drawer.
+The drawer owns the sound controls,
 contextual cut/human-no editor, complete key list, and the visual ring, beam, and
 ghost-relic legend. Terminal continuation actions remain a spatial event in the
 main chamber. The bottom plate remains descriptive rather than repeating controls.
@@ -498,8 +513,9 @@ through its packaged bridge; Atlas accepts no credentials or arbitrary
 executable path. The inhabitant writes an inquiry and selects **Start a
 Threadwalk**. That creates the private store when needed, starts the one local
 collaborator worker, queues the opening inquiry, and enters its first chamber.
-Provider installation and sign-in remain entirely outside Atlas. The same setup
-surface remains available from Workspace.
+On Windows, Atlas can open only the three documented native installer/sign-in
+commands; the user completes those provider-owned flows outside Atlas and then
+asks it to check again. The same setup surface remains available from Workspace.
 
 **Start a Threadwalk** expands a clean opening-inquiry composer. Submission
 creates a new session with one human-authored uncertainty as its origin, queues

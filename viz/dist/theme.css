@@ -81,11 +81,22 @@ html, body {
   top: 1.1rem;
   left: 1.25rem;
   right: 1.25rem;
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
   pointer-events: none;
 }
 
-#legend-trigger {
+.topbar-instruments {
+  display: flex;
+  gap: 0.9rem;
+  pointer-events: auto;
+}
+
+#legend-trigger,
+#thread-trigger,
+#atlas-map-trigger {
   pointer-events: auto;
   border: 0;
   background: transparent;
@@ -98,9 +109,116 @@ html, body {
 }
 
 #legend-trigger:hover,
-#legend-trigger:focus-visible {
+#legend-trigger:focus-visible,
+#thread-trigger:hover,
+#thread-trigger:focus-visible,
+#atlas-map-trigger:hover,
+#atlas-map-trigger:focus-visible,
+#atlas-map-trigger[aria-pressed="true"] {
   color: var(--phosphor);
   outline: none;
+}
+
+#atlas-map-hud {
+  position: absolute;
+  top: 4rem;
+  left: 1.25rem;
+  right: 1.25rem;
+  z-index: 8;
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  pointer-events: none;
+  text-shadow: 0 1px 0 #000;
+}
+
+#atlas-map-hud[hidden] { display: none; }
+#atlas-map-hud .kind {
+  color: var(--phosphor);
+  font: 0.65rem ui-monospace, Menlo, monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+#atlas-map-hud h1 {
+  margin: 0.25rem 0;
+  font: 400 clamp(1.5rem, 3vw, 2.2rem) "Iowan Old Style", Palatino, serif;
+}
+#atlas-map-hud p,
+#atlas-map-hud small {
+  display: block;
+  color: var(--mute);
+  font: 0.66rem/1.5 ui-monospace, Menlo, monospace;
+}
+#atlas-map-close {
+  pointer-events: auto;
+  border: 1px solid rgba(176, 141, 87, 0.45);
+  background: rgba(3, 5, 12, 0.76);
+  color: var(--bronze-hot);
+  padding: 0.48rem 0.62rem;
+  font: 0.64rem ui-monospace, Menlo, monospace;
+  cursor: pointer;
+}
+#atlas-map-close:hover,
+#atlas-map-close:focus-visible {
+  border-color: var(--phosphor);
+  color: var(--phosphor);
+  outline: none;
+}
+#atlas-map-keyboard {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+#atlas-map-keyboard:focus-within {
+  left: 0;
+  top: 6.8rem;
+  width: min(26rem, calc(100vw - 2.5rem));
+  height: auto;
+  max-height: calc(100vh - 9rem);
+  margin: 0;
+  padding: 0.7rem;
+  overflow: auto;
+  clip: auto;
+  white-space: normal;
+  pointer-events: auto;
+  background: rgba(3, 5, 12, 0.94);
+  border: 1px solid rgba(200, 242, 106, 0.55);
+}
+#atlas-map-keyboard > span {
+  display: block;
+  margin-bottom: 0.45rem;
+  color: var(--phosphor);
+  font: 0.62rem ui-monospace, Menlo, monospace;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+#atlas-map-entry-buttons { display: grid; gap: 0.3rem; }
+#atlas-map-entry-buttons button {
+  border: 1px solid rgba(176, 141, 87, 0.35);
+  background: rgba(18, 16, 14, 0.72);
+  color: var(--ink);
+  padding: 0.45rem;
+  text-align: left;
+  font: 0.62rem/1.35 ui-monospace, Menlo, monospace;
+  cursor: pointer;
+}
+#atlas-map-entry-buttons button:focus-visible {
+  border-color: var(--phosphor);
+  outline: none;
+}
+body[data-atlas-map="true"] #plate,
+body[data-atlas-map="true"] #threshold,
+body[data-atlas-map="true"] #field-note-eligible,
+body[data-atlas-map="true"] #knowledge-capsule-eligible,
+body[data-atlas-map="true"] #knowledge-capsule-stored,
+body[data-atlas-map="true"] #knowledge-capsule-ready {
+  display: none;
 }
 
 #sound-controls {
@@ -441,7 +559,6 @@ html, body {
   color: var(--ink);
   padding: 0.82rem;
   text-align: left;
-  cursor: pointer;
 }
 
 #onboarding-harnesses {
@@ -465,7 +582,28 @@ html, body {
   border-color: var(--phosphor);
   background: rgba(42, 54, 38, 0.42);
 }
-.onboarding-collaborator:disabled { cursor: default; opacity: 0.55; }
+.onboarding-provider-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.38rem;
+  margin-top: 0.75rem;
+}
+.onboarding-provider-actions button {
+  border: 1px solid rgba(176, 141, 87, 0.4);
+  background: rgba(3, 5, 12, 0.64);
+  color: var(--mute);
+  padding: 0.38rem 0.46rem;
+  font: 0.58rem ui-monospace, Menlo, monospace;
+  cursor: pointer;
+}
+.onboarding-provider-actions button.primary { color: var(--bronze-hot); }
+.onboarding-provider-actions button:disabled { cursor: default; opacity: 0.45; }
+.onboarding-provider-actions small {
+  color: var(--phosphor);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
 #onboarding-start:disabled { cursor: default; opacity: 0.42; }
 
 #onboarding-inquiry-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.55rem; }
@@ -480,10 +618,10 @@ html, body {
   outline: none;
 }
 #onboarding-inquiry:focus { border-color: var(--phosphor); }
-#onboarding-start { width: auto; min-width: 12rem; color: var(--bronze-hot); font: 0.68rem ui-monospace, Menlo, monospace; text-align: center; }
+#onboarding-start { width: auto; min-width: 12rem; color: var(--bronze-hot); font: 0.68rem ui-monospace, Menlo, monospace; text-align: center; cursor: pointer; }
 
-.onboarding-collaborator:hover:not(:disabled),
-.onboarding-collaborator:focus-visible,
+.onboarding-provider-actions button:hover:not(:disabled),
+.onboarding-provider-actions button:focus-visible,
 #onboarding-close:hover,
 #onboarding-close:focus-visible,
 #onboarding-start:hover:not(:disabled),
@@ -1909,6 +2047,15 @@ html, body {
 }
 
 @media (max-width: 38rem) {
+  #topbar { align-items: start; }
+  .topbar-instruments { display: grid; gap: 0.3rem; text-align: right; }
+  #atlas-map-hud {
+    top: 5.6rem;
+    left: 0.75rem;
+    right: 0.75rem;
+    display: block;
+  }
+  #atlas-map-close { margin-top: 0.7rem; }
   #field-note-eligible {
     top: 4.7rem;
     width: min(18rem, calc(100vw - 2rem));

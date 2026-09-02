@@ -28,9 +28,17 @@ provider-owned configuration intact.
 
 The installer, application executable, Start menu entry, and optional desktop
 shortcut use the Thread Compass `13-app-icon` identity. Onboarding detects
-supported provider CLIs installed natively on Windows. It also checks the
-default WSL distribution for Codex, Claude Code, and Grok Build; set
-`TA_WSL_DISTRO` before starting Atlas to select a different distribution.
+supported provider CLIs installed natively on Windows and distinguishes missing,
+provider sign-in required, ready, and failed setup checks. For Codex, Claude
+Code, and Grok Build it can open the provider's official native PowerShell
+installer or visible account sign-in command; the user completes every flow in
+that provider-owned terminal/browser and then chooses **Check again**. Atlas
+never receives, proxies, logs, or stores those credentials and does not bundle
+the provider executables. The provider alone decides account eligibility,
+subscription access, and any API billing; Atlas neither selects nor changes that
+billing route. It also checks the default WSL distribution as a
+fallback; set `TA_WSL_DISTRO` before starting Atlas to select a different
+distribution.
 
 A vendor desktop app by itself does not qualify as a collaborator in this
 release. Atlas requires the provider's supported non-interactive CLI contract,

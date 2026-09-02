@@ -11,7 +11,24 @@
   <canvas id="c" tabindex="-1"></canvas>
   <div id="topbar">
     <button id="legend-trigger" type="button">press L for Legend and controls</button>
+    <div class="topbar-instruments">
+      <button id="thread-trigger" type="button">Thread Compass · T</button>
+      <button id="atlas-map-trigger" type="button" aria-pressed="false">Atlas Map · A</button>
+    </div>
   </div>
+  <section id="atlas-map-hud" hidden aria-label="Atlas Map">
+    <div>
+      <div class="kind">whole Threadwalk · stable spatial projection</div>
+      <h1 id="atlas-map-title">Atlas Map</h1>
+      <p id="atlas-map-status" aria-live="polite">Reading the current Threadwalk…</p>
+      <small>click a relic to traverse · drag to pan · wheel to zoom</small>
+    </div>
+    <button id="atlas-map-close" type="button">return to chamber · A / esc</button>
+    <nav id="atlas-map-keyboard" aria-label="Keyboard Atlas Map">
+      <span>Keyboard Atlas Map</span>
+      <div id="atlas-map-entry-buttons"></div>
+    </nav>
+  </section>
   <div id="plate">
     <div class="kind" id="kind"></div>
     <h1 id="text"></h1>
@@ -87,7 +104,7 @@
 
       <section class="onboarding-step">
         <div class="onboarding-step-label">01 · choose a collaborator</div>
-        <p>Select an agent already installed and configured on this machine. Atlas stores no provider credentials.</p>
+        <p>Use a supported CLI already configured on this machine. On Windows, Atlas can open the official native installer and provider-owned sign-in for Codex, Claude Code, or Grok; WSL remains an optional fallback. Atlas never receives credentials or changes subscription/API billing.</p>
         <div id="onboarding-harnesses"></div>
       </section>
 
@@ -182,6 +199,7 @@
       <div class="menu-section-label">controls</div>
       <dl class="control-list">
         <div><dt>T</dt><dd>open the Thread Compass</dd></div>
+        <div><dt>A</dt><dd>toggle the top-down Atlas Map</dd></div>
         <div><dt>M</dt><dd>open Workspace controls</dd></div>
         <div><dt>P</dt><dd>request parallel continuations at a path ending</dd></div>
         <div><dt>W</dt><dd>write a Field Note when the chamber is eligible</dd></div>

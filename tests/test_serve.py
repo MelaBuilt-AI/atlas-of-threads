@@ -9,6 +9,7 @@ from urllib.request import Request, urlopen
 
 import pytest
 
+from thought_archaeology.adapters.provider_command import WSLCommand
 from thought_archaeology.continuation import (
     continuation_attempt,
     continuation_completion,
@@ -24,6 +25,8 @@ from thought_archaeology.serve import (
     InhabitHandler,
     ServeError,
     _continuation_source,
+    _launch_provider_setup,
+    _provider_setup_state,
     bootstrap_payload,
     make_server,
     thread_payload,
@@ -138,6 +141,9 @@ def test_thread_compass_is_server_authored_generation_lineage(
     assert code == 200
     assert ctype == "application/json"
     lineage = json.loads(body)
+    assert lineage["entries"][0]["node"]["id"]
+    assert lineage["entries"][0]["node"]["kind"]
+    assert lineage["entries"][0]["evidence"] == []
     assert lineage == thread_payload(store, session["id"])
     assert lineage["head_graph_id"] == child_id
     assert lineage["latest_ai_graph_id"] is None
@@ -202,6 +208,11 @@ def test_thread_compass_and_legend_controls_are_chamber_overlays():
 
     assert 'id="thread-compass"' in html
     assert "Thread Compass" in html
+    assert 'id="atlas-map-trigger"' in html
+    assert 'id="atlas-map-hud"' in html
+    assert 'id="atlas-map-keyboard"' in html
+    assert 'aria-live="polite"' in html
+    assert "Atlas Map" in html
     assert "backdrop-filter: blur(10px)" in css
     assert ".thread-panel" in css
     assert ".thread-entry.current" in css
@@ -236,6 +247,7 @@ def test_thread_compass_and_legend_controls_are_chamber_overlays():
     assert 'refresh.textContent = "↻ Refresh"' in js
     assert 'post("/api/workspace/harness"' in js
     assert 'post("/api/onboarding/harness"' in js
+    assert 'post("/api/onboarding/provider"' in js
     assert 'post("/api/workspace/harness/model"' in js
     assert 'post("/api/workspace/inquiry"' in js
     assert 'post("/api/parallel"' in js
@@ -253,10 +265,23 @@ def test_thread_compass_and_legend_controls_are_chamber_overlays():
     assert "connectOnboardingHarness" in js
     assert "selectOnboardingHarness" in js
     assert "refreshOnboarding" in js
+    assert "launchOnboardingProvider" in js
+    assert "selectedProvider.provider_state" in js
+    assert "Install on Windows" in js
     assert "Connect and select" in js
     assert "#onboarding-menu" in css
     assert ".onboarding-collaborator" in css
     assert 'e.key === "m"' in js
+    assert "openAtlasMap" in js
+    assert "renderAtlasMap" in js
+    assert "atlasMapConnection" in js
+    assert 'e.key === "a"' in js
+    assert "raycaster.intersectObjects(atlasMapTargets, true)" in js
+    assert "atlasMapHeight = Math.max(12, Math.min(54" in js
+    assert "atlasMapRequestToken" in js
+    assert "disposeAtlasObject" in js
+    assert "atlasMapNavigate" in js
+    assert 'body[data-atlas-map="true"]' in css
     assert "function textEntryOwnsKey(target)" in js
     assert '"/api/field-notes"' in js
     assert '`/api/field-notes/${existingNote.id}/revisions`' in js
@@ -472,10 +497,129 @@ def test_onboarding_connects_only_a_known_packaged_harness(
     assert codex["selected"] is True
     assert codex["model"] == "test-model"
     assert "provider_available" in codex
+    assert "provider_state" in codex
 
     handler._read_json = lambda: {"harness": "arbitrary-command"}
     with pytest.raises(ServeError, match="packaged collaborators"):
         handler._onboarding_harness()
+
+
+def test_windows_provider_setup_states_and_visible_install(monkeypatch):
+    import subprocess
+
+    monkeypatch.setattr("thought_archaeology.serve.sys.platform", "win32")
+    statuses = []
+
+    def signed_out(argv, **kwargs):
+        statuses.append((argv, kwargs))
+        return subprocess.CompletedProcess([], 1, "", "")
+
+    monkeypatch.setattr(
+        "thought_archaeology.serve.subprocess.run",
+        signed_out,
+    )
+    assert _provider_setup_state("codex", "C:/codex.exe") == "sign_in_required"
+    assert statuses[-1][0] == ["C:/codex.exe", "login", "status"]
+    assert statuses[-1][1]["shell"] is False
+
+    monkeypatch.setattr(
+        "thought_archaeology.serve.subprocess.run",
+        lambda *_args, **_kwargs: subprocess.CompletedProcess([], 0, "ready", ""),
+    )
+    assert _provider_setup_state("claude", "C:/claude.exe") == "ready"
+
+    launches = []
+    monkeypatch.setattr(
+        "thought_archaeology.serve.shutil.which",
+        lambda name: "C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
+        if name == "powershell.exe"
+        else None,
+    )
+    monkeypatch.setattr(
+        "thought_archaeology.serve.subprocess.Popen",
+        lambda argv, **kwargs: launches.append((argv, kwargs)),
+    )
+    _launch_provider_setup("grok", "install")
+    argv, options = launches[-1]
+    assert argv[-1] == "irm https://x.ai/cli/install.ps1 | iex"
+    assert options["shell"] is False
+
+    _launch_provider_setup(
+        "claude",
+        "sign_in",
+        WSLCommand("C:/Windows/System32/wsl.exe", "/usr/bin/claude", "Ubuntu"),
+    )
+    argv, options = launches[-1]
+    assert argv == [
+        "C:/Windows/System32/wsl.exe",
+        "--distribution",
+        "Ubuntu",
+        "--exec",
+        "/usr/bin/claude",
+        "auth",
+        "login",
+    ]
+    assert options["shell"] is False
+
+
+def test_onboarding_opens_only_allowlisted_provider_actions(monkeypatch, tmp_path: Path):
+    store = Store(tmp_path / "data")
+    launches = []
+    monkeypatch.setattr(
+        "thought_archaeology.serve.discover_provider_commands",
+        lambda *_args, **_kwargs: {"codex": "C:/codex.exe"},
+    )
+    monkeypatch.setattr(
+        "thought_archaeology.serve._launch_provider_setup",
+        lambda name, action, command: launches.append((name, action, command)),
+    )
+    replies = []
+    handler = object.__new__(InhabitHandler)
+    handler.store = store
+    handler.headers = {
+        "Content-Type": "application/json",
+        "Host": "127.0.0.1:7462",
+        "Origin": "http://127.0.0.1:7462",
+        "Sec-Fetch-Site": "same-origin",
+    }
+    handler._read_json = lambda: {"harness": "codex", "action": "sign_in"}
+    handler._json = lambda code, body: replies.append((code, body))
+    handler._onboarding_provider()
+    assert launches == [("codex", "sign_in", "C:/codex.exe")]
+    assert replies[-1] == (
+        200,
+        {"ok": True, "action": "sign_in", "harness": "codex"},
+    )
+
+    handler._read_json = lambda: {"harness": "prime-agent", "action": "install"}
+    with pytest.raises(ServeError, match="Codex, Claude, or Grok"):
+        handler._onboarding_provider()
+
+    handler.headers = {
+        "Content-Type": "text/plain",
+        "Host": "127.0.0.1:7462",
+        "Origin": "https://malicious.example",
+        "Sec-Fetch-Site": "cross-site",
+    }
+    handler._read_json = lambda: {"harness": "codex", "action": "sign_in"}
+    with pytest.raises(ServeError, match="local JSON request"):
+        handler._onboarding_provider()
+    assert launches == [("codex", "sign_in", "C:/codex.exe")]
+
+    handler.headers["Content-Type"] = "application/json"
+    with pytest.raises(ServeError, match="this Atlas window"):
+        handler._onboarding_provider()
+    assert launches == [("codex", "sign_in", "C:/codex.exe")]
+
+    handler.headers.update(
+        {
+            "Host": "malicious.example",
+            "Origin": "http://malicious.example",
+            "Sec-Fetch-Site": "same-origin",
+        }
+    )
+    with pytest.raises(ServeError, match="this Atlas window"):
+        handler._onboarding_provider()
 
 
 def test_onboarding_rolls_back_a_harness_that_fails_its_health_check(
