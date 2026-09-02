@@ -48,18 +48,20 @@ Atlas is packaged as a self-contained local application. Provider agents,
 authentication, subscriptions, and model selection remain external and
 provider-owned.
 
-The release-gated Linux command is:
+Install Atlas on Linux with one command:
 
 ```bash
 curl -fsSL https://atlasofthreads.com/install.sh | sh
 ```
 
-It installs and starts Atlas, then prints the clickable local URL. Windows uses
-one per-user `AtlasOfThreadsSetup.exe`; completing the installer starts Atlas
-and opens the browser automatically. Neither path requires Git, Python, a
-virtual environment, or pip. Private acceptance artifacts are built by the
-`package` workflow; the command and installer are not publicly hosted until the
-publication gates close. See [`docs/INSTALLERS.md`](docs/INSTALLERS.md).
+It installs and starts Atlas, then prints the clickable local URL. On Windows,
+download the [per-user Atlas of Threads installer][windows-installer]; completing
+the installer starts Atlas and opens the browser automatically. Neither path
+requires Git, Python, a virtual environment, or pip. The packages are currently
+unsigned, so the operating system may show an unrecognized-publisher warning.
+See [`docs/INSTALLERS.md`](docs/INSTALLERS.md).
+
+[windows-installer]: https://downloads.atlasofthreads.com/releases/latest/AtlasOfThreadsSetup.exe
 
 ## Source/development install
 

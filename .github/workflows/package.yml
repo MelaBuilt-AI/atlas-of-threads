@@ -2,6 +2,17 @@ name: package
 
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the completed packages to the public download bucket
+        required: true
+        type: boolean
+        default: false
+      version:
+        description: Release version; must match pyproject.toml with a v prefix
+        required: true
+        type: string
+        default: v0.1.0
   push:
     branches: [master]
     paths:
@@ -82,8 +93,82 @@ jobs:
         run: |
           choco install innosetup --no-progress -y
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" packaging\windows\atlas-of-threads.iss
+          $installer = "dist\windows-installer\AtlasOfThreadsSetup.exe"
+          $checksum = (Get-FileHash $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$checksum  AtlasOfThreadsSetup.exe" | Set-Content dist\windows-installer\AtlasOfThreadsSetup.exe.sha256 -Encoding ascii -NoNewline
       - uses: actions/upload-artifact@v6
         with:
           name: atlas-of-threads-windows-x86_64
-          path: dist/windows-installer/AtlasOfThreadsSetup.exe
+          path: |
+            dist/windows-installer/AtlasOfThreadsSetup.exe
+            dist/windows-installer/AtlasOfThreadsSetup.exe.sha256
           if-no-files-found: error
+
+  publish:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    needs: [linux, windows]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      R2_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      R2_BUCKET: atlas-of-threads-downloads
+      RELEASE_VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v7
+        with:
+          name: atlas-of-threads-linux-x86_64
+          path: packages/linux
+      - uses: actions/download-artifact@v7
+        with:
+          name: atlas-of-threads-windows-x86_64
+          path: packages/windows
+      - name: Validate and stage release
+        run: |
+          printf '%s' "$RELEASE_VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$'
+          package_version="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+          test "${RELEASE_VERSION#v}" = "$package_version"
+
+          linux_binary="$(find packages/linux -type f -name atlas-of-threads-linux-x86_64 -print -quit)"
+          linux_checksum="$(find packages/linux -type f -name atlas-of-threads-linux-x86_64.sha256 -print -quit)"
+          windows_installer="$(find packages/windows -type f -name AtlasOfThreadsSetup.exe -print -quit)"
+          windows_checksum="$(find packages/windows -type f -name AtlasOfThreadsSetup.exe.sha256 -print -quit)"
+          test -n "$linux_binary" && test -n "$linux_checksum"
+          test -n "$windows_installer" && test -n "$windows_checksum"
+
+          mkdir release
+          cp "$linux_binary" "$linux_checksum" "$windows_installer" "$windows_checksum" release/
+          (cd release && sha256sum -c atlas-of-threads-linux-x86_64.sha256)
+          (cd release && sha256sum -c AtlasOfThreadsSetup.exe.sha256)
+          (cd release && sha256sum atlas-of-threads-linux-x86_64 AtlasOfThreadsSetup.exe > SHA256SUMS)
+          jq -n \
+            --arg version "$RELEASE_VERSION" \
+            --arg commit "$GITHUB_SHA" \
+            --arg published_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{version: $version, commit: $commit, published_at: $published_at}' \
+            > release/release.json
+      - name: Publish version and latest aliases
+        run: |
+          endpoint="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
+          python -m pip install --disable-pip-version-check awscli
+          aws s3 cp release/ "s3://$R2_BUCKET/releases/$RELEASE_VERSION/" \
+            --recursive --endpoint-url "$endpoint" --no-progress \
+            --cache-control 'public, max-age=31536000, immutable'
+          aws s3 cp release/ "s3://$R2_BUCKET/releases/latest/" \
+            --recursive --endpoint-url "$endpoint" --no-progress \
+            --cache-control 'public, max-age=300'
+          aws s3 cp packaging/linux/install.sh "s3://$R2_BUCKET/install.sh" \
+            --endpoint-url "$endpoint" --no-progress \
+            --content-type 'text/plain; charset=utf-8' --cache-control 'no-cache'
+      - name: Verify anonymous downloads
+        run: |
+          curl -fsSL https://downloads.atlasofthreads.com/install.sh \
+            | cmp - packaging/linux/install.sh
+          curl -fsSL https://downloads.atlasofthreads.com/releases/latest/atlas-of-threads-linux-x86_64.sha256 \
+            | grep -F 'atlas-of-threads-linux-x86_64'
+          curl -fsSL https://downloads.atlasofthreads.com/releases/latest/AtlasOfThreadsSetup.exe.sha256 \
+            | grep -F 'AtlasOfThreadsSetup.exe'

@@ -5,7 +5,7 @@ authentication, subscriptions, and model selection remain outside Atlas.
 
 ## Linux
 
-The intended public command is:
+Install with:
 
 ```bash
 curl -fsSL https://atlasofthreads.com/install.sh | sh
@@ -20,17 +20,19 @@ open.
 
 ## Windows
 
-`AtlasOfThreadsSetup.exe` installs per-user without requiring Python, Git, or
-administrator access. The completion action starts Atlas and opens the local
-browser automatically. Uninstalling the application leaves the user's Personal
-Atlas and provider-owned configuration intact.
+[Download `AtlasOfThreadsSetup.exe`](https://downloads.atlasofthreads.com/releases/latest/AtlasOfThreadsSetup.exe).
+It installs per-user without requiring Python, Git, or administrator access.
+The completion action starts Atlas and opens the local browser automatically.
+Uninstalling the application leaves the user's Personal Atlas and
+provider-owned configuration intact.
 
-## Private build
+## Releases
 
-The `package` GitHub Actions workflow produces unsigned Linux and Windows
-artifacts for private clean-machine acceptance. It uploads workflow artifacts
-only; it does not create a release, publish a package, change repository
-visibility, or update the website/domain.
+The `package` GitHub Actions workflow always produces private Linux and Windows
+acceptance artifacts. A manual run can additionally publish a version to the
+public `atlas-of-threads-downloads` Cloudflare R2 bucket when its explicit
+`publish` input is enabled. Ordinary pushes never publish.
 
-Code signing, a hosted Linux install endpoint, and public release assets remain
-publication actions and require separate approval.
+Each release is stored under an immutable versioned path and copied to
+`releases/latest`. SHA-256 files are published beside both platform packages.
+The packages are currently unsigned; code signing remains future release work.

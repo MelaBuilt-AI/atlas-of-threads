@@ -9,7 +9,7 @@ case "$(uname -m)" in
     ;;
 esac
 
-download_base="${ATLAS_DOWNLOAD_BASE_URL:-https://github.com/MelaBuilt-AI/atlas-of-threads/releases/latest/download}"
+download_base="${ATLAS_DOWNLOAD_BASE_URL:-https://downloads.atlasofthreads.com/releases/latest}"
 port="${ATLAS_PORT:-7462}"
 install_root="${XDG_DATA_HOME:-$HOME/.local/share}/atlas-of-threads"
 binary="$install_root/atlas-of-threads"
