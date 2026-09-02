@@ -36,9 +36,13 @@
     <span>Field Note Eligible</span>
     <small>press W to write</small>
   </button>
-  <button id="knowledge-capsule-eligible" type="button" hidden aria-label="Knowledge Capsule Earned. Press K to construct.">
+  <button id="knowledge-capsule-eligible" type="button" hidden aria-label="Knowledge Capsule Earned. Press K to construct here or J to store.">
     <span>Knowledge Capsule Earned</span>
-    <small>press K to construct</small>
+    <small>K · construct here &nbsp; J · store launcher</small>
+  </button>
+  <button id="knowledge-capsule-stored" type="button" hidden aria-label="Stored Knowledge Capsule launcher. Press K to deploy here.">
+    <span>Stored Launcher ×1</span>
+    <small>K · deploy here</small>
   </button>
   <button id="knowledge-capsule-ready" type="button" hidden aria-label="Press Enter to Launch Capsule.">
     <span>Press Enter to Launch Capsule</span>
@@ -181,7 +185,8 @@
         <div><dt>M</dt><dd>open Workspace controls</dd></div>
         <div><dt>P</dt><dd>request parallel continuations at a path ending</dd></div>
         <div><dt>W</dt><dd>write a Field Note when the chamber is eligible</dd></div>
-        <div><dt>K</dt><dd>construct an earned Knowledge Capsule launcher</dd></div>
+        <div><dt>K</dt><dd>construct an earned Capsule or deploy a stored launcher here</dd></div>
+        <div><dt>J</dt><dd>store one earned Capsule launcher for later in this Threadwalk</dd></div>
         <div><dt>L</dt><dd>open or close this legend</dd></div>
         <div><dt>← / →</dt><dd>cycle counterclockwise / clockwise</dd></div>
         <div><dt>Enter / ↑</dt><dd>walk the selected / north path</dd></div>

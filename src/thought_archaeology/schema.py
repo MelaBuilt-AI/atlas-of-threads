@@ -44,6 +44,7 @@ SCHEMA_NAMES = (
     "field-note-revision.schema.json",
     "knowledge-capsule-manifest.schema.json",
     "knowledge-capsule-launch.schema.json",
+    "knowledge-capsule-launcher.schema.json",
 )
 
 DAG_EDGE_KINDS = frozenset({"supports", "depends_on", "shapes", "taste_of"})

@@ -40,6 +40,7 @@ ArtifactKind = Literal[
     "parallel_continuation_batch",
     "field_note",
     "field_note_revision",
+    "knowledge_capsule_launcher",
     "probe",
     "graph_diff",
     "evidence_binding",
@@ -80,7 +81,7 @@ class KnowledgeCapsuleManifest:
     id: str
     created_at: str
     author: Literal["human"]
-    comparison_request_id: str
+    comparison_request_id: str | None
     session_id: str
     session_title: str
     source_graph_id: str
@@ -89,6 +90,9 @@ class KnowledgeCapsuleManifest:
     head_turn_id: str
     field_note_id: str
     field_note_revision_id: str
+    stored_launcher_id: str | None
+    earning_graph_id: str | None
+    earning_node_id: str | None
     rendering_version: str
     privacy_warning: str
     omissions: tuple[str, ...]
@@ -110,6 +114,9 @@ class KnowledgeCapsuleManifest:
             head_turn_id=data["head_turn_id"],
             field_note_id=data["field_note_id"],
             field_note_revision_id=data["field_note_revision_id"],
+            stored_launcher_id=data.get("stored_launcher_id"),
+            earning_graph_id=data.get("earning_graph_id"),
+            earning_node_id=data.get("earning_node_id"),
             rendering_version=data["rendering_version"],
             privacy_warning=data["privacy_warning"],
             omissions=tuple(data["omissions"]),
@@ -119,7 +126,7 @@ class KnowledgeCapsuleManifest:
         )
 
     def to_dict(self) -> dict:
-        return {
+        payload = {
             "schema_version": self.schema_version,
             "id": self.id,
             "created_at": self.created_at,
@@ -137,6 +144,56 @@ class KnowledgeCapsuleManifest:
             "privacy_warning": self.privacy_warning,
             "omissions": list(self.omissions),
             "artifacts": [item.to_dict() for item in self.artifacts],
+        }
+        if self.stored_launcher_id is not None:
+            payload["stored_launcher_id"] = self.stored_launcher_id
+        if self.earning_graph_id is not None:
+            payload["earning_graph_id"] = self.earning_graph_id
+        if self.earning_node_id is not None:
+            payload["earning_node_id"] = self.earning_node_id
+        return payload
+
+
+@dataclass(frozen=True)
+class KnowledgeCapsuleLauncher:
+    schema_version: str
+    id: str
+    stored_at: str
+    author: Literal["human"]
+    session_id: str
+    earning_graph_id: str
+    earning_node_id: str
+    field_note_id: str
+    field_note_revision_id: str
+    comparison_request_id: str | None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> Self:
+        return cls(
+            schema_version=data.get("schema_version", SCHEMA_VERSION),
+            id=data["id"],
+            stored_at=data["stored_at"],
+            author=data["author"],
+            session_id=data["session_id"],
+            earning_graph_id=data["earning_graph_id"],
+            earning_node_id=data["earning_node_id"],
+            field_note_id=data["field_note_id"],
+            field_note_revision_id=data["field_note_revision_id"],
+            comparison_request_id=data.get("comparison_request_id"),
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "schema_version": self.schema_version,
+            "id": self.id,
+            "stored_at": self.stored_at,
+            "author": self.author,
+            "session_id": self.session_id,
+            "earning_graph_id": self.earning_graph_id,
+            "earning_node_id": self.earning_node_id,
+            "field_note_id": self.field_note_id,
+            "field_note_revision_id": self.field_note_revision_id,
+            "comparison_request_id": self.comparison_request_id,
         }
 
 
@@ -319,6 +376,16 @@ def capsule_session_artifacts(
             for revision in versions[1:]
         )
 
+    artifacts.extend(
+        _file_artifact(
+            store,
+            "knowledge_capsule_launcher",
+            store.knowledge_capsule_launchers_dir / f"{launcher.id}.json",
+        )
+        for launcher in store.iter_knowledge_capsule_launchers()
+        if launcher.session_id == session_id
+    )
+
     local_groups = (
         ("probe", store.probes_dir(session_id)),
         ("graph_diff", store.diffs_dir(session_id)),
@@ -346,6 +413,7 @@ def capsule_session_artifacts(
             "parallel_continuation_batch",
             "field_note",
             "field_note_revision",
+            "knowledge_capsule_launcher",
             "probe",
             "graph_diff",
             "evidence_binding",
@@ -358,12 +426,41 @@ def capsule_session_artifacts(
     return tuple(artifacts)
 
 
-def knowledge_capsule_eligibility(
+def active_stored_launcher(store: Store) -> KnowledgeCapsuleLauncher | None:
+    consumed = {
+        manifest.stored_launcher_id
+        for manifest in store.iter_knowledge_capsules()
+        if manifest.stored_launcher_id
+    }
+    return next(
+        (
+            launcher
+            for launcher in store.iter_knowledge_capsule_launchers()
+            if launcher.id not in consumed
+        ),
+        None,
+    )
+
+
+def stored_launcher_read(
+    store: Store, launcher: KnowledgeCapsuleLauncher, *, session_id: str | None = None
+) -> dict:
+    return {
+        **launcher.to_dict(),
+        "state": "stored",
+        "available_here": session_id is None or launcher.session_id == session_id,
+    }
+
+
+def _knowledge_capsule_milestone(
     store: Store, *, graph_id: str, node_id: str
 ) -> dict | None:
-    """Return the one server-authored opportunity at a comparison source."""
     from thought_archaeology.continuation import parallel_group_summaries
-    from thought_archaeology.field_notes import field_note_read, field_notes_for_graphs
+    from thought_archaeology.field_notes import (
+        field_note_comparison_request_id,
+        field_note_read,
+        field_notes_for_graphs,
+    )
 
     graph = store.load_graph(graph_id)
     pending = {
@@ -395,10 +492,13 @@ def knowledge_capsule_eligibility(
         if not session.head_graph_id or not session.head_turn_id:
             continue
         return {
+            "mode": "parallel",
             "comparison_request_id": group["representative_request_id"],
             "session_id": graph.session_id,
             "source_graph_id": graph_id,
             "source_node_id": node_id,
+            "earning_graph_id": graph_id,
+            "earning_node_id": node_id,
             "completed_count": group["completed_count"],
             "field_note_id": note.id,
             "field_note_revision_id": reading["current_revision_id"],
@@ -406,31 +506,158 @@ def knowledge_capsule_eligibility(
             "head_turn_id": session.head_turn_id,
             "prompt": group["prompt"],
         }
+    if not any(
+        completion.graph_id == graph.id
+        for completion in store.iter_continuation_completions()
+    ):
+        return None
+    for note in store.iter_field_notes():
+        if field_note_comparison_request_id(store, note) is not None:
+            continue
+        if {reference.graph_id for reference in note.references} != {graph.id}:
+            continue
+        reading = field_note_read(store, note)
+        if reading["integrity"] != "verified":
+            continue
+        if any(
+            item.field_note_id == note.id
+            for item in store.iter_knowledge_capsules()
+        ):
+            continue
+        session = store.load_session(graph.session_id)
+        if not session.head_graph_id or not session.head_turn_id:
+            continue
+        return {
+            "mode": "single_path",
+            "comparison_request_id": None,
+            "session_id": graph.session_id,
+            "source_graph_id": graph.id,
+            "source_node_id": node_id,
+            "earning_graph_id": graph.id,
+            "earning_node_id": node_id,
+            "completed_count": 1,
+            "field_note_id": note.id,
+            "field_note_revision_id": reading["current_revision_id"],
+            "head_graph_id": session.head_graph_id,
+            "head_turn_id": session.head_turn_id,
+            "prompt": "Completed collaborator path",
+        }
     return None
 
 
+def knowledge_capsule_eligibility(
+    store: Store, *, graph_id: str, node_id: str
+) -> dict | None:
+    """Return the one server-authored opportunity at an earned chamber."""
+    if active_stored_launcher(store) is not None:
+        return None
+    return _knowledge_capsule_milestone(store, graph_id=graph_id, node_id=node_id)
+
+
+def store_knowledge_capsule_launcher(
+    store: Store, *, graph_id: str, node_id: str, field_note_id: str
+) -> KnowledgeCapsuleLauncher:
+    """Bank one earned launcher without freezing the Threadwalk."""
+    from thought_archaeology.store import StoreError
+
+    with store.knowledge_capsules_lock():
+        if active_stored_launcher(store) is not None:
+            raise StoreError("one Knowledge Capsule launcher is already stored")
+        eligibility = _knowledge_capsule_milestone(
+            store, graph_id=graph_id, node_id=node_id
+        )
+        if not eligibility or eligibility["field_note_id"] != field_note_id:
+            raise StoreError("this chamber has not earned a Knowledge Capsule launcher")
+        launcher = KnowledgeCapsuleLauncher(
+            schema_version=SCHEMA_VERSION,
+            id=new_ulid(),
+            stored_at=now_iso(),
+            author="human",
+            session_id=eligibility["session_id"],
+            earning_graph_id=eligibility["earning_graph_id"],
+            earning_node_id=eligibility["earning_node_id"],
+            field_note_id=eligibility["field_note_id"],
+            field_note_revision_id=eligibility["field_note_revision_id"],
+            comparison_request_id=eligibility["comparison_request_id"],
+        )
+        store.write_knowledge_capsule_launcher(launcher)
+        return launcher
+
+
 def construct_knowledge_capsule(
-    store: Store, *, comparison_request_id: str
+    store: Store,
+    *,
+    comparison_request_id: str | None = None,
+    graph_id: str | None = None,
+    node_id: str | None = None,
+    field_note_id: str | None = None,
+    stored_launcher_id: str | None = None,
 ) -> KnowledgeCapsuleManifest:
     """Freeze one complete session milestone without rendering or launching it."""
     from thought_archaeology.continuation import parallel_comparison
     from thought_archaeology.store import StoreError
 
     with store.knowledge_capsules_lock():
-        comparison = parallel_comparison(store, comparison_request_id)
-        eligibility = knowledge_capsule_eligibility(
-            store,
-            graph_id=comparison["source_graph_id"],
-            node_id=comparison["source_node_id"],
-        )
-        if not eligibility or eligibility["comparison_request_id"] != comparison_request_id:
-            raise StoreError("parallel comparison has not earned a Knowledge Capsule")
+        launcher = None
+        if stored_launcher_id:
+            launcher = active_stored_launcher(store)
+            if launcher is None or launcher.id != stored_launcher_id:
+                raise StoreError("stored Knowledge Capsule launcher is not available")
+            if not graph_id or not node_id:
+                raise StoreError("stored launcher deployment requires a chamber")
+            graph = store.load_graph(graph_id)
+            if graph.session_id != launcher.session_id:
+                raise StoreError("stored launcher can only deploy in its earning Threadwalk")
+            if node_id not in {node.id for node in graph.nodes}:
+                raise StoreError("stored launcher deployment node is not in its graph")
+            if any(
+                request.session_id == launcher.session_id
+                for request in store.iter_continuation_requests(pending=True)
+            ):
+                raise StoreError("stored launcher cannot deploy while a continuation is pending")
+            note = store.load_field_note(launcher.field_note_id)
+            from thought_archaeology.field_notes import field_note_read
+
+            reading = field_note_read(store, note)
+            if reading["integrity"] != "verified":
+                raise StoreError("stored launcher Field Note source integrity failed")
+            session = store.load_session(launcher.session_id)
+            if not session.head_graph_id or not session.head_turn_id:
+                raise StoreError("stored launcher Threadwalk has no current head")
+            eligibility = {
+                "comparison_request_id": launcher.comparison_request_id,
+                "session_id": launcher.session_id,
+                "source_graph_id": graph_id,
+                "source_node_id": node_id,
+                "earning_graph_id": launcher.earning_graph_id,
+                "earning_node_id": launcher.earning_node_id,
+                "field_note_id": launcher.field_note_id,
+                "field_note_revision_id": reading["current_revision_id"],
+                "head_graph_id": session.head_graph_id,
+                "head_turn_id": session.head_turn_id,
+            }
+        else:
+            if comparison_request_id and (not graph_id or not node_id):
+                comparison = parallel_comparison(store, comparison_request_id)
+                graph_id = comparison["source_graph_id"]
+                node_id = comparison["source_node_id"]
+            if not graph_id or not node_id:
+                raise StoreError("Knowledge Capsule construction requires a chamber")
+            eligibility = knowledge_capsule_eligibility(
+                store, graph_id=graph_id, node_id=node_id
+            )
+            if (
+                not eligibility
+                or (field_note_id and eligibility["field_note_id"] != field_note_id)
+                or eligibility["comparison_request_id"] != comparison_request_id
+            ):
+                raise StoreError("this chamber has not earned a Knowledge Capsule")
         manifest = KnowledgeCapsuleManifest(
             schema_version=SCHEMA_VERSION,
             id=new_ulid(),
             created_at=now_iso(),
             author="human",
-            comparison_request_id=comparison_request_id,
+            comparison_request_id=eligibility["comparison_request_id"],
             session_id=eligibility["session_id"],
             session_title=store.load_session(eligibility["session_id"]).title,
             source_graph_id=eligibility["source_graph_id"],
@@ -439,6 +666,9 @@ def construct_knowledge_capsule(
             head_turn_id=eligibility["head_turn_id"],
             field_note_id=eligibility["field_note_id"],
             field_note_revision_id=eligibility["field_note_revision_id"],
+            stored_launcher_id=launcher.id if launcher else None,
+            earning_graph_id=eligibility["earning_graph_id"],
+            earning_node_id=eligibility["earning_node_id"],
             rendering_version=RENDERING_VERSION,
             privacy_warning=PRIVACY_WARNING,
             omissions=OMISSIONS,
@@ -546,8 +776,17 @@ def render_knowledge_capsule_markdown(
         f"- Session: `{manifest.session_id}` — {manifest.session_title}",
         f"- Frozen head graph: `{manifest.head_graph_id}`",
         f"- Frozen head turn: `{manifest.head_turn_id}`",
-        f"- Parallel comparison: `{manifest.comparison_request_id}`",
-        f"- Comparison source: `{manifest.source_graph_id}/{manifest.source_node_id}`",
+        (
+            f"- Parallel comparison: `{manifest.comparison_request_id}`"
+            if manifest.comparison_request_id
+            else "- Earning route: `single completed collaborator path`"
+        ),
+        f"- Deployment chamber: `{manifest.source_graph_id}/{manifest.source_node_id}`",
+        (
+            f"- Earning chamber: `{manifest.earning_graph_id}/{manifest.earning_node_id}`"
+            if manifest.earning_graph_id and manifest.earning_node_id
+            else "- Earning chamber: `legacy comparison source`"
+        ),
         f"- Pinned Field Note revision: `{manifest.field_note_id}/{manifest.field_note_revision_id}`",
         f"- Rendering version: `{manifest.rendering_version}`",
         "",
@@ -923,6 +1162,9 @@ def knowledge_capsule_summaries(
                 "head_turn_id": manifest.head_turn_id,
                 "field_note_id": manifest.field_note_id,
                 "field_note_revision_id": manifest.field_note_revision_id,
+                "stored_launcher_id": manifest.stored_launcher_id,
+                "earning_graph_id": manifest.earning_graph_id,
+                "earning_node_id": manifest.earning_node_id,
                 "artifact_count": len(manifest.artifacts),
                 "launched_at": launch.launched_at if launch else None,
             }

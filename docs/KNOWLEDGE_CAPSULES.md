@@ -10,7 +10,7 @@ A Knowledge Capsule carries one completed, human-interpreted inquiry milestone
 out of Thought Archaeology as a private Markdown dossier:
 
 ```text
-ask together → inspect separately → decide what mattered → carry it forward
+follow a path → decide what mattered → carry it forward
 ```
 
 It is a readable projection over immutable local artifacts. It is not a truth
@@ -19,15 +19,35 @@ bundle, publication action, or network message.
 
 ## Eligibility
 
-Python offers one Capsule at the exact source chamber of a Parallel
-Continuations comparison only when:
+Python offers one Capsule after either one completed collaborator path or a
+richer Parallel Continuations comparison when:
 
-- the exact-source/exact-prompt comparison has at least two completed paths;
-- its one stable Field Note exists;
+- at least one collaborator path has completed;
+- its stable human Field Note exists and selects at least one exact thought;
 - the current Field Note revision and every selected source verify;
 - every continuation request in the owning session is completed, failed, or
   canceled; and
-- no Capsule manifest already names that comparison and stable Field Note.
+- no Capsule manifest already names that stable Field Note; and
+- no unspent launcher is already stored anywhere in the Personal Atlas.
+
+Parallel Continuations remains an optional richer earning route. It is never a
+subscription requirement.
+
+## Construct now or store
+
+The earned notice offers two choices:
+
+- `K · Construct here` freezes the Capsule immediately at the current chamber.
+- `J · Store launcher` appends one private, immutable record under
+  `knowledge-capsule-launchers/{launcher_id}.json` without freezing or exporting
+  anything.
+
+Only one unspent launcher may be stored at a time. It persists across reloads,
+belongs only to the Threadwalk where it was earned, and suppresses further
+Capsule earning until used. Within that Threadwalk, `K · Deploy here` constructs
+the Capsule at whichever chamber the inhabitant chooses. Another Threadwalk
+cannot use it. A failed construction leaves it stored and retryable; it becomes
+spent only when a manifest successfully names its launcher ID.
 
 No word, node, time, model, confidence, popularity, agreement, or semantic
 quality score participates. Browser-local unread or entered state is not
@@ -42,13 +62,15 @@ knowledge-capsules/{capsule_id}.json
 ```
 
 The manifest pins the human author, owning session and title, current session head,
-qualifying comparison source, stable Field Note and exact current revision,
+deployment chamber, earning chamber, optional qualifying comparison, stable
+Field Note and exact current revision,
 creation time, rendering version, privacy warning, omissions, and an ordered
 inventory of every included immutable artifact with its exact SHA-256.
 
 The snapshot includes all artifacts already present in the owning session:
 turn records, public graphs, continuation requests and their attempt/completion/
-failure/cancellation receipts, Parallel Continuation batches, Field Notes and
+failure/cancellation receipts, Parallel Continuation batches, Field Notes,
+stored launcher records, and
 revisions touching that session, graph diffs, probes, evidence bindings,
 attributions, neural interventions, and bounded training-provenance records.
 Mutable `session.json`, the store log, canvases, fingerprints, raw sensor
@@ -59,7 +81,7 @@ corruption.
 
 A turn hash covers the exact UTF-8 JSONL record including its newline. Every
 other artifact hash covers the exact stored file bytes. Construction is
-write-once and guarded so the same Field Note/comparison milestone cannot
+write-once and guarded so the same Field Note milestone cannot
 create a second launcher.
 
 ## Launch
@@ -111,6 +133,7 @@ The localhost server exposes:
 
 ```text
 POST /api/knowledge-capsules
+POST /api/knowledge-capsule-launcher/store
 POST /api/knowledge-capsules/CAPSULE/launch
 GET  /api/knowledge-capsules[?session=SESSION]
 GET  /api/knowledge-capsules/CAPSULE
@@ -121,8 +144,11 @@ and read wording. JavaScript does not infer achievement or export scope.
 
 ## Chamber lifecycle
 
-- At the qualifying source chamber, **Knowledge Capsule Earned · Press K to
-  construct** appears and its supplied cue plays once per browser memory.
+- At the qualifying chamber, **Knowledge Capsule Earned** offers `K · Construct
+  here` and `J · Store launcher` and its supplied cue plays once per browser
+  memory.
+- A stored launcher appears throughout its earning Threadwalk as **Stored
+  Launcher ×1 · K · Deploy here**. It is not offered in any other Threadwalk.
 - `K` freezes the manifest. The supplied hologram and construction loop run for
   18 seconds on the first raised rear-right outbound terrace that clears every
   planned chamber object. During construction, the Field Note invitation and
@@ -145,10 +171,9 @@ and read wording. JavaScript does not infer achievement or export scope.
   construction. Reload after the receipt restores the spent launcher without
   replaying the flight.
 
-Thread Compass nests the Capsule beneath its stable Field Note and shows the
-pinned Field Note revision and session head. One canonical launcher exists only
-at the comparison source chamber; referenced Field Note chambers do not receive
-duplicates.
+Thread Compass nests a constructed Capsule beneath its stable Field Note and
+shows the pinned Field Note revision and session head. The manifest separately
+pins the earning and deployment chambers.
 
 ## Explicit deferrals
 

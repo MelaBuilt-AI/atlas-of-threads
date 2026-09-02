@@ -113,6 +113,7 @@
   const elThresholdAskInput = document.getElementById("threshold-ask-input");
   const elFieldNoteEligible = document.getElementById("field-note-eligible");
   const elKnowledgeCapsuleEligible = document.getElementById("knowledge-capsule-eligible");
+  const elKnowledgeCapsuleStored = document.getElementById("knowledge-capsule-stored");
   const elKnowledgeCapsuleReady = document.getElementById("knowledge-capsule-ready");
   const elStartMenu = document.getElementById("start-menu");
   const elStartStatus = document.getElementById("start-status");
@@ -1617,9 +1618,31 @@
           ? await api(`/api/parallel/${note.comparison_request_id}`)
           : null
       );
-      if (!targetComparison) throw new Error("Field Note comparison is unavailable");
-      threadComparison = targetComparison;
-      renderFieldNoteComposer(targetComparison, null, note);
+      let directPath = null;
+      if (!targetComparison && note.references?.length) {
+        const reference = note.references[0];
+        const graph = await api(`/api/graphs/${reference.graph_id}`);
+        directPath = {
+          mode: "single_path",
+          representative_request_id: null,
+          session_id: reference.session_id,
+          standing_reference: {
+            session_id: reference.session_id,
+            graph_id: reference.graph_id,
+            node_id: reference.node_id,
+          },
+          paths: [{
+            graph_id: reference.graph_id,
+            harness_display_name: reference.harness || "Collaborator",
+            model: graph.model?.name || reference.model?.name || "recorded model",
+            selectable_thoughts: graph.nodes || [],
+          }],
+        };
+      }
+      const editorSource = targetComparison || directPath;
+      if (!editorSource) throw new Error("Field Note source is unavailable");
+      threadComparison = editorSource;
+      renderFieldNoteComposer(editorSource, null, note);
     } catch (error) {
       elThreadStatus.textContent = String(error.message || error);
     }
@@ -1739,8 +1762,10 @@
     threadComposer = true;
     threadNote = existingNote;
     elThreadTitle.textContent = existingNote ? "Edit Field Note" : "Write Field Note";
-    elThreadSubtitle.textContent =
-      "Select exact thoughts from at least two paths, then decide what mattered in your own words.";
+    const minimumPaths = comparison.mode === "single_path" ? 1 : 2;
+    elThreadSubtitle.textContent = minimumPaths === 1
+      ? "Select at least one exact thought, then decide what mattered in your own words."
+      : "Select exact thoughts from at least two paths, then decide what mattered in your own words.";
     elThreadClose.textContent = "back to comparison · esc";
     elThreadLatest.hidden = true;
     elThreadStatus.textContent = existingNote
@@ -1848,6 +1873,7 @@
       : "back without writing";
     cancel.addEventListener("click", () => {
       if (existingNote) renderFieldNote(existingNote);
+      else if (comparison.mode === "single_path") closeThreadCompass();
       else renderParallelComparison(comparison);
     });
     const submit = document.createElement("button");
@@ -1878,7 +1904,7 @@
           `${input.dataset.attribution} · ${input.dataset.kind} — ${input.dataset.text}`;
         selectedReview.append(item);
       }
-      submit.disabled = selected.length < 2 || graphs.size < 2 || !textarea.value.trim();
+      submit.disabled = selected.length < 1 || graphs.size < minimumPaths || !textarea.value.trim();
     }
 
     form.addEventListener("change", (event) => {
@@ -1897,7 +1923,7 @@
       event.preventDefault();
       const selected = selectedInputs();
       const kind = form.querySelector('input[name="field-note-kind"]:checked');
-      if (!kind || selected.length < 2 || new Set(selected.map((item) => item.dataset.graphId)).size < 2) return;
+      if (!kind || selected.length < 1 || new Set(selected.map((item) => item.dataset.graphId)).size < minimumPaths) return;
       submit.disabled = true;
       selectionStatus.textContent = existingNote
         ? "appending one immutable human revision…"
@@ -1910,6 +1936,8 @@
           kind: kind.value,
           text: textarea.value,
           comparison_request_id: comparison.representative_request_id,
+          source_graph_id: comparison.mode === "single_path" ? comparison.standing_reference.graph_id : null,
+          source_node_id: comparison.mode === "single_path" ? comparison.standing_reference.node_id : null,
           references: selected.map((input) => ({
             session_id: input.dataset.sessionId,
             graph_id: input.dataset.graphId,
@@ -1952,6 +1980,9 @@
         if (!(comparison.field_notes || []).some((note) => note.id === summary.id)) {
           comparison.field_notes = [...(comparison.field_notes || []), summary];
         }
+        if (result.knowledge_capsule_eligibility) {
+          view.knowledge_capsule_eligibility = result.knowledge_capsule_eligibility;
+        }
         const anchoredHere = (result.note.references || []).some((reference) =>
           reference.session_id === view.session_id &&
           reference.graph_id === view.graph_id &&
@@ -1987,10 +2018,12 @@
     elThreadStatus.textContent = "opening the eligible human inscription…";
     elThreadClose.focus();
     try {
-      const [lineage, comparison] = await Promise.all([
-        api(`/api/thread/${view.session_id}?graph=${view.graph_id}&node=${view.node.id}`),
-        api(`/api/parallel/${eligibility.comparison_request_id}`),
-      ]);
+      const lineage = await api(
+        `/api/thread/${view.session_id}?graph=${view.graph_id}&node=${view.node.id}`
+      );
+      const comparison = eligibility.mode === "single_path"
+        ? { ...eligibility, representative_request_id: null, field_notes: [] }
+        : await api(`/api/parallel/${eligibility.comparison_request_id}`);
       if (elThreadCompass.hidden) return;
       threadLineage = lineage;
       threadComparison = comparison;
@@ -2009,11 +2042,17 @@
       return;
     }
     if (threadComposer && threadComparison) {
-      renderParallelComparison(threadComparison);
+      if (threadComparison.mode === "single_path") {
+        if (threadNote) renderFieldNote(threadNote);
+        else closeThreadCompass();
+      } else {
+        renderParallelComparison(threadComparison);
+      }
       return;
     }
     if (threadNote) {
-      if (threadComparison) renderParallelComparison(threadComparison);
+      if (threadComparison?.mode === "single_path") closeThreadCompass();
+      else if (threadComparison) renderParallelComparison(threadComparison);
       else if (threadLineage) renderThreadCompass(threadLineage);
       return;
     }
@@ -3491,6 +3530,7 @@
     activeCapsule = null;
     elEvidenceDescent.hidden = true;
     elKnowledgeCapsuleEligible.hidden = true;
+    elKnowledgeCapsuleStored.hidden = true;
     elKnowledgeCapsuleReady.hidden = true;
     clearRoot();
     root.add(floor());
@@ -3870,16 +3910,27 @@
       !readyCapsuleTarget()
     );
     elKnowledgeCapsuleEligible.hidden = !visible;
+    renderStoredKnowledgeCapsuleLauncher(payload);
     if (!visible) {
       if (!eligibility) capsuleEligibilityKey = null;
       return;
     }
-    const nextKey = `${eligibility.comparison_request_id}:${eligibility.field_note_id}`;
+    const nextKey = `${eligibility.comparison_request_id || eligibility.source_graph_id}:${eligibility.field_note_id}`;
     capsuleEligibilityKey = nextKey;
     if (!announcedCapsuleMilestones.has(nextKey)) {
       rememberCapsuleMilestone(nextKey);
       sound.capsuleEarned();
     }
+  }
+
+  function renderStoredKnowledgeCapsuleLauncher(payload) {
+    const launcher = payload && payload.stored_knowledge_capsule_launcher;
+    const visible = Boolean(
+      launcher && launcher.available_here && !activeFieldNote && !activeCapsule &&
+      !capsuleConstruction && !readyCapsuleTarget()
+    );
+    elKnowledgeCapsuleStored.hidden = !visible;
+    elKnowledgeCapsuleStored.disabled = Boolean(busy);
   }
 
   function readyCapsuleTarget() {
@@ -4000,6 +4051,7 @@
     elEvidenceDescent.hidden = true;
     elFieldNoteEligible.hidden = true;
     elKnowledgeCapsuleEligible.hidden = true;
+    elKnowledgeCapsuleStored.hidden = true;
     elKnowledgeCapsuleReady.hidden = true;
     elThreshold.hidden = true;
     clearRoot();
@@ -4058,6 +4110,9 @@
       head_turn_id: capsule.head_turn_id,
       field_note_id: capsule.field_note_id,
       field_note_revision_id: capsule.field_note_revision_id,
+      stored_launcher_id: capsule.stored_launcher_id || null,
+      earning_graph_id: capsule.earning_graph_id || capsule.source_graph_id,
+      earning_node_id: capsule.earning_node_id || capsule.source_node_id,
       artifact_count: capsule.artifact_count,
       launched_at: capsule.launched_at || (capsule.launch && capsule.launch.launched_at) || null,
     };
@@ -4069,24 +4124,16 @@
     busy = true;
     elFieldNoteEligible.hidden = true;
     elKnowledgeCapsuleEligible.hidden = true;
+    elKnowledgeCapsuleStored.hidden = true;
     elKnowledgeCapsuleEligible.disabled = true;
     try {
       const result = await post("/api/knowledge-capsules", {
         comparison_request_id: eligibility.comparison_request_id,
+        graph_id: view.graph_id,
+        node_id: view.node.id,
+        field_note_id: eligibility.field_note_id,
       });
-      const capsule = capsuleSummary(result.capsule);
-      view.knowledge_capsule_eligibility = null;
-      view.knowledge_capsules = [...(view.knowledge_capsules || []), capsule];
-      capsuleConstruction = {
-        id: capsule.id,
-        capsule,
-        startedAt: clock.getElapsedTime(),
-        duration: 18,
-        group: null,
-      };
-      sound.setCapsuleConstruction(true);
-      sound.setCapsuleReady(false);
-      layout(view);
+      beginCapsuleConstruction(result.capsule);
     } catch (error) {
       elKind.textContent = "Knowledge Capsule was not constructed";
       elHere.textContent = String(error.message || error);
@@ -4095,6 +4142,71 @@
     } finally {
       busy = false;
       elKnowledgeCapsuleEligible.disabled = false;
+    }
+  }
+
+  function beginCapsuleConstruction(capsuleRead) {
+    const capsule = capsuleSummary(capsuleRead);
+    view.knowledge_capsule_eligibility = null;
+    view.stored_knowledge_capsule_launcher = null;
+    view.knowledge_capsules = [...(view.knowledge_capsules || []), capsule];
+    capsuleConstruction = {
+      id: capsule.id,
+      capsule,
+      startedAt: clock.getElapsedTime(),
+      duration: 18,
+      group: null,
+    };
+    sound.setCapsuleConstruction(true);
+    sound.setCapsuleReady(false);
+    layout(view);
+  }
+
+  async function storeKnowledgeCapsuleLauncher() {
+    const eligibility = view && view.knowledge_capsule_eligibility;
+    if (!eligibility || busy || activeFieldNote || activeCapsule || capsuleConstruction) return;
+    busy = true;
+    elKnowledgeCapsuleEligible.disabled = true;
+    try {
+      const result = await post("/api/knowledge-capsule-launcher/store", {
+        graph_id: view.graph_id,
+        node_id: view.node.id,
+        field_note_id: eligibility.field_note_id,
+      });
+      view.knowledge_capsule_eligibility = null;
+      view.stored_knowledge_capsule_launcher = result.launcher;
+      renderKnowledgeCapsuleEligibility(view);
+      elKind.textContent = "Knowledge Capsule launcher stored";
+      elHere.textContent = "Continue this Threadwalk and press K in the chamber where you want to freeze it.";
+    } catch (error) {
+      elKind.textContent = "Knowledge Capsule launcher was not stored";
+      elHere.textContent = String(error.message || error);
+      renderKnowledgeCapsuleEligibility(view);
+    } finally {
+      busy = false;
+      elKnowledgeCapsuleEligible.disabled = false;
+    }
+  }
+
+  async function deployStoredKnowledgeCapsuleLauncher() {
+    const launcher = view && view.stored_knowledge_capsule_launcher;
+    if (!launcher || !launcher.available_here || busy || activeFieldNote || activeCapsule || capsuleConstruction) return;
+    busy = true;
+    elKnowledgeCapsuleStored.disabled = true;
+    try {
+      const result = await post("/api/knowledge-capsules", {
+        stored_launcher_id: launcher.id,
+        graph_id: view.graph_id,
+        node_id: view.node.id,
+      });
+      beginCapsuleConstruction(result.capsule);
+    } catch (error) {
+      elKind.textContent = "Stored launcher was not deployed";
+      elHere.textContent = String(error.message || error);
+      renderStoredKnowledgeCapsuleLauncher(view);
+    } finally {
+      busy = false;
+      elKnowledgeCapsuleStored.disabled = false;
     }
   }
 
@@ -4375,6 +4487,7 @@
     elEvidenceDescent.hidden = true;
     elFieldNoteEligible.hidden = true;
     elKnowledgeCapsuleEligible.hidden = true;
+    elKnowledgeCapsuleStored.hidden = true;
     elKnowledgeCapsuleReady.hidden = true;
     elThreshold.hidden = true;
     sound.setCapsuleReady(false);
@@ -5297,6 +5410,7 @@
   elEvidenceClose.addEventListener("click", closeEvidenceDescent);
   elFieldNoteEligible.addEventListener("click", openEligibleFieldNoteComposer);
   elKnowledgeCapsuleEligible.addEventListener("click", constructKnowledgeCapsule);
+  elKnowledgeCapsuleStored.addEventListener("click", deployStoredKnowledgeCapsuleLauncher);
   elKnowledgeCapsuleReady.addEventListener("click", launchReadyCapsule);
   elOnboardingClose.addEventListener("click", closeOnboarding);
   elOnboardingInquiryForm.addEventListener("submit", submitOnboardingInquiry);
@@ -5523,9 +5637,19 @@
       return;
     }
     if (e.key === "k" || e.key === "K") {
-      if (view && view.knowledge_capsule_eligibility) {
+      if (view && view.stored_knowledge_capsule_launcher?.available_here) {
+        e.preventDefault();
+        deployStoredKnowledgeCapsuleLauncher();
+      } else if (view && view.knowledge_capsule_eligibility) {
         e.preventDefault();
         constructKnowledgeCapsule();
+      }
+      return;
+    }
+    if (e.key === "j" || e.key === "J") {
+      if (view && view.knowledge_capsule_eligibility) {
+        e.preventDefault();
+        storeKnowledgeCapsuleLauncher();
       }
       return;
     }

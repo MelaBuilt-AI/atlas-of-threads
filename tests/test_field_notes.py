@@ -237,10 +237,11 @@ def test_field_note_validation_and_comparison_guard(tmp_path: Path):
             comparison["paths"][0]["selectable_thoughts"][1]["id"],
         ),
     )
-    with pytest.raises(StoreError, match="at least two graphs"):
-        store.write_field_note(
-            field_note(store, kind="observation", text="two thoughts", references=same_graph)
-        )
+    single_path_note = field_note(
+        store, kind="observation", text="two thoughts", references=same_graph
+    )
+    store.write_field_note(single_path_note)
+    assert store.load_field_note(single_path_note.id) == single_path_note
 
     outside = store.load_graph(comparison["source_graph_id"])
     with pytest.raises(StoreError, match="come from the comparison"):
@@ -257,7 +258,7 @@ def test_field_note_validation_and_comparison_guard(tmp_path: Path):
     broken["references"][0]["session_id"] = request_ids[0]
     from thought_archaeology.field_notes import FieldNote
 
-    with pytest.raises(StoreError, match="is not in session"):
+    with pytest.raises(StoreError, match="one Threadwalk"):
         store.write_field_note(FieldNote.from_dict(broken))
 
 
@@ -286,9 +287,9 @@ def test_field_note_schema_boundaries(tmp_path: Path):
     duplicate = deepcopy(valid)
     duplicate["references"] = [duplicate["references"][0]] * 2
     invalid.append(duplicate)
-    too_few = deepcopy(valid)
-    too_few["references"] = too_few["references"][:1]
-    invalid.append(too_few)
+    one_reference = deepcopy(valid)
+    one_reference["references"] = one_reference["references"][:1]
+    validate_schema("field-note.schema.json", one_reference)
     too_many = deepcopy(valid)
     too_many["references"] = [
         {

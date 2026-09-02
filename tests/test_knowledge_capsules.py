@@ -2,26 +2,38 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
-from thought_archaeology.continuation import parallel_comparison
-from thought_archaeology.field_notes import create_field_note, edit_field_note
+from thought_archaeology.continuation import (
+    continuation_completion,
+    continuation_request,
+    parallel_comparison,
+)
+from thought_archaeology.field_notes import (
+    create_field_note,
+    edit_field_note,
+    field_note_eligibility,
+)
+from thought_archaeology.ids import new_ulid
 from thought_archaeology.knowledge_capsules import (
+    active_stored_launcher,
     capsule_artifact_bytes,
     capsule_integrity,
     construct_knowledge_capsule,
     knowledge_capsule_eligibility,
     knowledge_capsule_read,
     launch_knowledge_capsule,
+    store_knowledge_capsule_launcher,
 )
 from thought_archaeology.schema import ValidationError, validate_schema
 from thought_archaeology.serve import InhabitHandler
-from thought_archaeology.store import StoreError
+from thought_archaeology.store import Store, StoreError
 
 from tests.test_cli import run
-from tests.test_continuation import _parallel_study
+from tests.test_continuation import _compiled, _parallel_study
 
 
 def _capsule_study(path: Path):
@@ -52,6 +64,169 @@ def _session_bytes(store, session_id: str) -> dict[str, bytes]:
         for path in sorted(root.rglob("*"))
         if path.is_file()
     }
+
+
+def _single_path_study(path: Path):
+    session_id, source_graph_id = _compiled(path)
+    store = Store(path)
+    source = store.load_graph(source_graph_id)
+    source_node = source.nodes[0]
+    request = continuation_request(
+        source,
+        source_node,
+        prompt="Follow this question with one collaborator.",
+        source="inhabit_space",
+    )
+    store.write_continuation_request(request)
+    child = replace(
+        source,
+        id=new_ulid(),
+        turn_id=new_ulid(),
+        parent_graph_id=source.id,
+        hidden_reasoning=None,
+    )
+    store.write_graph(child)
+    store.write_continuation_completion(
+        continuation_completion(request.id, child.id, "codex")
+    )
+    return store, session_id, source, source_node, child
+
+
+def test_single_path_launcher_can_be_stored_and_deployed_only_in_its_threadwalk(
+    tmp_path: Path, monkeypatch,
+):
+    store, session_id, source, source_node, child = _single_path_study(
+        tmp_path / "single"
+    )
+    earning_node = child.nodes[0]
+    field_eligibility = field_note_eligibility(
+        store, graph_id=child.id, node_id=earning_node.id
+    )
+    assert field_eligibility["mode"] == "single_path"
+    assert field_eligibility["completed_count"] == 1
+
+    note = create_field_note(
+        store,
+        kind="conclusion",
+        text="This one collaborator path reached a milestone worth preserving later.",
+        references=((session_id, child.id, earning_node.id),),
+        source_graph_id=child.id,
+        source_node_id=earning_node.id,
+    )
+    eligibility = knowledge_capsule_eligibility(
+        store, graph_id=child.id, node_id=earning_node.id
+    )
+    assert eligibility["mode"] == "single_path"
+    assert eligibility["comparison_request_id"] is None
+
+    launcher = store_knowledge_capsule_launcher(
+        store,
+        graph_id=child.id,
+        node_id=earning_node.id,
+        field_note_id=note.id,
+    )
+    assert active_stored_launcher(store) == launcher
+    assert knowledge_capsule_eligibility(
+        store, graph_id=child.id, node_id=earning_node.id
+    ) is None
+    assert oct(
+        (store.knowledge_capsule_launchers_dir / f"{launcher.id}.json").stat().st_mode
+        & 0o777
+    ) == oct(0o600)
+
+    other_store, _other_session, other_source, other_node, _other_child = (
+        _single_path_study(tmp_path / "single")
+    )
+    assert other_store.root == store.root
+    with pytest.raises(StoreError, match="earning Threadwalk"):
+        construct_knowledge_capsule(
+            store,
+            stored_launcher_id=launcher.id,
+            graph_id=other_source.id,
+            node_id=other_node.id,
+        )
+    assert active_stored_launcher(store) == launcher
+
+    original_manifest_write = store.write_knowledge_capsule
+
+    def fail_manifest_write(_manifest):
+        raise OSError("disk full before manifest publish")
+
+    monkeypatch.setattr(store, "write_knowledge_capsule", fail_manifest_write)
+    with pytest.raises(OSError, match="disk full"):
+        construct_knowledge_capsule(
+            store,
+            stored_launcher_id=launcher.id,
+            graph_id=source.id,
+            node_id=source_node.id,
+        )
+    assert active_stored_launcher(store) == launcher
+    monkeypatch.setattr(store, "write_knowledge_capsule", original_manifest_write)
+
+    manifest = construct_knowledge_capsule(
+        store,
+        stored_launcher_id=launcher.id,
+        graph_id=source.id,
+        node_id=source_node.id,
+    )
+    assert manifest.session_id == session_id
+    assert manifest.source_graph_id == source.id
+    assert manifest.source_node_id == source_node.id
+    assert manifest.earning_graph_id == child.id
+    assert manifest.earning_node_id == earning_node.id
+    assert manifest.stored_launcher_id == launcher.id
+    assert manifest.comparison_request_id is None
+    assert "knowledge_capsule_launcher" in {item.kind for item in manifest.artifacts}
+    assert active_stored_launcher(store) is None
+    with pytest.raises(StoreError, match="not available"):
+        construct_knowledge_capsule(
+            store,
+            stored_launcher_id=launcher.id,
+            graph_id=source.id,
+            node_id=source_node.id,
+        )
+
+
+def test_stored_launcher_server_surface_persists_and_deploys(tmp_path: Path):
+    store, session_id, source, source_node, child = _single_path_study(
+        tmp_path / "server-launcher"
+    )
+    earning_node = child.nodes[0]
+    note = create_field_note(
+        store,
+        kind="observation",
+        text="Store this milestone until a later chamber makes the boundary useful.",
+        references=((session_id, child.id, earning_node.id),),
+        source_graph_id=child.id,
+        source_node_id=earning_node.id,
+    )
+    replies = []
+    handler = object.__new__(InhabitHandler)
+    handler.store = store
+    handler._json = lambda status, body: replies.append((status, body))
+    handler._read_json = lambda: {
+        "graph_id": child.id,
+        "node_id": earning_node.id,
+        "field_note_id": note.id,
+    }
+    handler._knowledge_capsule_launcher_store()
+    launcher = replies[-1][1]["launcher"]
+    assert replies[-1][0] == 200
+    assert launcher["available_here"] is True
+
+    handler.path = f"/api/inhabit/{source_node.id}?graph={source.id}"
+    handler.do_GET()
+    assert replies[-1][1]["stored_knowledge_capsule_launcher"]["id"] == launcher["id"]
+    handler._read_json = lambda: {
+        "stored_launcher_id": launcher["id"],
+        "graph_id": source.id,
+        "node_id": source_node.id,
+    }
+    handler._knowledge_capsule_construct()
+    assert replies[-1][0] == 200
+    assert replies[-1][1]["capsule"]["source_graph_id"] == source.id
+    assert replies[-1][1]["capsule"]["earning_graph_id"] == child.id
+    assert active_stored_launcher(store) is None
 
 
 def test_capsule_eligibility_and_construction_freeze_exact_scope(tmp_path: Path):
@@ -269,11 +444,14 @@ def test_capsule_assets_and_chamber_contract_are_present():
     js = (dist / "space.js").read_text(encoding="utf-8")
     sound = (dist / "sound.js").read_text(encoding="utf-8")
     assert "Knowledge Capsule Earned" in html
-    assert "press K to construct" in html
+    assert "K · construct here" in html
+    assert "J · store launcher" in html
+    assert "Stored Launcher ×1" in html
     assert "Press Enter to Launch Capsule" in html
     assert "Launch Capsule" in js
     assert "duration: 18" in js
     assert "/api/knowledge-capsules" in js
+    assert "/api/knowledge-capsule-launcher/store" in js
     assert "visibleNeuronIndex(group)" in js
     assert "readyCapsuleTarget" in js
     assert "launchReadyCapsule" in js

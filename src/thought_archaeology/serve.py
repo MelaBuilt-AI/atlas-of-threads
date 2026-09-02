@@ -49,11 +49,14 @@ from thought_archaeology.harness_service import (
 from thought_archaeology.ids import new_ulid, now_iso
 from thought_archaeology.inhabit import entry_node, inhabit
 from thought_archaeology.knowledge_capsules import (
+    active_stored_launcher,
     construct_knowledge_capsule,
     knowledge_capsule_eligibility,
     knowledge_capsule_read,
     knowledge_capsule_summaries,
     launch_knowledge_capsule,
+    store_knowledge_capsule_launcher,
+    stored_launcher_read,
 )
 from thought_archaeology.models import (
     ModelInfo,
@@ -689,6 +692,11 @@ def thread_payload(
             if graph_id and node_id
             else []
         ),
+        "stored_knowledge_capsule_launcher": (
+            stored_launcher_read(store, launcher, session_id=session_id)
+            if (launcher := active_stored_launcher(store))
+            else None
+        ),
     }
 
 
@@ -875,6 +883,14 @@ class InhabitHandler(BaseHTTPRequestHandler):
                         node_id=view.node.id,
                     )
                 )
+                launcher = active_stored_launcher(self.store)
+                payload["stored_knowledge_capsule_launcher"] = (
+                    stored_launcher_read(
+                        self.store, launcher, session_id=view.graph.session_id
+                    )
+                    if launcher
+                    else None
+                )
                 payload["read"]["field_note_line"] = (
                     f"{len(payload['field_notes'])} human Field "
                     f"{'Note' if len(payload['field_notes']) == 1 else 'Notes'} "
@@ -932,6 +948,9 @@ class InhabitHandler(BaseHTTPRequestHandler):
                 return
             if path == "/api/knowledge-capsules":
                 self._knowledge_capsule_construct()
+                return
+            if path == "/api/knowledge-capsule-launcher/store":
+                self._knowledge_capsule_launcher_store()
                 return
             if path.startswith("/api/knowledge-capsules/") and path.endswith("/launch"):
                 capsule_id = path[
@@ -995,14 +1014,23 @@ class InhabitHandler(BaseHTTPRequestHandler):
 
     def _field_note_write_body(
         self,
-    ) -> tuple[str, str, str, tuple[tuple[str, str, str], ...]]:
+    ) -> tuple[
+        str,
+        str,
+        str | None,
+        str | None,
+        str | None,
+        tuple[tuple[str, str, str], ...],
+    ]:
         body = self._read_json()
         kind = str(body.get("kind") or "")
         text = str(body.get("text") or "")
-        comparison_request_id = str(body.get("comparison_request_id") or "")
+        comparison_request_id = body.get("comparison_request_id") or None
+        source_graph_id = body.get("source_graph_id") or None
+        source_node_id = body.get("source_node_id") or None
         raw_references = body.get("references")
-        if not comparison_request_id:
-            raise ServeError("Field Note requires a comparison request")
+        if not comparison_request_id and (not source_graph_id or not source_node_id):
+            raise ServeError("Field Note requires a comparison or source chamber")
         if not isinstance(raw_references, list):
             raise ServeError("Field Note references must be a list")
         references = []
@@ -1019,10 +1047,17 @@ class InhabitHandler(BaseHTTPRequestHandler):
                 )
             except KeyError as exc:
                 raise ServeError(f"Field Note reference missing {exc.args[0]}") from exc
-        return kind, text, comparison_request_id, tuple(references)
+        return (
+            kind,
+            text,
+            str(comparison_request_id) if comparison_request_id else None,
+            str(source_graph_id) if source_graph_id else None,
+            str(source_node_id) if source_node_id else None,
+            tuple(references),
+        )
 
     def _field_note_create(self) -> None:
-        kind, text, comparison_request_id, references = (
+        kind, text, comparison_request_id, source_graph_id, source_node_id, references = (
             self._field_note_write_body()
         )
         note = create_field_note(
@@ -1031,6 +1066,8 @@ class InhabitHandler(BaseHTTPRequestHandler):
             text=text,
             references=references,
             comparison_request_id=comparison_request_id,
+            source_graph_id=source_graph_id,
+            source_node_id=source_node_id,
         )
         path = self.store.field_notes_dir / f"{note.id}.json"
         self.store.log(
@@ -1048,10 +1085,25 @@ class InhabitHandler(BaseHTTPRequestHandler):
             path=str(path),
             warnings=[],
         )
-        self._json(200, {"ok": True, "note": field_note_read(self.store, note)})
+        self._json(
+            200,
+            {
+                "ok": True,
+                "note": field_note_read(self.store, note),
+                "knowledge_capsule_eligibility": (
+                    knowledge_capsule_eligibility(
+                        self.store,
+                        graph_id=source_graph_id,
+                        node_id=source_node_id,
+                    )
+                    if source_graph_id and source_node_id
+                    else None
+                ),
+            },
+        )
 
     def _field_note_edit(self, note_id: str) -> None:
-        kind, text, comparison_request_id, references = (
+        kind, text, comparison_request_id, _source_graph_id, _source_node_id, references = (
             self._field_note_write_body()
         )
         revision = edit_field_note(
@@ -1085,11 +1137,24 @@ class InhabitHandler(BaseHTTPRequestHandler):
 
     def _knowledge_capsule_construct(self) -> None:
         body = self._read_json()
-        comparison_request_id = str(body.get("comparison_request_id") or "")
-        if not comparison_request_id:
-            raise ServeError("Knowledge Capsule requires a comparison request")
+        comparison_request_id = body.get("comparison_request_id") or None
+        graph_id = body.get("graph_id") or body.get("graph") or None
+        node_id = body.get("node_id") or body.get("node") or None
+        field_note_id = body.get("field_note_id") or None
+        stored_launcher_id = body.get("stored_launcher_id") or None
+        if not stored_launcher_id and not comparison_request_id and not (graph_id and node_id):
+            raise ServeError("Knowledge Capsule requires an earned or stored launcher")
         manifest = construct_knowledge_capsule(
-            self.store, comparison_request_id=comparison_request_id
+            self.store,
+            comparison_request_id=(
+                str(comparison_request_id) if comparison_request_id else None
+            ),
+            graph_id=str(graph_id) if graph_id else None,
+            node_id=str(node_id) if node_id else None,
+            field_note_id=str(field_note_id) if field_note_id else None,
+            stored_launcher_id=(
+                str(stored_launcher_id) if stored_launcher_id else None
+            ),
         )
         path = self.store.knowledge_capsules_dir / f"{manifest.id}.json"
         self.store.log(
@@ -1113,6 +1178,39 @@ class InhabitHandler(BaseHTTPRequestHandler):
             },
         )
 
+    def _knowledge_capsule_launcher_store(self) -> None:
+        body = self._read_json()
+        graph_id = str(body.get("graph_id") or body.get("graph") or "")
+        node_id = str(body.get("node_id") or body.get("node") or "")
+        field_note_id = str(body.get("field_note_id") or "")
+        if not graph_id or not node_id or not field_note_id:
+            raise ServeError("storing a launcher requires graph, node, and Field Note")
+        launcher = store_knowledge_capsule_launcher(
+            self.store,
+            graph_id=graph_id,
+            node_id=node_id,
+            field_note_id=field_note_id,
+        )
+        path = self.store.knowledge_capsule_launchers_dir / f"{launcher.id}.json"
+        self.store.log(
+            "knowledge_capsule_launcher_store",
+            launcher_id=launcher.id,
+            session_id=launcher.session_id,
+            earning_graph_id=launcher.earning_graph_id,
+            earning_node_id=launcher.earning_node_id,
+            field_note_id=launcher.field_note_id,
+            path=str(path),
+            warnings=[],
+        )
+        self._json(
+            200,
+            {
+                "ok": True,
+                "launcher": stored_launcher_read(
+                    self.store, launcher, session_id=launcher.session_id
+                ),
+            },
+        )
     def _knowledge_capsule_launch(self, capsule_id: str) -> None:
         launch = launch_knowledge_capsule(self.store, capsule_id)
         self.store.log(

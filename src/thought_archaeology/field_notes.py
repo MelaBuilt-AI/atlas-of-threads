@@ -157,20 +157,38 @@ def create_field_note(
     kind: FieldNoteKind,
     text: str,
     references: tuple[tuple[str, str, str], ...],
-    comparison_request_id: str,
+    comparison_request_id: str | None = None,
+    source_graph_id: str | None = None,
+    source_node_id: str | None = None,
 ) -> FieldNote:
-    """Create the one human note belonging to an exact parallel comparison."""
+    """Create one human note for a parallel comparison or completed path."""
     from thought_archaeology.continuation import parallel_comparison
     from thought_archaeology.store import StoreError
 
     with store.field_notes_lock():
-        comparison = parallel_comparison(store, comparison_request_id)
-        if comparison["field_notes"]:
-            raise StoreError(
-                f"parallel comparison already has Field Note "
-                f"{comparison['field_notes'][0]['id']}; edit that note"
+        if comparison_request_id:
+            comparison = parallel_comparison(store, comparison_request_id)
+            if comparison["field_notes"]:
+                raise StoreError(
+                    f"parallel comparison already has Field Note "
+                    f"{comparison['field_notes'][0]['id']}; edit that note"
+                )
+            _validate_comparison_references(comparison, references)
+        else:
+            if not source_graph_id or not source_node_id:
+                raise StoreError("single-path Field Note requires its source chamber")
+            _validate_single_path_references(
+                store,
+                source_graph_id=source_graph_id,
+                source_node_id=source_node_id,
+                references=references,
             )
-        _validate_comparison_references(comparison, references)
+            if any(
+                {item.graph_id for item in field_note_all_references(store, note)}
+                == {source_graph_id}
+                for note in store.iter_field_notes()
+            ):
+                raise StoreError("completed path already has a Field Note; edit that note")
         note = field_note(store, kind=kind, text=text, references=references)
         store.write_field_note(note)
     return note
@@ -183,7 +201,7 @@ def edit_field_note(
     kind: FieldNoteKind,
     text: str,
     references: tuple[tuple[str, str, str], ...],
-    comparison_request_id: str,
+    comparison_request_id: str | None = None,
 ) -> FieldNoteRevision:
     """Append one linear human revision without rewriting the base note."""
     from thought_archaeology.continuation import parallel_comparison
@@ -191,10 +209,23 @@ def edit_field_note(
 
     with store.field_notes_lock():
         note = store.load_field_note(note_id)
-        comparison = parallel_comparison(store, comparison_request_id)
-        if note_id not in {item["id"] for item in comparison["field_notes"]}:
-            raise StoreError("Field Note does not belong to this parallel comparison")
-        _validate_comparison_references(comparison, references)
+        if comparison_request_id:
+            comparison = parallel_comparison(store, comparison_request_id)
+            if note_id not in {item["id"] for item in comparison["field_notes"]}:
+                raise StoreError("Field Note does not belong to this parallel comparison")
+            _validate_comparison_references(comparison, references)
+        else:
+            graph_ids = {item.graph_id for item in note.references}
+            if len(graph_ids) != 1:
+                raise StoreError("parallel Field Note requires its comparison request")
+            source_graph_id = next(iter(graph_ids))
+            source_node_id = note.references[0].node_id
+            _validate_single_path_references(
+                store,
+                source_graph_id=source_graph_id,
+                source_node_id=source_node_id,
+                references=references,
+            )
         revisions = list(store.iter_field_note_revisions(note_id))
         previous_revision_id = revisions[-1].id if revisions else note.id
         revision = FieldNoteRevision(
@@ -221,6 +252,34 @@ def _validate_comparison_references(
     selected_graphs = {graph_id for _session_id, graph_id, _node_id in references}
     if not selected_graphs.issubset(allowed_graphs):
         raise StoreError("every Field Note reference must come from the comparison")
+
+
+def _validate_single_path_references(
+    store: Store,
+    *,
+    source_graph_id: str,
+    source_node_id: str,
+    references: tuple[tuple[str, str, str], ...],
+) -> None:
+    from thought_archaeology.store import StoreError
+
+    graph = store.load_graph(source_graph_id)
+    if source_node_id not in {node.id for node in graph.nodes}:
+        raise StoreError("single-path Field Note source node is not in its graph")
+    if not references:
+        raise StoreError("Field Note requires at least one exact thought")
+    if any(
+        session_id != graph.session_id or graph_id != graph.id
+        for session_id, graph_id, _node_id in references
+    ):
+        raise StoreError(
+            "every single-path Field Note reference must come from its completed path"
+        )
+    if not any(
+        completion.graph_id == graph.id
+        for completion in store.iter_continuation_completions()
+    ):
+        raise StoreError("single-path Field Note requires a completed collaborator path")
 
 
 def field_note_versions(store: Store, note: FieldNote) -> list[FieldNoteVersion]:
@@ -251,7 +310,7 @@ def field_note_comparison_request_id(store: Store, note: FieldNote) -> str | Non
 
     graph_ids = {item.graph_id for item in note.references}
     session_ids = {item.session_id for item in note.references}
-    if len(session_ids) != 1:
+    if len(session_ids) != 1 or len(graph_ids) < 2:
         return None
     for group in parallel_group_summaries(store, session_id=next(iter(session_ids))):
         if graph_ids.issubset(set(group["graph_ids"])):
@@ -439,8 +498,12 @@ def field_notes_for_graphs(store: Store, graph_ids: set[str]) -> list[dict]:
 def field_note_eligibility(
     store: Store, *, graph_id: str, node_id: str
 ) -> dict | None:
-    """Resolve the exact parallel comparison available from this chamber."""
-    from thought_archaeology.continuation import parallel_group_summaries
+    """Resolve the human inscription available after a completed path."""
+    from thought_archaeology.continuation import (
+        _node_read,
+        harness_display_name,
+        parallel_group_summaries,
+    )
 
     graph = store.load_graph(graph_id)
     for group in parallel_group_summaries(store, session_id=graph.session_id):
@@ -449,6 +512,7 @@ def field_note_eligibility(
         if field_notes_for_graphs(store, set(group["graph_ids"])):
             return None
         return {
+            "mode": "parallel",
             "comparison_request_id": group["representative_request_id"],
             "completed_count": group["completed_count"],
             "prompt": group["prompt"],
@@ -458,4 +522,45 @@ def field_note_eligibility(
                 "node_id": node_id,
             },
         }
+    if any(
+        item.session_id == graph.session_id
+        for item in store.iter_continuation_requests(pending=True)
+    ):
+        return None
+    completion = next(
+        (
+            item
+            for item in store.iter_continuation_completions()
+            if item.graph_id == graph.id
+        ),
+        None,
+    )
+    if completion is None:
+        return None
+    if any(
+        {item.graph_id for item in field_note_all_references(store, note)} == {graph.id}
+        for note in store.iter_field_notes()
+    ):
+        return None
+    return {
+        "mode": "single_path",
+        "comparison_request_id": None,
+        "completed_count": 1,
+        "prompt": "Completed collaborator path",
+        "session_id": graph.session_id,
+        "paths": [
+            {
+                "graph_id": graph.id,
+                "harness": completion.harness,
+                "harness_display_name": harness_display_name(completion.harness),
+                "model": graph.model.name,
+                "selectable_thoughts": [_node_read(item) for item in graph.nodes],
+            }
+        ],
+        "standing_reference": {
+            "session_id": graph.session_id,
+            "graph_id": graph.id,
+            "node_id": node_id,
+        },
+    }
     return None

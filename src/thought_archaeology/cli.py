@@ -1028,6 +1028,8 @@ def cmd_validate(args: argparse.Namespace) -> int:
                 validate_schema("knowledge-capsule-manifest.schema.json", raw)
             elif isinstance(raw, dict) and raw.get("success") is True and "markdown_sha256" in raw:
                 validate_schema("knowledge-capsule-launch.schema.json", raw)
+            elif isinstance(raw, dict) and "stored_at" in raw and "earning_graph_id" in raw:
+                validate_schema("knowledge-capsule-launcher.schema.json", raw)
             else:
                 validate_graph(raw)
         except ValidationError as exc:

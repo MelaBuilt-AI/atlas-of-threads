@@ -22,6 +22,7 @@ from thought_archaeology.continuation import (
 from thought_archaeology.field_notes import FieldNote, FieldNoteRevision
 from thought_archaeology.knowledge_capsules import (
     KnowledgeCapsuleLaunch,
+    KnowledgeCapsuleLauncher,
     KnowledgeCapsuleManifest,
 )
 from thought_archaeology.ids import new_ulid, now_iso
@@ -413,6 +414,10 @@ class Store:
         return self.root / "knowledge-capsule-launches"
 
     @property
+    def knowledge_capsule_launchers_dir(self) -> Path:
+        return self.root / "knowledge-capsule-launchers"
+
+    @property
     def knowledge_capsules_lock_path(self) -> Path:
         return self.root / "knowledge-capsules.lock"
 
@@ -440,6 +445,76 @@ class Store:
             if acquired:
                 _unlock(fd)
             os.close(fd)
+
+    def write_knowledge_capsule_launcher(
+        self, launcher: KnowledgeCapsuleLauncher
+    ) -> Path:
+        self._require()
+        validate_schema("knowledge-capsule-launcher.schema.json", launcher.to_dict())
+        from thought_archaeology.knowledge_capsules import active_stored_launcher
+
+        if active_stored_launcher(self) is not None:
+            raise StoreError("one Knowledge Capsule launcher is already stored")
+        graph = self.load_graph(launcher.earning_graph_id)
+        if graph.session_id != launcher.session_id:
+            raise StoreError("stored launcher earning graph is not in its Threadwalk")
+        if launcher.earning_node_id not in {node.id for node in graph.nodes}:
+            raise StoreError("stored launcher earning node is not in its graph")
+        note = self.load_field_note(launcher.field_note_id)
+        versions = [note, *self.iter_field_note_revisions(note.id)]
+        if versions[-1].id != launcher.field_note_revision_id:
+            raise StoreError("stored launcher must pin the current Field Note revision")
+        if not any(
+            reference.session_id == launcher.session_id
+            for reference in versions[-1].references
+        ):
+            raise StoreError("stored launcher Field Note is not in its Threadwalk")
+        if launcher.comparison_request_id:
+            request = self.load_continuation_request(launcher.comparison_request_id)
+            if (
+                request.session_id != launcher.session_id
+                or request.graph_id != launcher.earning_graph_id
+                or request.node_id != launcher.earning_node_id
+            ):
+                raise StoreError("stored launcher comparison provenance does not match")
+        elif (
+            {reference.graph_id for reference in note.references}
+            != {launcher.earning_graph_id}
+            or not any(
+                completion.graph_id == launcher.earning_graph_id
+                for completion in self.iter_continuation_completions()
+            )
+        ):
+            raise StoreError("stored launcher does not name its completed earning path")
+        _mkdir(self.knowledge_capsule_launchers_dir)
+        path = self.knowledge_capsule_launchers_dir / f"{launcher.id}.json"
+        if path.exists():
+            raise StoreError(
+                f"Knowledge Capsule launcher {launcher.id} already exists (write-once)"
+            )
+        _write_private_json_atomic(path, launcher.to_dict())
+        return path
+
+    def load_knowledge_capsule_launcher(
+        self, launcher_id: str
+    ) -> KnowledgeCapsuleLauncher:
+        self._require()
+        path = self.knowledge_capsule_launchers_dir / f"{launcher_id}.json"
+        if not path.is_file():
+            raise StoreError(f"Knowledge Capsule launcher not found: {launcher_id}")
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        validate_schema("knowledge-capsule-launcher.schema.json", raw)
+        return KnowledgeCapsuleLauncher.from_dict(raw)
+
+    def iter_knowledge_capsule_launchers(self) -> Iterator[KnowledgeCapsuleLauncher]:
+        self._require()
+        if not self.knowledge_capsule_launchers_dir.is_dir():
+            return
+            yield  # pragma: no cover
+        for path in sorted(self.knowledge_capsule_launchers_dir.glob("*.json")):
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            validate_schema("knowledge-capsule-launcher.schema.json", raw)
+            yield KnowledgeCapsuleLauncher.from_dict(raw)
 
     def write_knowledge_capsule(self, manifest: KnowledgeCapsuleManifest) -> Path:
         self._require()
@@ -471,17 +546,55 @@ class Store:
             raise StoreError("Knowledge Capsule source graph is not in its session")
         if manifest.source_node_id not in {node.id for node in source.nodes}:
             raise StoreError("Knowledge Capsule source node is not in its graph")
-        request = self.load_continuation_request(manifest.comparison_request_id)
-        if (
-            request.session_id != manifest.session_id
-            or request.graph_id != manifest.source_graph_id
-            or request.node_id != manifest.source_node_id
-        ):
-            raise StoreError("Knowledge Capsule comparison source does not match")
+        if manifest.comparison_request_id:
+            request = self.load_continuation_request(manifest.comparison_request_id)
+            if request.session_id != manifest.session_id:
+                raise StoreError("Knowledge Capsule comparison is not in its Threadwalk")
+            if not manifest.stored_launcher_id and (
+                request.graph_id != manifest.source_graph_id
+                or request.node_id != manifest.source_node_id
+            ):
+                raise StoreError("Knowledge Capsule comparison source does not match")
+        if (manifest.earning_graph_id is None) != (manifest.earning_node_id is None):
+            raise StoreError("Knowledge Capsule earning chamber is incomplete")
+        if manifest.earning_graph_id and manifest.earning_node_id:
+            earning_graph = self.load_graph(manifest.earning_graph_id)
+            if (
+                earning_graph.session_id != manifest.session_id
+                or manifest.earning_node_id
+                not in {node.id for node in earning_graph.nodes}
+            ):
+                raise StoreError("Knowledge Capsule earning chamber is not in its Threadwalk")
+            if not manifest.stored_launcher_id and (
+                manifest.source_graph_id != manifest.earning_graph_id
+                or manifest.source_node_id != manifest.earning_node_id
+            ):
+                raise StoreError("immediate Knowledge Capsule must deploy where it was earned")
+            if manifest.comparison_request_id and (
+                request.graph_id != manifest.earning_graph_id
+                or request.node_id != manifest.earning_node_id
+            ):
+                raise StoreError("Knowledge Capsule comparison earning chamber does not match")
+        if manifest.stored_launcher_id:
+            launcher = self.load_knowledge_capsule_launcher(manifest.stored_launcher_id)
+            if (
+                launcher.session_id != manifest.session_id
+                or launcher.field_note_id != manifest.field_note_id
+                or launcher.earning_graph_id != manifest.earning_graph_id
+                or launcher.earning_node_id != manifest.earning_node_id
+            ):
+                raise StoreError("Knowledge Capsule stored launcher provenance does not match")
         note = self.load_field_note(manifest.field_note_id)
         versions = [note, *self.iter_field_note_revisions(note.id)]
         if versions[-1].id != manifest.field_note_revision_id:
             raise StoreError("Knowledge Capsule must pin the current Field Note revision")
+        if (
+            manifest.earning_graph_id
+            and not manifest.comparison_request_id
+            and {reference.graph_id for reference in note.references}
+            != {manifest.earning_graph_id}
+        ):
+            raise StoreError("Knowledge Capsule Field Note does not match its earning path")
         identities = {(item.kind, item.id) for item in manifest.artifacts}
         if len(identities) != len(manifest.artifacts):
             raise StoreError("Knowledge Capsule artifacts must be unique")
@@ -495,10 +608,7 @@ class Store:
                     f"Knowledge Capsule artifact SHA-256 mismatch: {artifact.id}"
                 )
         for existing in self.iter_knowledge_capsules():
-            if (
-                existing.comparison_request_id == manifest.comparison_request_id
-                and existing.field_note_id == manifest.field_note_id
-            ):
+            if existing.field_note_id == manifest.field_note_id:
                 raise StoreError(
                     f"Knowledge Capsule {existing.id} already exists for this milestone"
                 )
@@ -606,8 +716,8 @@ class Store:
         }
         if len(identities) != len(note.references):
             raise StoreError("Field Note references must be unique")
-        if len({item.graph_id for item in note.references}) < 2:
-            raise StoreError("Field Note requires thoughts from at least two graphs")
+        if len({item.session_id for item in note.references}) != 1:
+            raise StoreError("Field Note references must stay in one Threadwalk")
         for reference in note.references:
             graph = self.load_graph(reference.graph_id)
             if graph.session_id != reference.session_id:

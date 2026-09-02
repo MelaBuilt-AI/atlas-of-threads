@@ -432,9 +432,11 @@ node, and prompt, Thread Compass groups them as **Parallel continuations**. The
 comparison keeps every attributed graph separate, reports completed/failed/
 canceled/pending counts, and infers no vote, winner, or consensus.
 
-From that comparison, **Write Field Note** selects exact thought-objects across
-at least two paths and creates its one human conclusion, unresolved question,
-or observation. Once it exists, eligibility disappears and **Edit Field Note**
+After any one collaborator path completes, **Write Field Note** selects at
+least one exact thought-object and creates its human conclusion, unresolved
+question, or observation. A Parallel Continuations comparison remains an
+optional richer route whose note spans at least two paths. Once a note exists,
+eligibility disappears and **Edit Field Note**
 appends a revision to the same stable note and monument; prior text and source
 selections remain inspectable. Each reference preserves session/graph/node
 identity and the SHA-256 of the exact immutable graph bytes. Field Notes call no
@@ -442,7 +444,7 @@ provider, change no graph, and remain separate from evidence. Thread Compass
 reopens the one note from the comparison and from every chamber referenced
 anywhere in its history. The bounded contract is in `docs/FIELD_NOTES.md`.
 
-At the terminal chamber of an eligible parallel path, a floating **Field Note
+At the terminal chamber of an eligible completed path, a floating **Field Note
 Eligible** prompt offers `W` and preselects the standing thought in that exact
 composer. Writing has its own quiet loop; committing materializes a holographic
 Field Notes Monument into the left human-inscription alcove, then leaves the
@@ -452,9 +454,13 @@ the main reading plate, while `E` reveals its exact selected sources as human
 interpretive context—not causal evidence. Later edits update that stable
 monument without replaying its one-time construction ceremony.
 
-Once a completed comparison has its integrity-valid Field Note and no pending
-session work, **Knowledge Capsule Earned** offers `K` at the exact source
-chamber. Construction freezes a private, write-once, full-session-through-head
+Once a completed path has its integrity-valid Field Note and no pending session
+work, **Knowledge Capsule Earned** offers `K · Construct here` or `J · Store
+launcher`. Only one launcher can be stored; it survives reloads, suppresses new
+earning, and can later deploy with `K` at a chosen chamber only in the same
+Threadwalk. Storing does not freeze or export data, and a failed deployment
+leaves the launcher available. Construction freezes a private, write-once,
+full-session-through-current-head
 manifest with exact artifact hashes and the current Field Note revision. Its
 rear-right launcher builds for 18 seconds, becomes charged, and can launch only
 after deterministic mode-`0600` Markdown and its receipt are safely written.

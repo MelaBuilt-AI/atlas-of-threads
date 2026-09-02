@@ -29,7 +29,7 @@
     "text": { "type": "string", "minLength": 1, "maxLength": 4000 },
     "references": {
       "type": "array",
-      "minItems": 2,
+      "minItems": 1,
       "maxItems": 12,
       "uniqueItems": true,
       "items": {

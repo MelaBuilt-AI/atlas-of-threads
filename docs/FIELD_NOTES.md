@@ -1,27 +1,28 @@
 # Human-authored Field Notes
 
-Status: first live note accepted; one-note revision slice implemented, live acceptance pending
+Status: single-path eligibility and one-note revision slice implemented; live acceptance pending
 Authorized by: user  
 Date: 2026-09-01
 
 ## Purpose
 
-Parallel Continuations created the local movement:
+One completed collaborator path creates the local movement:
 
 ```text
-ask together → inspect separately
+follow a path → inspect it
 ```
 
 Field Notes completes it:
 
 ```text
-ask together → inspect separately → decide what mattered
+follow a path → inspect it → decide what mattered
 ```
 
-An inhabitant selects exact thought-objects from at least two paths in one
-Parallel Continuations comparison and writes a durable conclusion, unresolved
-question, or observation in their own words. One exact comparison may own one
-Field Note. Its stable base artifact and every later revision are immutable;
+An inhabitant selects at least one exact thought-object from a completed
+collaborator path and writes a durable conclusion, unresolved question, or
+observation in their own words. Parallel Continuations can still provide a
+richer multi-path comparison, but it is optional. One completed path or exact
+comparison may own one Field Note. Its stable base artifact and every later revision are immutable;
 editing appends to one linear history and never creates a second monument. It
 does not modify its source graphs, invoke a provider, select a winner, or
 synthesize an AI consensus graph.
@@ -32,13 +33,14 @@ references, identity, and The Atlas shared layer remain later work.
 ## Product rules
 
 - Every Field Note is explicitly `human` authored.
-- One exact same-question Parallel Continuations comparison may own exactly one
-  Field Note. After creation, eligibility disappears and every write surface
-  becomes an edit surface for that note.
+- One completed path or exact same-question Parallel Continuations comparison
+  may own exactly one Field Note. After creation, eligibility disappears and
+  every write surface becomes an edit surface for that note.
 - The base note and each revision are write-once. Editing appends one revision
   to a linear chain; no earlier text or source selection is overwritten.
-- The first composition flow requires at least two selected thoughts from at
-  least two distinct graphs in one exact same-question comparison.
+- The first composition flow requires one to twelve selected thoughts. A
+  single-path note keeps every reference in that completed graph; a parallel
+  note spans at least two completed graphs in the exact comparison.
 - A selected thought is identified by exact session, graph, and node ULIDs plus
   the SHA-256 of the exact stored graph JSON bytes at commit time.
 - Reference order preserves the comparison/path and selection order. It is not
@@ -120,8 +122,9 @@ Validation:
 - `kind` is exactly one of `conclusion`, `unresolved_question`, or
   `observation`;
 - `text` is trimmed, non-empty, and at most 4,000 characters;
-- `references` contains between 2 and 12 unique exact thoughts;
-- at least two distinct `graph_id` values are present;
+- `references` contains between 1 and 12 unique exact thoughts;
+- every reference stays in one Threadwalk; single-path creation additionally
+  keeps them in its one completed graph;
 - every source exists and passes session, node, and digest checks at commit;
 - no selected source graph or node is mutated.
 
@@ -171,8 +174,8 @@ revision remains directly readable.
 
 ## Append-only store location
 
-Field Notes span sessions, so they live at store scope rather than beneath one
-session:
+Field Notes can reference several graphs in one Threadwalk, so they live at
+store scope rather than beneath one graph:
 
 ```text
 field-notes/{note_id}.json
@@ -180,8 +183,8 @@ field-note-revisions/{note_id}/{revision_id}.json
 ```
 
 `Store.write_field_note` validates all references and rejects an existing ID.
-Comparison-guarded creation uses a bounded store lock so concurrent requests
-cannot create two notes for one comparison. `Store.write_field_note_revision`
+Eligibility-guarded creation uses a bounded store lock so concurrent requests
+cannot create two notes for one completed path or comparison. `Store.write_field_note_revision`
 requires the exact current predecessor and rejects an existing revision ID.
 There is no overwrite or delete operation.
 
@@ -249,15 +252,16 @@ The write body is:
 }
 ```
 
-`comparison_request_id` is a write-time guard, not part of the canonical note
-or revision.
-The server loads that exact eligible comparison and requires every submitted
-graph to be one of its completed paths. This prevents the first UI from
-quietly becoming a generalized cross-store annotation endpoint. It then lets
-the store validate the exact thought references and compute hashes.
+`comparison_request_id` is an optional write-time guard, not part of the
+canonical note or revision. Parallel creation supplies it. Single-path creation
+instead supplies `source_graph_id` and `source_node_id`; the server verifies
+that the source graph is a completed continuation and keeps every submitted
+reference inside it. The store then validates exact references and computes
+hashes.
 
-Creation additionally rejects a comparison that already owns a Field Note.
-Revision creation requires the named stable note to belong to that comparison.
+Creation additionally rejects a completed path or comparison that already owns
+a Field Note. Revision creation keeps a single-path note within its earning
+graph or requires a parallel note to belong to the supplied comparison.
 
 The detailed Parallel Continuations payload adds `selectable_thoughts` for
 every path in canonical graph order and `field_notes` whose references touch at
@@ -267,24 +271,22 @@ server-authored.
 
 ## Composition and chamber flow
 
-Field Notes remain attached to an exact Parallel Continuations comparison, but
-an eligible terminal chamber now exposes the direct lived-use entrance. Python
-marks a chamber eligible only when it is terminal and its graph is one of at
-least two completed paths in an exact comparison. JavaScript does not infer
-eligibility.
+Field Notes attach to one completed collaborator path or an exact Parallel
+Continuations comparison. Python marks the terminal chamber eligible after the
+completion receipt exists and the session has no pending work. JavaScript does
+not infer eligibility.
 
-1. At an eligible path ending, a floating **Field Note Eligible** prompt says
+1. At an eligible completed path ending, a floating **Field Note Eligible** prompt says
    **press W to write** and emits a restrained ethereal procedural cue after
    browser sound has awakened.
-2. `W` opens that exact comparison's Field Note composer inside Thread Compass
-   and preselects the standing thought. `T` → comparison → **Write Field Note**
-   remains an equivalent entrance and preselects the current path thought when
-   it belongs to that comparison.
+2. `W` opens the completed path's Field Note composer inside Thread Compass and
+   preselects the standing thought. For a Parallel comparison, `T` → comparison
+   → **Write Field Note** remains an equivalent entrance.
 3. The supplied `field-notes-writing-loop` plays only while the composer is
    active.
-4. Each path reveals its public thought-objects in recorded graph order.
-5. Select 2–12 exact thoughts across at least two paths. Every selection shows
-   harness/model attribution, kind, status, and exact text.
+4. Each available path reveals its public thought-objects in recorded graph order.
+5. Select 1–12 exact thoughts. A parallel note must represent at least two paths.
+   Every selection shows harness/model attribution, kind, status, and exact text.
 6. Choose conclusion, unresolved question, or observation.
 7. Write up to 4,000 characters and review the selected references in their
    preserved order. `Enter` commits when valid; `Shift+Enter` inserts a line.
@@ -367,14 +369,14 @@ inhabitant; it does not settle what should matter to everyone.
 
 ### Artifact and store
 
-- schema accepts all three kinds and rejects unknown kinds, empty/oversized
-  text, malformed hashes, duplicate references, fewer than two references,
-  more than twelve references, and fewer than two distinct graphs;
+- schema accepts all three kinds and one to twelve exact references, and rejects
+  unknown kinds, empty/oversized text, malformed hashes, duplicate references,
+  zero references, and more than twelve references;
 - creation computes exact stored graph-byte SHA-256 values;
 - wrong session/graph/node combinations are rejected;
 - writing the same note ID twice is rejected;
-- a second note for the same comparison is rejected, including under the store
-  lock, and eligibility disappears after the first;
+- a second note for the same completed path or comparison is rejected, including
+  under the store lock, and eligibility disappears after the first;
 - editing preserves the base bytes, appends a mode-`0600` revision with the
   exact current predecessor, and rejects overwrite or a branched predecessor;
 - latest and exact historical reads return the correct text and selections;
@@ -386,15 +388,15 @@ inhabitant; it does not settle what should matter to everyone.
 
 - CLI create/edit/list/show table and JSON paths preserve stable note,
   revision, exact IDs, and text;
-- server creation accepts only references from the guarded comparison;
+- server creation accepts only references from the guarded completed path or comparison;
 - GET detail and exact chamber filtering return server-authored attribution;
 - hidden reasoning never enters a Field Note payload;
 - creating and reading notes invoke no harness/provider function.
 
 ### Inhabit Space
 
-- comparison exposes all selectable public nodes in graph order;
-- selection requires 2–12 thoughts and two distinct paths;
+- a completed path exposes all selectable public nodes in graph order;
+- selection requires 1–12 thoughts; a parallel note requires two distinct paths;
 - kind and multiline text remain stable while focused;
 - commit produces one note and returns to the same comparison/chamber context;
 - after commit, the eligibility prompt is absent and the comparison exposes
@@ -402,7 +404,7 @@ inhabitant; it does not settle what should matter to everyone.
 - edit is prefilled from current content, saves one revision, exposes history,
   and does not reconstruct the stable monument;
 - existing notes reopen from the comparison and every referenced chamber;
-- terminal comparison paths receive server-authored eligibility and `W`
+- terminal completed paths receive server-authored eligibility and `W`
   preselects the standing thought;
 - writing, construction, completion, and entry sounds follow their exact
   lifecycle without stacking after exit;
@@ -413,7 +415,8 @@ inhabitant; it does not settle what should matter to everyone.
   entered note;
 - monument entry puts note text on the main plate and `E` shows exact source
   selections without presenting them as evidence;
-- `Esc` retraces composer → comparison → lineage → chamber;
+- `Esc` returns a single-path composer to its chamber and retraces a parallel
+  composer → comparison → lineage → chamber;
 - the layout remains usable at wide and 375 px widths.
 
 ### Regression
