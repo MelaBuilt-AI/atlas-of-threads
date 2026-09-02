@@ -23,6 +23,78 @@ class ProviderCommandError(Exception):
     """Provider discovery or Windows/WSL path translation failure."""
 
 
+def _safe_is_file(path: Path) -> bool:
+    try:
+        return path.is_file()
+    except OSError:
+        return False
+
+
+def _safe_which(name: str) -> str | None:
+    try:
+        return shutil.which(name)
+    except OSError:
+        return None
+
+
+def _windows_junction_target(path: Path) -> Path | None:
+    """Read a junction target without traversing the reparse point."""
+    try:
+        target = path.readlink()
+    except (OSError, ValueError):
+        return None
+    raw = str(target)
+    for prefix, replacement in (
+        ("\\\\?\\UNC\\", "\\\\"),
+        ("\\??\\UNC\\", "\\\\"),
+        ("\\\\?\\", ""),
+        ("\\??\\", ""),
+    ):
+        if raw.startswith(prefix):
+            raw = replacement + raw[len(prefix) :]
+            break
+    target = Path(raw)
+    if not target.is_absolute():
+        return None
+    return target
+
+
+def _safe_mtime(path: Path) -> float:
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        return -1
+
+
+def _physical_codex_command() -> str | None:
+    """Bypass the official Windows launch junction when it is guarded."""
+    root = (
+        Path(os.environ["CODEX_HOME"])
+        if os.environ.get("CODEX_HOME")
+        else Path.home() / ".codex"
+    ) / "packages" / "standalone"
+    releases = []
+    current = _windows_junction_target(root / "current")
+    if current is not None:
+        releases.append(current)
+    try:
+        cached = list((root / "releases").iterdir())
+    except OSError:
+        cached = []
+    releases.extend(
+        release
+        for release in sorted(
+            cached, key=lambda path: (_safe_mtime(path), path.name), reverse=True
+        )
+        if release not in releases
+    )
+    for release in releases:
+        for candidate in (release / "bin" / "codex.exe", release / "codex.exe"):
+            if _safe_is_file(candidate):
+                return str(candidate.absolute())
+    return None
+
+
 def _known_windows_paths(name: str) -> tuple[Path, ...]:
     user = Path.home()
     app_data = os.environ.get("APPDATA")
@@ -46,32 +118,36 @@ def _known_windows_paths(name: str) -> tuple[Path, ...]:
 
 def _native_command(name: str, override: str | None) -> str | None:
     if override:
-        candidate = shutil.which(override) or override
+        candidate = _safe_which(override) or override
         path = Path(candidate).expanduser()
-        return str(path.absolute()) if path.is_file() else None
-    found = shutil.which(name)
+        return str(path.absolute()) if _safe_is_file(path) else None
+    if sys.platform == "win32" and name == "codex":
+        physical = _physical_codex_command()
+        if physical:
+            return physical
+    found = _safe_which(name)
     if found:
         return str(Path(found).absolute())
     if name == "grok":
         root = Path(os.environ.get("GROK_HOME") or Path.home() / ".grok") / "bin"
         for candidate in (root / "grok", root / "grok.exe", root / "grok.cmd"):
-            if candidate.is_file():
+            if _safe_is_file(candidate):
                 return str(candidate.absolute())
     if sys.platform == "win32":
         for candidate in _known_windows_paths(name):
-            if candidate.is_file():
+            if _safe_is_file(candidate):
                 return str(candidate.absolute())
     return None
 
 
 def _wsl_launcher() -> str | None:
-    found = shutil.which("wsl.exe") or shutil.which("wsl")
+    found = _safe_which("wsl.exe") or _safe_which("wsl")
     if found:
         return str(Path(found).absolute())
     system_root = os.environ.get("SystemRoot")
     if system_root:
         candidate = Path(system_root) / "System32" / "wsl.exe"
-        if candidate.is_file():
+        if _safe_is_file(candidate):
             return str(candidate)
     return None
 
@@ -90,7 +166,12 @@ def discover_provider_commands(
 ) -> dict[str, ProviderCommand | None]:
     """Find native CLIs first, then fixed-name CLIs in the selected/default WSL2 distro."""
     requested = list(requests)
-    result = {name: _native_command(name, override) for name, override in requested}
+    result: dict[str, ProviderCommand | None] = {}
+    for name, override in requested:
+        try:
+            result[name] = _native_command(name, override)
+        except OSError:
+            result[name] = None
     unresolved = [
         name
         for name, override in requested

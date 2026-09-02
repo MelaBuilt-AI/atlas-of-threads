@@ -5133,6 +5133,8 @@
     } catch (err) {
       elEmpty.classList.add("visible");
       elEmpty.querySelector("p").textContent = String(err.message || err);
+      elEmpty.querySelector(".meta").textContent =
+        "Atlas could not finish loading. Close and reopen Atlas, then try again.";
     }
   }
 

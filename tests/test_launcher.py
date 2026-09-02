@@ -94,15 +94,89 @@ def test_windows_discovers_the_official_native_codex_install(monkeypatch, tmp_pa
     codex.write_bytes(b"test")
     monkeypatch.setattr(provider_command_module.sys, "platform", "win32")
     monkeypatch.setenv("LOCALAPPDATA", str(local_app_data))
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "missing-codex-home"))
     monkeypatch.setattr(provider_command_module.shutil, "which", lambda _name: None)
 
     assert discover_provider_command("codex") == str(codex.absolute())
+
+
+def test_windows_codex_uses_the_physical_standalone_release(monkeypatch, tmp_path: Path):
+    codex_home = tmp_path / ".codex"
+    standalone = codex_home / "packages" / "standalone"
+    release = standalone / "releases" / "v1-x86_64-pc-windows-msvc"
+    codex = release / "bin" / "codex.exe"
+    codex.parent.mkdir(parents=True)
+    codex.write_bytes(b"test")
+    standalone.joinpath("current").symlink_to(release, target_is_directory=True)
+    monkeypatch.setattr(provider_command_module.sys, "platform", "win32")
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    monkeypatch.setattr(provider_command_module.shutil, "which", lambda _name: None)
+
+    assert discover_provider_command("codex") == str(codex.absolute())
+
+
+def test_windows_codex_falls_back_to_the_newest_physical_release(
+    monkeypatch, tmp_path: Path
+):
+    codex_home = tmp_path / ".codex"
+    release = (
+        codex_home
+        / "packages"
+        / "standalone"
+        / "releases"
+        / "v2-x86_64-pc-windows-msvc"
+    )
+    codex = release / "bin" / "codex.exe"
+    codex.parent.mkdir(parents=True)
+    codex.write_bytes(b"test")
+    monkeypatch.setattr(provider_command_module.sys, "platform", "win32")
+    monkeypatch.setenv("CODEX_HOME", str(codex_home))
+    monkeypatch.setattr(provider_command_module.shutil, "which", lambda _name: None)
+
+    assert discover_provider_command("codex") == str(codex.absolute())
+
+
+def test_windows_untrusted_provider_path_does_not_break_discovery(
+    monkeypatch, tmp_path: Path
+):
+    local_app_data = tmp_path / "local"
+    guarded = local_app_data / "Programs" / "OpenAI" / "Codex" / "bin" / "codex.exe"
+    original_is_file = Path.is_file
+
+    def guarded_is_file(path: Path) -> bool:
+        if path == guarded:
+            raise OSError(448, "untrusted mount point", str(path))
+        return original_is_file(path)
+
+    monkeypatch.setattr(provider_command_module.sys, "platform", "win32")
+    monkeypatch.setenv("LOCALAPPDATA", str(local_app_data))
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "missing-codex-home"))
+    monkeypatch.setattr(provider_command_module.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(Path, "is_file", guarded_is_file)
+
+    assert discover_provider_commands([("codex", None)], wsl_names=set()) == {
+        "codex": None
+    }
+
+
+def test_one_provider_discovery_error_does_not_hide_another(monkeypatch):
+    def discover(name: str, _override: str | None) -> str | None:
+        if name == "codex":
+            raise OSError(448, "untrusted mount point")
+        return f"/provider/{name}"
+
+    monkeypatch.setattr(provider_command_module, "_native_command", discover)
+
+    assert discover_provider_commands(
+        [("codex", None), ("claude", None)], wsl_names=set()
+    ) == {"codex": None, "claude": "/provider/claude"}
 
 
 def test_windows_discovers_and_invokes_provider_clis_in_wsl(monkeypatch):
     wsl = Path("C:/Windows/System32/wsl.exe")
     monkeypatch.setattr(provider_command_module.sys, "platform", "win32")
     monkeypatch.setenv("GROK_HOME", "/provider-not-installed")
+    monkeypatch.setenv("CODEX_HOME", "/provider-not-installed")
     monkeypatch.setattr(provider_command_module, "_known_windows_paths", lambda _name: ())
     monkeypatch.setattr(
         provider_command_module.shutil,

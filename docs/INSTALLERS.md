@@ -40,6 +40,12 @@ billing route. It also checks the default WSL distribution as a
 fallback; set `TA_WSL_DISTRO` before starting Atlas to select a different
 distribution.
 
+The official Codex standalone installer exposes a stable Windows command through
+directory junctions. Atlas reads that provider-owned junction metadata and runs
+the current physical standalone release, preserving Codex's package context while
+avoiding Windows environments that reject traversal of the public junction.
+Provider path probes are best-effort and cannot prevent Atlas itself from opening.
+
 A vendor desktop app by itself does not qualify as a collaborator in this
 release. Atlas requires the provider's supported non-interactive CLI contract,
 so install and sign in to Codex CLI, Claude Code, or Grok Build either natively

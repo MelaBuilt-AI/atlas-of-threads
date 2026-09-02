@@ -20,6 +20,8 @@ SetupIconFile=atlas-of-threads.ico
 UninstallDisplayIcon={app}\{#AppExeName}
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
+CloseApplications=force
+RestartApplications=no
 
 [Files]
 Source: "..\..\dist\AtlasOfThreads.exe"; DestDir: "{app}"; Flags: ignoreversion
