@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "thought-archaeology"
-version = "0.1.0"
+version = "0.2.0"
 description = "Inspectable AI thought-graphs: inhabit, fork, and keep the negative space."
 readme = "README.md"
 requires-python = ">=3.11"
