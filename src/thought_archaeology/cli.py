@@ -57,6 +57,7 @@ from thought_archaeology.knowledge_capsules import (
     launch_knowledge_capsule,
 )
 from thought_archaeology.models import SCHEMA_VERSION, ModelInfo, Span, ThoughtGraph, Turn
+from thought_archaeology.mcp_server import serve_stdio as serve_mcp_stdio
 from thought_archaeology.render_md import render_md
 from thought_archaeology.serve import DEFAULT_BIND, DEFAULT_PORT, ServeError, serve_forever
 from thought_archaeology.providers import ProviderError, build_provider
@@ -613,6 +614,19 @@ def _parser() -> argparse.ArgumentParser:
     )
     p_serve.add_argument("--port", type=int, default=DEFAULT_PORT)
     p_serve.add_argument("--bind", default=DEFAULT_BIND)
+
+    p_mcp = sub.add_parser(
+        "mcp",
+        parents=[sub_globals],
+        help="connect an external agent to this local Personal Atlas",
+    )
+    mcp_sub = p_mcp.add_subparsers(dest="mcp_cmd", required=True)
+    mcp_sub.add_parser(
+        "serve",
+        parents=[sub_globals],
+        help="serve the read-only Atlas Agent Bridge over stdio",
+        description="serve the read-only Atlas Agent Bridge over stdio",
+    )
 
     p_launch = sub.add_parser(
         "launch",
@@ -1912,6 +1926,13 @@ def cmd_serve(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_mcp(args: argparse.Namespace) -> int:
+    if args.mcp_cmd != "serve":
+        raise UsageError("unknown mcp command")
+    serve_mcp_stdio(_store(args))
+    return EXIT_OK
+
+
 def cmd_launch(args: argparse.Namespace) -> int:
     if args.bind not in ("127.0.0.1", "localhost", "::1"):
         raise UsageError("Atlas binds localhost only")
@@ -2461,6 +2482,7 @@ def main(argv: list[str] | None = None) -> int:
         "canvas": cmd_canvas,
         "export-wiki": cmd_export_wiki,
         "serve": cmd_serve,
+        "mcp": cmd_mcp,
         "launch": cmd_launch,
     }
     try:

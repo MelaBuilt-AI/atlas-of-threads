@@ -33,7 +33,10 @@ The `0.x` application creates and inhabits a local Personal Atlas. It compiles
 finalized model answers into inspectable thought-graphs, preserves rejected
 roads and human interventions, supports attributed continuations from multiple
 AI collaborators, lets the inhabitant write Field Notes, and can freeze a
-completed local inquiry into a private Knowledge Capsule.
+completed local inquiry into a private Knowledge Capsule. The current source
+tree also contains the first read-only Atlas Agent Bridge slice: a local stdio
+MCP surface for inspecting exact Threadwalk and chamber context. It has no write
+or publication capability and is not part of the `v0.2.0` installers.
 
 The local application is not a hosted account, social network, remote model
 provider, public knowledge base, or shared Atlas client. It does not upload a
@@ -69,9 +72,11 @@ language, not a store or protocol migration.
 ## Release horizons
 
 - **Now — Personal Atlas:** private local graphs, Threadwalks, multiple
-  collaborators, interventions, Field Notes, Knowledge Capsules, and evidence.
-- **Next — Public Local Preview:** make the local application understandable,
-  installable, safe, and useful to a small founding cohort.
+  collaborators, interventions, Field Notes, Knowledge Capsules, evidence, and
+  a source-preview read-only local Agent Bridge.
+- **Next — Inbound agent collaboration:** explicit local identity and scopes,
+  one private root, one attributed agent path, idempotent receipts, and a
+  client-owned memory acknowledgement.
 - **Then — Portable weaving:** explicit bundles, remote references, and bounded
   exchange semantics after independent use exposes the real contract.
 - **Later — The Atlas:** opt-in identity, discovery, publication, attributed

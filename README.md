@@ -162,6 +162,21 @@ rewrites stored attribution.
 For the protocol and provider-specific boundaries, read
 [Harness adapters](docs/HARNESS_ADAPTERS.md).
 
+### Agent Bridge development preview
+
+The next local interoperability slice runs a read-only MCP server over stdio so
+an external agent can inspect stable Threadwalk and chamber context without
+invoking Atlas's outbound collaborator watcher:
+
+```bash
+ta --store /path/to/personal-atlas mcp serve
+```
+
+This source-tree preview opens no network listener and exposes no write or
+publication tool. The released `v0.2.0` installers predate it. Read the exact
+resources, tools, client setup, privacy boundary, and reserved inbound-write
+contract in [Agent Bridge](docs/AGENT_BRIDGE.md).
+
 ## Local-first ownership
 
 The packaged application binds only to `127.0.0.1`. The browser is a view into
