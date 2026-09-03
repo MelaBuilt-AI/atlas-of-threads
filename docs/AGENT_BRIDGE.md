@@ -5,10 +5,9 @@ local Personal Atlas that the Atlas of Threads application uses. The transport
 is local stdio MCP. It opens no port, performs no remote call, receives no
 provider credential, and never publishes a Threadwalk.
 
-The first implemented slice is intentionally read-only. It proves that an MCP
-client can discover exact local Threadwalk and chamber context without creating
-or modifying any Atlas artifact. Inbound collaboration writes and the memory
-receipt handshake remain subsequent slices.
+Slice A is intentionally read-only. Slice B adds explicit local collaborator
+registration, one private root, and one attributed child path. The memory
+receipt handshake remains a subsequent slice.
 
 ## Direction and recursion boundary
 
@@ -23,7 +22,7 @@ One action has one initiator. The inbound MCP bridge does not enqueue an Atlas
 continuation or invoke a registered harness. That boundary prevents an agent
 from silently calling itself through Atlas.
 
-## Slice A server
+## Server modes
 
 Run the bridge against the same store used by Atlas:
 
@@ -54,6 +53,29 @@ Server instructions establish these rules for the client:
 - treat reads as private local inspection, never publication;
 - do not request credentials, hidden chain-of-thought, or unrelated memory;
 - do not imply that Slice A has write tools.
+
+The command above remains read-only. To authorize Slice B, register a distinct
+inbound collaborator in the same store:
+
+```bash
+ta --store /path/to/personal-atlas mcp collaborator register \
+  --name Codex \
+  --client-family codex \
+  --scope atlas:read \
+  --scope atlas:write:threadwalk \
+  --scope atlas:write:path
+```
+
+The command returns an immutable collaborator record and ID. Start the scoped
+server with that exact ID:
+
+```bash
+ta --store /path/to/personal-atlas mcp serve --collaborator COLLABORATOR_ID
+```
+
+Registration is a local human-approved CLI action; an MCP client cannot
+self-register or expand its own scopes. `atlas:memory:ack` is reserved for
+Slice C and grants no current tool. There is no publication scope.
 
 ## Resources
 
@@ -97,6 +119,14 @@ configuration on the same host. For a source installation:
 codex mcp add atlas-of-threads -- ta --store /path/to/personal-atlas mcp serve
 ```
 
+For the authorized Slice B server, use a separately named client entry while
+testing and append the registered identity:
+
+```bash
+codex mcp add atlas-of-threads-write -- ta --store /path/to/personal-atlas \
+  mcp serve --collaborator COLLABORATOR_ID
+```
+
 For the installed Linux binary, replace the command after `--` with its exact
 installed path and the same arguments. `codex mcp list` shows the configured
 server, and `/mcp` shows it in the Codex terminal UI.
@@ -104,10 +134,11 @@ server, and `/mcp` shows it in the Codex terminal UI.
 Do not add Atlas to a person's client configuration without their explicit
 approval. Slice A does not need environment-carried tokens or OAuth.
 
-## Frozen inbound write contract
+## Slice B inbound write contract
 
-The names and boundaries below are reserved for the next implementation slices;
-they are not exposed by Slice A.
+The tools below are exposed only when the selected collaborator has their
+matching scope. Both are append-only, private, non-destructive, idempotent, and
+closed-world MCP tools.
 
 ### `begin_threadwalk`
 
@@ -119,8 +150,9 @@ Required input:
 
 Optional input: `title`.
 
-It will create one private root and one open inbound collaboration interaction.
-It must not publish or enqueue the outbound harness watcher.
+It creates one private root and one immutable open inbound interaction receipt.
+The root node and turn preserve whether the seed was a human instruction or an
+agent proposal. It does not publish or enqueue the outbound harness watcher.
 
 ### `append_agent_path`
 
@@ -132,9 +164,23 @@ Required input:
 - a structured `thought_graph` with `nodes` and `edges`;
 - caller-created `client_request_id`.
 
-Optional input: actual `model` and harness metadata when the client can report
-them. The graph will pass through Atlas's existing compiler and validation path.
-Hidden chain-of-thought and credentials are never accepted.
+Optional input: public `model` and harness name/version metadata when the client
+can report them. The graph passes through Atlas's existing compiler and
+validation path. Atlas records `provider: none` for its own execution because
+the inbound client—not an Atlas provider adapter—ran the model; the reported
+provider and model remain in Agent Bridge provenance. Hidden chain-of-thought,
+credential fields, and unrecognized graph fields are rejected.
+
+Every mutation requires a caller-created `client_request_id`. Repeating the
+same key with the same canonical content returns the original receipt and IDs.
+Repeating it with different content fails closed. Keys are scoped to the
+registered collaborator and persist across server restarts.
+
+Inbound interactions and completions live under the store's `agent-bridge/`
+ledger, separate from `continuations/`. Consequently the outbound watcher never
+sees or invokes an inbound MCP request.
+
+## Slice C reserved contract
 
 ### `acknowledge_memory_receipt`
 
@@ -142,11 +188,8 @@ Required input: Atlas `receipt_id`. Optional input: one opaque external-memory
 reference. Atlas records only the client's acknowledgement and never reads or
 mutates the external second brain.
 
-The write slices require a distinct inbound collaborator registry, explicit
-`atlas:read`, `atlas:write:threadwalk`, `atlas:write:path`, and
-`atlas:memory:ack` scopes, immutable interaction receipts, and idempotency keyed
-by collaborator plus `client_request_id`. Publication remains a separate future
-scope and cannot be implicit.
+`acknowledge_memory_receipt` is not exposed by Slice B. Publication remains a
+separate future capability and cannot be implicit.
 
 ## Acceptance boundary
 
@@ -156,7 +199,9 @@ file byte and modification time unchanged. No account, network identity,
 publication, continuation request, collaborator worker, or memory write may be
 created.
 
-The full Agent Bridge is not accepted until later slices add one private root,
-one attributed child path, duplicate-safe retries, append-only receipts, a
-client-owned second-brain acknowledgement, restart persistence, and physical
-client testing.
+Slice B is complete when a physically configured client creates exactly one
+private root and one attributed child, retrying both calls without duplicates,
+and inspection confirms stable provenance, no continuation request, no network
+call, and no publication artifact. The full Agent Bridge is not accepted until
+Slice C adds and physically verifies the client-owned second-brain
+acknowledgement.

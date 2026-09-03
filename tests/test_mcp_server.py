@@ -4,18 +4,27 @@ import io
 import json
 from pathlib import Path
 
+from thought_archaeology.agent_bridge import register_collaborator
 from thought_archaeology.mcp_server import serve_stdio
+from thought_archaeology.serve import thread_payload
 from thought_archaeology.store import Store
 
 from tests.test_cli import run
 
 
-def _bridge(store: Store, messages: list[dict]) -> list[dict]:
+def _bridge(
+    store: Store, messages: list[dict], *, collaborator_id: str | None = None
+) -> list[dict]:
     source = io.StringIO(
         "".join(json.dumps(message) + "\n" for message in messages)
     )
     sink = io.StringIO()
-    serve_stdio(store, input_stream=source, output_stream=sink)
+    serve_stdio(
+        store,
+        collaborator_id=collaborator_id,
+        input_stream=source,
+        output_stream=sink,
+    )
     return [json.loads(line) for line in sink.getvalue().splitlines()]
 
 
@@ -180,3 +189,229 @@ def test_cli_exposes_mcp_serve_help():
     assert code == 0
     assert "read-only Atlas Agent Bridge" in out
     assert err == ""
+
+
+def test_cli_registers_and_lists_inbound_collaborator(tmp_path: Path):
+    store_path = tmp_path / "data"
+    code, out, err = run(
+        [
+            "mcp",
+            "collaborator",
+            "register",
+            "--name",
+            "Codex",
+            "--client-family",
+            "codex",
+            "--scope",
+            "atlas:read",
+            "--scope",
+            "atlas:write:threadwalk",
+            "--scope",
+            "atlas:write:path",
+        ],
+        store=store_path,
+    )
+    assert code == 0, err
+    registered = json.loads(out)
+    assert registered["display_name"] == "Codex"
+    assert registered["scopes"] == [
+        "atlas:read",
+        "atlas:write:path",
+        "atlas:write:threadwalk",
+    ]
+
+    code, out, err = run(
+        ["mcp", "collaborator", "list"], store=store_path
+    )
+    assert code == 0, err
+    assert json.loads(out) == [registered]
+
+
+def test_slice_b_registered_collaborator_appends_one_private_path_idempotently(
+    tmp_path: Path,
+):
+    store = Store(tmp_path / "data")
+    collaborator = register_collaborator(
+        store,
+        display_name="Codex",
+        client_family="codex",
+        scopes=["atlas:read", "atlas:write:threadwalk", "atlas:write:path"],
+    )
+    begin_arguments = {
+        "seed": "Invent the medium first.",
+        "title": "Agent Bridge acceptance",
+        "seed_origin": "human_instruction",
+        "client_request_id": "begin-acceptance-1",
+    }
+    begin_replies = _bridge(
+        store,
+        [
+            *_initialize(),
+            {"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
+            {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/call",
+                "params": {"name": "begin_threadwalk", "arguments": begin_arguments},
+            },
+            {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "tools/call",
+                "params": {"name": "begin_threadwalk", "arguments": begin_arguments},
+            },
+        ],
+        collaborator_id=collaborator.id,
+    )
+
+    assert [item["name"] for item in begin_replies[1]["result"]["tools"]] == [
+        "atlas_status",
+        "list_threadwalks",
+        "read_threadwalk",
+        "read_chamber",
+        "begin_threadwalk",
+        "append_agent_path",
+    ]
+    begin = begin_replies[2]["result"]["structuredContent"]
+    replay = begin_replies[3]["result"]["structuredContent"]
+    assert begin["visibility"] == "private"
+    assert begin["publication"] is False
+    assert begin["outbound_harness_queued"] is False
+    assert replay["root_graph_id"] == begin["root_graph_id"]
+    assert replay["idempotent_replay"] is True
+
+    path_arguments = {
+        "interaction_id": begin["interaction_id"],
+        "source_graph_id": begin["root_graph_id"],
+        "source_node_id": begin["root_node_id"],
+        "prose": "The medium should make judgment calls traversable.",
+        "thought_graph": {
+            "nodes": [
+                {
+                    "local_id": "claim-1",
+                    "kind": "claim",
+                    "text": "The medium should make judgment calls traversable.",
+                },
+                {
+                    "local_id": "alternative-1",
+                    "kind": "rejected_alternative",
+                    "text": "A flat transcript would hide the route.",
+                },
+            ],
+            "edges": [
+                {
+                    "from": "alternative-1",
+                    "to": "claim-1",
+                    "kind": "shapes",
+                }
+            ],
+        },
+        "client_request_id": "path-acceptance-1",
+        "model": {"provider": "openai", "name": "gpt-5"},
+        "harness": {"name": "codex", "version": "test"},
+    }
+    path_replies = _bridge(
+        store,
+        [
+            *_initialize(),
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {"name": "append_agent_path", "arguments": path_arguments},
+            },
+            {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/call",
+                "params": {"name": "append_agent_path", "arguments": path_arguments},
+            },
+        ],
+        collaborator_id=collaborator.id,
+    )
+    completion = path_replies[1]["result"]["structuredContent"]
+    completion_replay = path_replies[2]["result"]["structuredContent"]
+
+    assert completion_replay["graph_id"] == completion["graph_id"]
+    assert completion_replay["idempotent_replay"] is True
+    assert len(list(store.iter_session_ids())) == 1
+    assert len(list(store.iter_graphs(begin["session_id"]))) == 2
+    assert len(list(store.iter_turns(begin["session_id"]))) == 2
+    assert list(store.iter_continuation_requests()) == []
+    assert store.validate_session(begin["session_id"]) == []
+
+    root = store.load_graph(begin["root_graph_id"])
+    child = store.load_graph(completion["graph_id"])
+    assert root.nodes[0].agent == "human"
+    assert root.metadata["agent_bridge"]["seed_origin"] == "human_instruction"
+    assert child.parent_graph_id == root.id
+    assert child.model.provider == "none"
+    assert child.model.name == "gpt-5"
+    assert child.metadata["agent_bridge"]["model"] == {
+        "provider": "openai",
+        "name": "gpt-5",
+    }
+    assert all(node.agent == "model" for node in child.nodes)
+    threadwalk = thread_payload(store, begin["session_id"])
+    assert [entry["kind"] for entry in threadwalk["entries"]] == [
+        "origin",
+        "continuation",
+    ]
+    assert threadwalk["latest_ai_graph_id"] == child.id
+    assert threadwalk["entries"][1]["source_graph_id"] == root.id
+    assert threadwalk["entries"][1]["source_node_id"] == begin["root_node_id"]
+
+
+def test_slice_b_agent_proposal_is_not_attributed_to_human_and_conflicts_fail_closed(
+    tmp_path: Path,
+):
+    store = Store(tmp_path / "data")
+    collaborator = register_collaborator(
+        store,
+        display_name="Research agent",
+        client_family="codex",
+        scopes=["atlas:write:threadwalk"],
+    )
+    first = _bridge(
+        store,
+        [
+            *_initialize(),
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {
+                    "name": "begin_threadwalk",
+                    "arguments": {
+                        "seed": "Explore a new representational medium.",
+                        "seed_origin": "agent_proposal",
+                        "client_request_id": "proposal-1",
+                    },
+                },
+            },
+            {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/call",
+                "params": {
+                    "name": "begin_threadwalk",
+                    "arguments": {
+                        "seed": "Different content.",
+                        "seed_origin": "agent_proposal",
+                        "client_request_id": "proposal-1",
+                    },
+                },
+            },
+        ],
+        collaborator_id=collaborator.id,
+    )
+    opened = first[1]["result"]["structuredContent"]
+    root = store.load_graph(opened["root_graph_id"])
+    root_turn = store.load_turn(opened["session_id"], opened["root_turn_id"])
+
+    assert root.nodes[0].agent == "model"
+    assert root.nodes[0].source == "structured_emit"
+    assert root_turn.role == "assistant"
+    assert first[2]["result"]["isError"] is True
+    assert "different content" in first[2]["result"]["content"][0]["text"]
+    assert len(list(store.iter_session_ids())) == 1

@@ -745,6 +745,10 @@ def thread_payload(
         spawn = entry_node(graph)
         turn = turns.get(graph.turn_id)
         continuation = continuations.get(graph.id)
+        inbound = graph.metadata.get("agent_bridge")
+        prompt = ""
+        source_graph_id = None
+        source_node_id = None
         if continuation:
             completion, request = continuation
             kind = "continuation"
@@ -756,6 +760,22 @@ def thread_payload(
                 )
                 if part
             )
+            prompt = request.prompt
+            source_graph_id = request.graph_id
+            source_node_id = request.node_id
+        elif isinstance(inbound, dict) and graph.parent_graph_id:
+            kind = "continuation"
+            label = " · ".join(
+                part
+                for part in (
+                    str(inbound.get("client_family", "")).capitalize(),
+                    graph.model.name if graph.model.name != "unknown" else "",
+                )
+                if part
+            ) or "inbound agent path"
+            request = None
+            source_graph_id = inbound.get("source_graph_id")
+            source_node_id = inbound.get("source_node_id")
         elif turn and turn.role == "human_edit":
             vetoed = any(
                 node.source == "human" and node.status == "vetoed"
@@ -767,6 +787,12 @@ def thread_payload(
         elif graph.parent_graph_id:
             kind = "fork" if graph.fork else "revision"
             label = "regenerated fork" if graph.fork else "graph revision"
+            request = None
+        elif isinstance(inbound, dict):
+            kind = "origin"
+            label = str(inbound.get("seed_origin", "agent bridge seed")).replace(
+                "_", " "
+            )
             request = None
         elif graph.metadata.get("workspace_origin"):
             kind = "origin"
@@ -793,9 +819,9 @@ def thread_payload(
                 "model": graph.model.to_dict(),
                 "turn_role": turn.role if turn else None,
                 "reason": graph.fork.reason if graph.fork else "",
-                "prompt": request.prompt if request else "",
-                "source_graph_id": request.graph_id if request else None,
-                "source_node_id": request.node_id if request else None,
+                "prompt": prompt,
+                "source_graph_id": source_graph_id,
+                "source_node_id": source_node_id,
             }
         )
         for child in children.get(graph.id, []):

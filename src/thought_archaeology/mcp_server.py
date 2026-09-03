@@ -6,9 +6,18 @@ from typing import Any, TextIO
 from urllib.parse import unquote, urlparse
 
 from thought_archaeology import __version__
+from thought_archaeology.agent_bridge import (
+    AgentBridgeError,
+    AgentCollaborator,
+    append_agent_path,
+    begin_threadwalk,
+    require_scope,
+)
+from thought_archaeology.compile_common import CompileError
 from thought_archaeology.fork import ForkError
 from thought_archaeology.inhabit import inhabit
 from thought_archaeology.models import SCHEMA_VERSION
+from thought_archaeology.schema import ValidationError
 from thought_archaeology.serve import bootstrap_payload, thread_payload
 from thought_archaeology.store import Store, StoreError
 
@@ -26,6 +35,16 @@ SERVER_INSTRUCTIONS = (
     "stable IDs, then read_threadwalk or read_chamber for exact context. Reading "
     "never means publication. Do not request credentials, hidden chain-of-thought, "
     "or unrelated private memory. This Slice A bridge has no write tools."
+)
+
+WRITE_SERVER_INSTRUCTIONS = (
+    "Atlas of Threads exposes this person's local Personal Atlas to one explicitly "
+    "registered collaborator. Reads and inbound contributions stay private and local. "
+    "Use begin_threadwalk only for a new seed and preserve whether it came from a human "
+    "instruction or an agent proposal. Use append_agent_path only with the exact source "
+    "IDs returned by that interaction. Every mutation needs a stable client_request_id. "
+    "Send final user-visible prose and a structured thought graph, never credentials or "
+    "hidden chain-of-thought. Inbound writes never publish or invoke an outbound harness."
 )
 
 EMPTY_OBJECT_SCHEMA = {
@@ -47,8 +66,15 @@ class McpError(Exception):
         super().__init__(message)
 
 
-def atlas_status(store: Store) -> dict[str, Any]:
+def atlas_status(
+    store: Store, collaborator: AgentCollaborator | None = None
+) -> dict[str, Any]:
     ready = store.exists()
+    write_enabled = collaborator is not None and bool(
+        {"atlas:write:threadwalk", "atlas:write:path"}.intersection(
+            collaborator.scopes
+        )
+    )
     session_count = 0
     graph_count = 0
     if ready:
@@ -61,10 +87,18 @@ def atlas_status(store: Store) -> dict[str, Any]:
         "schema_version": SCHEMA_VERSION,
         "bridge": {
             "transport": "stdio",
-            "slice": "A",
-            "read_only": True,
+            "slice": "B" if write_enabled else "A",
+            "read_only": not write_enabled,
             "network": False,
             "publication": False,
+            **(
+                {
+                    "collaborator_id": collaborator.id,
+                    "scopes": list(collaborator.scopes),
+                }
+                if collaborator is not None
+                else {}
+            ),
         },
         "store": {
             "ready": ready,
@@ -141,14 +175,14 @@ def _resource_templates() -> list[dict[str, Any]]:
     ]
 
 
-def _tools() -> list[dict[str, Any]]:
+def _tools(collaborator: AgentCollaborator | None = None) -> list[dict[str, Any]]:
     read_annotations = {
         "readOnlyHint": True,
         "destructiveHint": False,
         "idempotentHint": True,
         "openWorldHint": False,
     }
-    return [
+    tools = [
         {
             "name": "atlas_status",
             "title": "Check Personal Atlas status",
@@ -197,6 +231,108 @@ def _tools() -> list[dict[str, Any]]:
             "annotations": read_annotations,
         },
     ]
+    if collaborator is None:
+        return tools
+    if "atlas:read" not in collaborator.scopes:
+        tools = []
+    write_annotations = {
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False,
+    }
+    if "atlas:write:threadwalk" in collaborator.scopes:
+        tools.append(
+            {
+                "name": "begin_threadwalk",
+                "title": "Begin a private Threadwalk",
+                "description": (
+                    "Create one private opening graph and inbound collaboration receipt."
+                ),
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "seed": {"type": "string", "minLength": 1, "maxLength": 4000},
+                        "title": {"type": "string", "minLength": 1, "maxLength": 200},
+                        "seed_origin": {
+                            "type": "string",
+                            "enum": ["human_instruction", "agent_proposal"],
+                        },
+                        "client_request_id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200,
+                        },
+                    },
+                    "required": ["seed", "seed_origin", "client_request_id"],
+                    "additionalProperties": False,
+                },
+                "annotations": write_annotations,
+            }
+        )
+    if "atlas:write:path" in collaborator.scopes:
+        public_metadata = {
+            "type": "object",
+            "properties": {
+                "provider": {"type": "string", "minLength": 1, "maxLength": 200},
+                "name": {"type": "string", "minLength": 1, "maxLength": 200},
+                "version": {"type": "string", "minLength": 1, "maxLength": 200},
+            },
+            "additionalProperties": False,
+        }
+        tools.append(
+            {
+                "name": "append_agent_path",
+                "title": "Append an attributed agent path",
+                "description": (
+                    "Validate and append final prose plus one structured graph "
+                    "to an open interaction."
+                ),
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "interaction_id": ULID_SCHEMA,
+                        "source_graph_id": ULID_SCHEMA,
+                        "source_node_id": ULID_SCHEMA,
+                        "prose": {"type": "string", "minLength": 1},
+                        "thought_graph": {
+                            "type": "object",
+                            "properties": {
+                                "nodes": {
+                                    "type": "array",
+                                    "minItems": 1,
+                                    "items": {"type": "object"},
+                                },
+                                "edges": {
+                                    "type": "array",
+                                    "items": {"type": "object"},
+                                },
+                            },
+                            "required": ["nodes", "edges"],
+                            "additionalProperties": False,
+                        },
+                        "client_request_id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200,
+                        },
+                        "model": public_metadata,
+                        "harness": public_metadata,
+                    },
+                    "required": [
+                        "interaction_id",
+                        "source_graph_id",
+                        "source_node_id",
+                        "prose",
+                        "thought_graph",
+                        "client_request_id",
+                    ],
+                    "additionalProperties": False,
+                },
+                "annotations": write_annotations,
+            }
+        )
+    return tools
 
 
 def _require_arguments(arguments: Any, names: tuple[str, ...]) -> dict[str, Any]:
@@ -230,7 +366,9 @@ def _tool_error(message: str) -> dict[str, Any]:
     }
 
 
-def _call_tool(store: Store, params: Any) -> dict[str, Any]:
+def _call_tool(
+    store: Store, params: Any, collaborator: AgentCollaborator | None = None
+) -> dict[str, Any]:
     if not isinstance(params, dict) or not isinstance(params.get("name"), str):
         raise McpError(-32602, "tools/call requires a tool name")
     name = params["name"]
@@ -238,24 +376,80 @@ def _call_tool(store: Store, params: Any) -> dict[str, Any]:
     try:
         if name == "atlas_status":
             _require_arguments(arguments, ())
-            return _tool_result(atlas_status(store))
+            if collaborator is not None:
+                require_scope(collaborator, "atlas:read")
+            return _tool_result(atlas_status(store, collaborator))
         if name == "list_threadwalks":
             _require_arguments(arguments, ())
+            if collaborator is not None:
+                require_scope(collaborator, "atlas:read")
             return _tool_result(list_threadwalks(store))
         if name == "read_threadwalk":
             values = _require_arguments(arguments, ("session_id",))
+            if collaborator is not None:
+                require_scope(collaborator, "atlas:read")
             return _tool_result(read_threadwalk(store, values["session_id"]))
         if name == "read_chamber":
             values = _require_arguments(arguments, ("graph_id", "node_id"))
+            if collaborator is not None:
+                require_scope(collaborator, "atlas:read")
             return _tool_result(
                 read_chamber(store, values["graph_id"], values["node_id"])
             )
-    except (StoreError, ForkError) as exc:
+        if name == "begin_threadwalk":
+            if collaborator is None:
+                raise AgentBridgeError(
+                    "begin_threadwalk requires a registered collaborator"
+                )
+            if not isinstance(arguments, dict):
+                raise McpError(-32602, "tool arguments must be an object")
+            expected = {"seed", "seed_origin", "client_request_id", "title"}
+            required = expected - {"title"}
+            if set(arguments) - expected or any(
+                not isinstance(arguments.get(field), str) for field in required
+            ) or ("title" in arguments and not isinstance(arguments["title"], str)):
+                raise McpError(-32602, "invalid begin_threadwalk arguments")
+            return _tool_result(begin_threadwalk(store, collaborator, **arguments))
+        if name == "append_agent_path":
+            if collaborator is None:
+                raise AgentBridgeError(
+                    "append_agent_path requires a registered collaborator"
+                )
+            if not isinstance(arguments, dict):
+                raise McpError(-32602, "tool arguments must be an object")
+            expected = {
+                "interaction_id",
+                "source_graph_id",
+                "source_node_id",
+                "prose",
+                "thought_graph",
+                "client_request_id",
+                "model",
+                "harness",
+            }
+            required = expected - {"model", "harness"}
+            string_fields = required - {"thought_graph"}
+            if set(arguments) - expected or any(
+                not isinstance(arguments.get(field), str) for field in string_fields
+            ) or "thought_graph" not in arguments:
+                raise McpError(-32602, "invalid append_agent_path arguments")
+            return _tool_result(append_agent_path(store, collaborator, **arguments))
+    except (
+        StoreError,
+        ForkError,
+        AgentBridgeError,
+        CompileError,
+        ValidationError,
+    ) as exc:
         return _tool_error(str(exc))
     raise McpError(-32602, f"unknown tool: {name}")
 
 
-def _read_resource(store: Store, params: Any) -> dict[str, Any]:
+def _read_resource(
+    store: Store,
+    params: Any,
+    collaborator: AgentCollaborator | None = None,
+) -> dict[str, Any]:
     if not isinstance(params, dict) or not isinstance(params.get("uri"), str):
         raise McpError(-32602, "resources/read requires a uri")
     uri = params["uri"]
@@ -265,7 +459,7 @@ def _read_resource(store: Store, params: Any) -> dict[str, Any]:
         if parsed.scheme != "atlas":
             raise McpError(-32002, f"resource not found: {uri}")
         if parsed.netloc == "status" and not parts:
-            payload = atlas_status(store)
+            payload = atlas_status(store, collaborator)
         elif parsed.netloc == "threadwalks" and not parts:
             payload = list_threadwalks(store)
         elif parsed.netloc == "threadwalk" and len(parts) == 1:
@@ -288,8 +482,11 @@ def _read_resource(store: Store, params: Any) -> dict[str, Any]:
 
 
 class AtlasMcpServer:
-    def __init__(self, store: Store):
+    def __init__(
+        self, store: Store, collaborator: AgentCollaborator | None = None
+    ):
         self.store = store
+        self.collaborator = collaborator
         self.initialized = False
 
     def dispatch(self, message: Any) -> dict[str, Any] | None:
@@ -323,10 +520,22 @@ class AtlasMcpServer:
                     "name": "atlas-of-threads",
                     "title": "Atlas of Threads Agent Bridge",
                     "version": __version__,
-                    "description": "Read-only access to one local Personal Atlas.",
+                    "description": (
+                        "Scoped local collaboration with one Personal Atlas."
+                        if self.collaborator is not None
+                        else "Read-only access to one local Personal Atlas."
+                    ),
                     "websiteUrl": "https://atlasofthreads.com",
                 },
-                "instructions": SERVER_INSTRUCTIONS,
+                "instructions": (
+                    WRITE_SERVER_INSTRUCTIONS
+                    if self.collaborator is not None
+                    and {
+                        "atlas:write:threadwalk",
+                        "atlas:write:path",
+                    }.intersection(self.collaborator.scopes)
+                    else SERVER_INSTRUCTIONS
+                ),
             }
 
         if not self.initialized:
@@ -334,15 +543,34 @@ class AtlasMcpServer:
         if method == "ping":
             return {}
         if method == "resources/list":
+            if (
+                self.collaborator is not None
+                and "atlas:read" not in self.collaborator.scopes
+            ):
+                return {"resources": []}
             return {"resources": _resources(self.store)}
         if method == "resources/templates/list":
+            if (
+                self.collaborator is not None
+                and "atlas:read" not in self.collaborator.scopes
+            ):
+                return {"resourceTemplates": []}
             return {"resourceTemplates": _resource_templates()}
         if method == "resources/read":
-            return _read_resource(self.store, message.get("params"))
+            if self.collaborator is not None:
+                try:
+                    require_scope(self.collaborator, "atlas:read")
+                except AgentBridgeError as exc:
+                    raise McpError(-32003, str(exc)) from exc
+            return _read_resource(
+                self.store, message.get("params"), self.collaborator
+            )
         if method == "tools/list":
-            return {"tools": _tools()}
+            return {"tools": _tools(self.collaborator)}
         if method == "tools/call":
-            return _call_tool(self.store, message.get("params"))
+            return _call_tool(
+                self.store, message.get("params"), self.collaborator
+            )
         raise McpError(-32601, f"method not found: {method}")
 
 
@@ -360,12 +588,18 @@ def _error_response(request_id: Any, exc: McpError) -> dict[str, Any]:
 def serve_stdio(
     store: Store,
     *,
+    collaborator_id: str | None = None,
     input_stream: TextIO | None = None,
     output_stream: TextIO | None = None,
 ) -> None:
     source = input_stream or sys.stdin
     sink = output_stream or sys.stdout
-    server = AtlasMcpServer(store)
+    collaborator = (
+        store.load_agent_collaborator(collaborator_id)
+        if collaborator_id is not None
+        else None
+    )
+    server = AtlasMcpServer(store, collaborator)
     for line in source:
         request_id: Any = None
         try:

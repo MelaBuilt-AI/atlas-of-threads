@@ -164,18 +164,19 @@ For the protocol and provider-specific boundaries, read
 
 ### Agent Bridge development preview
 
-The next local interoperability slice runs a read-only MCP server over stdio so
-an external agent can inspect stable Threadwalk and chamber context without
-invoking Atlas's outbound collaborator watcher:
+The source preview runs a local MCP server over stdio. With no collaborator ID,
+it remains the byte-preserving Slice A reader:
 
 ```bash
 ta --store /path/to/personal-atlas mcp serve
 ```
 
-This source-tree preview opens no network listener and exposes no write or
-publication tool. The released `v0.2.0` installers predate it. Read the exact
-resources, tools, client setup, privacy boundary, and reserved inbound-write
-contract in [Agent Bridge](docs/AGENT_BRIDGE.md).
+Slice B can explicitly register one inbound collaborator and grant only the
+local scopes needed to create a private Threadwalk and append one attributed
+agent path. It has no publication tool and never invokes Atlas's outbound
+collaborator watcher. The released `v0.2.0` installers predate both slices.
+Read the exact setup, tools, idempotency, and privacy boundaries in
+[Agent Bridge](docs/AGENT_BRIDGE.md).
 
 ## Local-first ownership
 

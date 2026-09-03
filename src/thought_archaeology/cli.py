@@ -11,6 +11,7 @@ import webbrowser
 from datetime import datetime, timezone
 from pathlib import Path
 
+from thought_archaeology.agent_bridge import AgentBridgeError, register_collaborator
 from thought_archaeology.compile_common import CompileError
 from thought_archaeology.compile_posthoc import compile_posthoc
 from thought_archaeology.compile_structured import compile_structured
@@ -621,11 +622,39 @@ def _parser() -> argparse.ArgumentParser:
         help="connect an external agent to this local Personal Atlas",
     )
     mcp_sub = p_mcp.add_subparsers(dest="mcp_cmd", required=True)
-    mcp_sub.add_parser(
+    p_mcp_serve = mcp_sub.add_parser(
         "serve",
         parents=[sub_globals],
-        help="serve the read-only Atlas Agent Bridge over stdio",
-        description="serve the read-only Atlas Agent Bridge over stdio",
+        help="serve the read-only Atlas Agent Bridge or an authorized bridge over stdio",
+        description="serve the read-only Atlas Agent Bridge or an authorized bridge over stdio",
+    )
+    p_mcp_serve.add_argument("--collaborator", default=None, metavar="ID")
+    p_mcp_collaborator = mcp_sub.add_parser(
+        "collaborator",
+        parents=[sub_globals],
+        help="manage explicitly authorized inbound collaborators",
+    )
+    collaborator_sub = p_mcp_collaborator.add_subparsers(
+        dest="collaborator_cmd", required=True
+    )
+    p_mcp_register = collaborator_sub.add_parser(
+        "register", parents=[sub_globals], help="register one local collaborator"
+    )
+    p_mcp_register.add_argument("--name", required=True)
+    p_mcp_register.add_argument("--client-family", required=True)
+    p_mcp_register.add_argument(
+        "--scope",
+        action="append",
+        required=True,
+        choices=[
+            "atlas:read",
+            "atlas:write:threadwalk",
+            "atlas:write:path",
+            "atlas:memory:ack",
+        ],
+    )
+    collaborator_sub.add_parser(
+        "list", parents=[sub_globals], help="list local inbound collaborators"
     )
 
     p_launch = sub.add_parser(
@@ -1927,10 +1956,32 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
 
 def cmd_mcp(args: argparse.Namespace) -> int:
-    if args.mcp_cmd != "serve":
-        raise UsageError("unknown mcp command")
-    serve_mcp_stdio(_store(args))
-    return EXIT_OK
+    store = _store(args)
+    if args.mcp_cmd == "serve":
+        serve_mcp_stdio(store, collaborator_id=args.collaborator)
+        return EXIT_OK
+    if args.mcp_cmd == "collaborator":
+        if args.collaborator_cmd == "register":
+            collaborator = register_collaborator(
+                store,
+                display_name=args.name,
+                client_family=args.client_family,
+                scopes=args.scope,
+            )
+            print(json.dumps(collaborator.to_dict(), ensure_ascii=False))
+            return EXIT_OK
+        if args.collaborator_cmd == "list":
+            if not store.exists():
+                print("[]")
+            else:
+                print(
+                    json.dumps(
+                        [item.to_dict() for item in store.iter_agent_collaborators()],
+                        ensure_ascii=False,
+                    )
+                )
+            return EXIT_OK
+    raise UsageError("unknown mcp command")
 
 
 def cmd_launch(args: argparse.Namespace) -> int:
@@ -2502,6 +2553,9 @@ def main(argv: list[str] | None = None) -> int:
     except HarnessError as exc:
         print(exc, file=sys.stderr)
         return EXIT_IO
+    except AgentBridgeError as exc:
+        print(exc, file=sys.stderr)
+        return EXIT_USAGE
     except ServeError as exc:
         print(exc, file=sys.stderr)
         return EXIT_USAGE
