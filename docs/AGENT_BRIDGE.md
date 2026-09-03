@@ -9,7 +9,8 @@ Slice A is intentionally read-only. Slice B adds explicit local collaborator
 registration, one private root, and one attributed child path. Slice C adds a
 bounded memory candidate and an opaque client-owned acknowledgement. A
 connected Codex harness can also bind that same collaborator identity to one
-resumable, read-only session in a user-approved memory workspace.
+resumable session backed by a bounded projection of explicitly approved,
+read-only memory files.
 
 ## Direction and recursion boundary
 
@@ -219,26 +220,42 @@ ta --store /path/to/personal-atlas mcp collaborator register \
 ```
 
 Then bind that returned ID to a distinct outbound harness. The memory root must
-be a directory the person intentionally approves for read-only recall:
+be a directory the person intentionally approves for read-only recall. Name at
+least one exact UTF-8 text file inside that root with repeated `--memory-file`
+options; absolute paths, parent traversal, missing files, duplicates, more than
+eight files, files larger than 64 KiB, and projections larger than 192 KiB are
+rejected:
 
 ```bash
 ta --store /path/to/personal-atlas harness register indy \
   --adapter "$(command -v ta-harness-codex)" \
   --collaborator COLLABORATOR_ID \
   --memory-root /path/to/agent-workspace \
+  --memory-file AGENTS.md \
+  --memory-file index.md \
+  --memory-file handoffs/latest-handoff.md \
   --model gpt-5.6-sol \
   --default
 
 ta --store /path/to/personal-atlas harness doctor indy
 ```
 
-The first Atlas question starts one persisted Codex session in that workspace;
-later questions resume the exact session ID. Codex loads workspace guidance,
-including `AGENTS.md`, and can read durable memory the person placed inside the
-approved root. It ignores the ordinary Codex user configuration so unrelated
-MCP servers cannot re-enter Atlas through the outbound path. It runs in a
-read-only sandbox and is instructed not to browse, modify files, make network
-calls, or delegate. The private session-state file
+The adapter reads only those approved files, revalidates that they remain
+inside the root, and projects their current text into each request. Codex runs
+from a temporary directory with project-rule discovery disabled, so it does not
+need shell access to the vault. This is required for consistent behavior on
+native Windows, where Codex CLI `0.153.0` physically rejected PowerShell and
+cmd file reads under its `read-only`/`never` execution policy. Atlas does not
+grant workspace-write, danger-full-access, or full-disk-read permission as a
+workaround.
+
+The first Atlas question starts one persisted Codex session; later questions
+resume the exact session ID. The current approved projection is authoritative
+over stale recollection already in that session. Ordinary Codex user
+configuration is ignored so unrelated MCP servers cannot re-enter Atlas
+through the outbound path. Codex remains in its read-only sandbox and is
+instructed not to inspect other files, browse, modify files, make network calls,
+or delegate. The private session-state file
 lives beside the user-owned harness registry under `agent-sessions/`, not in
 the Personal Atlas store, and is mode `0600`.
 

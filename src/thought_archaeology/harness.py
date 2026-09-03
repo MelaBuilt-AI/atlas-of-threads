@@ -31,6 +31,7 @@ from thought_archaeology.store import Store
 HARNESS_CONFIG_VERSION = 1
 HARNESS_PROTOCOL_VERSION = "1"
 HARNESS_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+MAX_MEMORY_FILES = 8
 
 
 class HarnessError(Exception):
@@ -66,6 +67,7 @@ class HarnessSpec:
     agent_name: str | None = None
     memory_root: str | None = None
     session_state: str | None = None
+    memory_files: tuple[str, ...] = ()
 
     @classmethod
     def from_dict(cls, name: str, data: dict[str, Any]) -> Self:
@@ -94,6 +96,14 @@ class HarnessSpec:
             for value in optional.values()
         ):
             raise HarnessError(f"harness {name!r} has invalid metadata")
+        memory_files = data.get("memory_files", [])
+        if (
+            not isinstance(memory_files, list)
+            or len(memory_files) > MAX_MEMORY_FILES
+            or not all(isinstance(item, str) and item for item in memory_files)
+            or len(set(memory_files)) != len(memory_files)
+        ):
+            raise HarnessError(f"harness {name!r} has invalid memory files")
         agent_values = tuple(
             optional[key]
             for key in ("collaborator_id", "agent_name", "memory_root", "session_state")
@@ -102,10 +112,13 @@ class HarnessSpec:
             raise HarnessError(
                 f"harness {name!r} has an incomplete connected-agent configuration"
             )
+        if memory_files and optional["memory_root"] is None:
+            raise HarnessError(f"harness {name!r} has memory files without a root")
         return cls(
             name=name,
             argv=tuple(argv),
             registered_at=registered_at,
+            memory_files=tuple(memory_files),
             **optional,
         )
 
@@ -123,6 +136,8 @@ class HarnessSpec:
             value = getattr(self, key)
             if value is not None:
                 data[key] = value
+        if self.memory_files:
+            data["memory_files"] = list(self.memory_files)
         return data
 
     @property
@@ -192,6 +207,7 @@ class HarnessRegistry:
         collaborator_id: str | None = None,
         agent_name: str | None = None,
         memory_root: Path | str | None = None,
+        memory_files: tuple[str, ...] = (),
         model: str | None = None,
     ) -> HarnessSpec:
         if not HARNESS_NAME.fullmatch(name):
@@ -214,12 +230,41 @@ class HarnessRegistry:
                 "connected-agent registration requires collaborator ID, name, and memory root"
             )
         resolved_memory_root = None
+        resolved_memory_files: tuple[str, ...] = ()
         session_state = None
+        if memory_files and memory_root is None:
+            raise HarnessError("memory files require a connected-agent memory root")
+        if memory_root is not None and not memory_files:
+            raise HarnessError(
+                "connected-agent registration requires at least one approved memory file"
+            )
         if memory_root is not None:
             root = Path(memory_root).expanduser().resolve()
             if not root.is_dir():
                 raise HarnessError(f"memory root is not a directory: {root}")
             resolved_memory_root = str(root)
+            if len(memory_files) > MAX_MEMORY_FILES:
+                raise HarnessError(
+                    f"at most {MAX_MEMORY_FILES} memory files may be approved"
+                )
+            normalized: list[str] = []
+            for value in memory_files:
+                relative = Path(value)
+                if not value or relative.is_absolute() or ".." in relative.parts:
+                    raise HarnessError(
+                        f"memory file must be a relative path inside the memory root: {value!r}"
+                    )
+                target = (root / relative).resolve()
+                if root != target and root not in target.parents:
+                    raise HarnessError(
+                        f"memory file leaves the approved memory root: {value!r}"
+                    )
+                if not target.is_file():
+                    raise HarnessError(f"memory file is unavailable: {value!r}")
+                normalized.append(target.relative_to(root).as_posix())
+            if len(set(normalized)) != len(normalized):
+                raise HarnessError("memory files must be unique")
+            resolved_memory_files = tuple(normalized)
             session_state = str(
                 (self.path.parent / "agent-sessions" / f"{name}.json").resolve()
             )
@@ -235,6 +280,7 @@ class HarnessRegistry:
             agent_name=agent_name,
             memory_root=resolved_memory_root,
             session_state=session_state,
+            memory_files=resolved_memory_files,
         )
         raw = self._load()
         harnesses = dict(raw["harnesses"])
@@ -325,6 +371,7 @@ def _adapter_call(
                     "TA_HARNESS_AGENT_NAME": spec.agent_name,
                     "TA_HARNESS_MEMORY_ROOT": spec.memory_root or "",
                     "TA_HARNESS_SESSION_STATE": spec.session_state or "",
+                    "TA_HARNESS_MEMORY_FILES": json.dumps(spec.memory_files),
                 }
             )
         if spec.model is not None:

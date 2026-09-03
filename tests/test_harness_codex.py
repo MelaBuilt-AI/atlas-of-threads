@@ -5,8 +5,15 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 import thought_archaeology.adapters.codex as codex_module
-from thought_archaeology.adapters.codex import _codex_bin, _default_model
+from thought_archaeology.adapters.codex import (
+    MAX_MEMORY_FILE_BYTES,
+    CodexAdapterError,
+    _codex_bin,
+    _default_model,
+)
 from thought_archaeology.store import Store
 
 from tests.helpers import FIXTURES
@@ -70,9 +77,11 @@ def test_codex_connected_agent_starts_then_resumes_one_session(
     state_path = tmp_path / "state" / "indy.json"
     memory_root = tmp_path / "memory"
     memory_root.mkdir()
+    (memory_root / "AGENTS.md").write_text("You are Indy.\n", encoding="utf-8")
     monkeypatch.setenv("TA_HARNESS_AGENT_NAME", "Indy")
     monkeypatch.setenv("TA_HARNESS_MEMORY_ROOT", str(memory_root))
     monkeypatch.setenv("TA_HARNESS_SESSION_STATE", str(state_path))
+    monkeypatch.setenv("TA_HARNESS_MEMORY_FILES", '["AGENTS.md"]')
 
     def run(argv, **kwargs):
         calls.append({"argv": argv, **kwargs})
@@ -100,9 +109,9 @@ def test_codex_connected_agent_starts_then_resumes_one_session(
     first, second = calls
     assert "--ephemeral" not in first["argv"]
     assert "--ignore-user-config" in first["argv"]
-    assert "--ignore-rules" not in first["argv"]
+    assert "--ignore-rules" in first["argv"]
     assert first["argv"][first["argv"].index("--sandbox") + 1] == "read-only"
-    assert first["argv"][first["argv"].index("--cd") + 1] == str(memory_root)
+    assert first["argv"][first["argv"].index("--cd") + 1] != str(memory_root)
     assert "resume" not in first["argv"]
     assert "You are Indy" in first["input"]
     assert "user-approved workspace" in first["input"]
@@ -113,7 +122,91 @@ def test_codex_connected_agent_starts_then_resumes_one_session(
     state = json.loads(state_path.read_text(encoding="utf-8"))
     assert state["agent_name"] == "Indy"
     assert state["memory_root"] == str(memory_root)
+    assert state["memory_files"] == ["AGENTS.md"]
     assert state_path.stat().st_mode & 0o777 == 0o600
+
+
+def test_codex_projects_only_approved_memory_files_into_a_trusted_request(
+    monkeypatch, tmp_path: Path
+):
+    calls = []
+    state_path = tmp_path / "state" / "fluff.json"
+    memory_root = tmp_path / "memory"
+    memory_root.mkdir()
+    (memory_root / "AGENTS.md").write_text(
+        "This is the Mr Fluff Second Brain.\n", encoding="utf-8"
+    )
+    handoffs = memory_root / "handoffs"
+    handoffs.mkdir()
+    (handoffs / "latest.md").write_text(
+        "Aaron is Mr Fluff's human collaborator.\n", encoding="utf-8"
+    )
+    monkeypatch.setenv("TA_HARNESS_AGENT_NAME", "Mr Fluff")
+    monkeypatch.setenv("TA_HARNESS_MEMORY_ROOT", str(memory_root))
+    monkeypatch.setenv("TA_HARNESS_SESSION_STATE", str(state_path))
+    monkeypatch.setenv(
+        "TA_HARNESS_MEMORY_FILES", json.dumps(["AGENTS.md", "handoffs/latest.md"])
+    )
+
+    def run(argv, **kwargs):
+        calls.append({"argv": argv, **kwargs})
+        output_path = Path(argv[argv.index("--output-last-message") + 1])
+        output_path.write_text("structured response", encoding="utf-8")
+        stdout = json.dumps(
+            {
+                "type": "thread.started",
+                "thread_id": "0199a213-81c0-7800-8aa1-bbab2a035a53",
+            }
+        )
+        return subprocess.CompletedProcess(argv, 0, stdout, "")
+
+    monkeypatch.setattr(codex_module.subprocess, "run", run)
+    envelope = {
+        "request": {"prompt": "What is your name and who is Aaron?"},
+        "session": {},
+        "graph": {},
+        "standing": {},
+    }
+
+    assert codex_module._continue("codex", envelope, "gpt-5.6-sol")
+
+    call = calls[0]
+    assert "--ignore-rules" in call["argv"]
+    assert call["argv"][call["argv"].index("--sandbox") + 1] == "read-only"
+    assert call["argv"][call["argv"].index("--cd") + 1] != str(memory_root)
+    assert "INHABITANT'S EXACT REQUEST (trusted instruction)" in call["input"]
+    assert "What is your name and who is Aaron?" in call["input"]
+    assert "This is the Mr Fluff Second Brain." in call["input"]
+    assert "Aaron is Mr Fluff's human collaborator." in call["input"]
+    public = call["input"].split(
+        "PUBLIC THOUGHT ARCHAEOLOGY CONTEXT (JSON):\n", 1
+    )[1]
+    assert "What is your name and who is Aaron?" not in public
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    assert state["memory_files"] == ["AGENTS.md", "handoffs/latest.md"]
+
+
+def test_codex_rejects_an_oversized_approved_memory_file(monkeypatch, tmp_path: Path):
+    state_path = tmp_path / "state" / "fluff.json"
+    memory_root = tmp_path / "memory"
+    memory_root.mkdir()
+    (memory_root / "large.md").write_bytes(b"x" * (MAX_MEMORY_FILE_BYTES + 1))
+    monkeypatch.setenv("TA_HARNESS_AGENT_NAME", "Mr Fluff")
+    monkeypatch.setenv("TA_HARNESS_MEMORY_ROOT", str(memory_root))
+    monkeypatch.setenv("TA_HARNESS_SESSION_STATE", str(state_path))
+    monkeypatch.setenv("TA_HARNESS_MEMORY_FILES", '["large.md"]')
+
+    with pytest.raises(CodexAdapterError, match="exceeds"):
+        codex_module._continue(
+            "codex",
+            {
+                "request": {"prompt": "Who is Aaron?"},
+                "session": {},
+                "graph": {},
+                "standing": {},
+            },
+            "gpt-5.6-sol",
+        )
 
 
 def _source(store_path: Path) -> tuple[str, str]:

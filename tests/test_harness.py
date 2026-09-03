@@ -115,6 +115,8 @@ def test_harness_registry_is_user_owned_and_secret_free(monkeypatch, tmp_path: P
 def test_harness_registry_binds_stable_collaborator_to_memory_workspace(tmp_path: Path):
     memory_root = tmp_path / "memory"
     memory_root.mkdir()
+    (memory_root / "AGENTS.md").write_text("You are Indy.\n", encoding="utf-8")
+    (memory_root / "index.md").write_text("Aaron is the collaborator.\n", encoding="utf-8")
     registry = HarnessRegistry(tmp_path / "config" / "harnesses.json")
 
     spec = registry.register(
@@ -123,6 +125,7 @@ def test_harness_registry_binds_stable_collaborator_to_memory_workspace(tmp_path
         collaborator_id="01M1M676JWWCFW1ZHCC8N0RV4Z",
         agent_name="Indy",
         memory_root=memory_root,
+        memory_files=("AGENTS.md", "index.md"),
     )
 
     restored = registry.get("indy")
@@ -130,6 +133,7 @@ def test_harness_registry_binds_stable_collaborator_to_memory_workspace(tmp_path
     assert restored.collaborator_id == "01M1M676JWWCFW1ZHCC8N0RV4Z"
     assert restored.agent_name == "Indy"
     assert restored.memory_root == str(memory_root)
+    assert restored.memory_files == ("AGENTS.md", "index.md")
     assert restored.memory_mode == "resumable_session"
     assert restored.session_state == str(
         (tmp_path / "config" / "agent-sessions" / "indy.json").resolve()
@@ -140,6 +144,7 @@ def test_cli_binds_registered_collaborator_and_pins_model(monkeypatch, tmp_path:
     store_path = tmp_path / "data"
     memory_root = tmp_path / "memory"
     memory_root.mkdir()
+    (memory_root / "AGENTS.md").write_text("You are Indy.\n", encoding="utf-8")
     config = tmp_path / "config" / "harnesses.json"
     monkeypatch.setenv("TA_HARNESS_CONFIG", str(config))
     code, out, err = run(
@@ -171,6 +176,8 @@ def test_cli_binds_registered_collaborator_and_pins_model(monkeypatch, tmp_path:
             collaborator_id,
             "--memory-root",
             str(memory_root),
+            "--memory-file",
+            "AGENTS.md",
             "--model",
             "gpt-5.6-sol",
             "--default",
@@ -182,6 +189,42 @@ def test_cli_binds_registered_collaborator_and_pins_model(monkeypatch, tmp_path:
     assert spec.collaborator_id == collaborator_id
     assert spec.agent_name == "Indy"
     assert spec.model == "gpt-5.6-sol"
+    assert spec.memory_files == ("AGENTS.md",)
+
+
+def test_memory_files_must_be_explicit_files_inside_the_approved_root(tmp_path: Path):
+    memory_root = tmp_path / "memory"
+    memory_root.mkdir()
+    outside = tmp_path / "outside.md"
+    outside.write_text("not approved\n", encoding="utf-8")
+    registry = HarnessRegistry(tmp_path / "config" / "harnesses.json")
+
+    with pytest.raises(HarnessError, match="at least one"):
+        registry.register(
+            "indy",
+            sys.executable,
+            collaborator_id="01M1M676JWWCFW1ZHCC8N0RV4Z",
+            agent_name="Indy",
+            memory_root=memory_root,
+        )
+    with pytest.raises(HarnessError, match="relative path"):
+        registry.register(
+            "indy",
+            sys.executable,
+            collaborator_id="01M1M676JWWCFW1ZHCC8N0RV4Z",
+            agent_name="Indy",
+            memory_root=memory_root,
+            memory_files=(str(outside),),
+        )
+    with pytest.raises(HarnessError, match="unavailable"):
+        registry.register(
+            "indy",
+            sys.executable,
+            collaborator_id="01M1M676JWWCFW1ZHCC8N0RV4Z",
+            agent_name="Indy",
+            memory_root=memory_root,
+            memory_files=("missing.md",),
+        )
 
 
 def test_adapter_protocol_is_ascii_safe_over_an_explicit_utf8_pipe(
@@ -304,6 +347,7 @@ def test_connected_agent_completion_keeps_identity_separate_from_model(
     )
     memory_root = tmp_path / "memory"
     memory_root.mkdir()
+    (memory_root / "AGENTS.md").write_text("You are Indy.\n", encoding="utf-8")
     registry = HarnessRegistry(tmp_path / "config" / "harnesses.json")
     spec = registry.register(
         "indy",
@@ -313,6 +357,7 @@ def test_connected_agent_completion_keeps_identity_separate_from_model(
         collaborator_id=collaborator.id,
         agent_name=collaborator.display_name,
         memory_root=memory_root,
+        memory_files=("AGENTS.md",),
     )
     monkeypatch.setenv("TA_HARNESS_CONFIG", str(registry.path))
 

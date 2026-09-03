@@ -378,6 +378,16 @@ def _parser() -> argparse.ArgumentParser:
         help="approved read-only memory workspace for the bound collaborator",
     )
     p_harness_register.add_argument(
+        "--memory-file",
+        action="append",
+        default=[],
+        metavar="RELATIVE_PATH",
+        help=(
+            "project one explicitly approved file from the memory root; "
+            "repeat for additional files"
+        ),
+    )
+    p_harness_register.add_argument(
         "--model",
         default=None,
         metavar="NAME",
@@ -2370,6 +2380,7 @@ def _harness_rows(registry: HarnessRegistry) -> list[dict]:
             "collaborator_id": spec.collaborator_id,
             "agent_name": spec.agent_name,
             "memory_mode": spec.memory_mode,
+            "memory_files": list(spec.memory_files),
         }
         for spec in registry.specs()
     ]
@@ -2402,6 +2413,8 @@ def cmd_harness(args: argparse.Namespace) -> int:
             raise HarnessError(
                 "--collaborator and --memory-root must be supplied together"
             )
+        if args.memory_file and not args.memory_root:
+            raise HarnessError("--memory-file requires --memory-root")
         spec = registry.register(
             args.name,
             args.adapter,
@@ -2410,6 +2423,7 @@ def cmd_harness(args: argparse.Namespace) -> int:
             collaborator_id=collaborator.id if collaborator else None,
             agent_name=collaborator.display_name if collaborator else None,
             memory_root=args.memory_root,
+            memory_files=tuple(args.memory_file),
             model=args.model,
         )
         print(spec.name)
