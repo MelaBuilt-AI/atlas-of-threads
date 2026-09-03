@@ -82,8 +82,8 @@ KNOWN_HARNESS_ADAPTERS = (
         "provider_executable": "codex",
         "provider_override": "TA_CODEX_BIN",
         "setup_hint": (
-            "Install and sign in through the official Codex CLI on Windows or WSL2. "
-            "The ChatGPT desktop app alone is not an Atlas automation connector."
+            "Install and sign in through the official native Codex CLI on Windows. "
+            "WSL is used only when TA_WSL_DISTRO explicitly selects it."
         ),
     },
     {
@@ -93,8 +93,9 @@ KNOWN_HARNESS_ADAPTERS = (
         "provider_executable": "claude",
         "provider_override": "TA_CLAUDE_BIN",
         "setup_hint": (
-            "Install and sign in through the official Claude Code CLI on Windows or WSL. "
-            "Claude Desktop alone is not an Atlas automation connector."
+            "Install and sign in through the official native Claude Code CLI on Windows. "
+            "Claude Desktop alone is not a programmatic Atlas bridge; WSL is used only "
+            "when TA_WSL_DISTRO explicitly selects it."
         ),
     },
     {
@@ -104,8 +105,8 @@ KNOWN_HARNESS_ADAPTERS = (
         "provider_executable": "grok",
         "provider_override": "TA_GROK_BIN",
         "setup_hint": (
-            "Install and sign in through the official Grok CLI on Windows or WSL. "
-            "A Grok desktop app alone is not an Atlas automation connector."
+            "Install and sign in through the official native Grok CLI on Windows. "
+            "WSL is used only when TA_WSL_DISTRO explicitly selects it."
         ),
     },
     {

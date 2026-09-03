@@ -164,7 +164,7 @@ def discover_provider_commands(
     *,
     wsl_names: set[str] | None = None,
 ) -> dict[str, ProviderCommand | None]:
-    """Find native CLIs first, then fixed-name CLIs in the selected/default WSL2 distro."""
+    """Find native CLIs first, with WSL available only by explicit distro opt-in."""
     requested = list(requests)
     result: dict[str, ProviderCommand | None] = {}
     for name, override in requested:
@@ -181,10 +181,12 @@ def discover_provider_commands(
     ]
     if sys.platform != "win32" or not unresolved:
         return result
+    distro = (os.environ.get("TA_WSL_DISTRO") or "").strip() or None
+    if distro is None:
+        return result
     launcher = _wsl_launcher()
     if launcher is None:
         return result
-    distro = os.environ.get("TA_WSL_DISTRO") or None
     probe = WSLCommand(launcher=launcher, executable="sh", distro=distro)
     script = (
         'for command do path=$(command -v -- "$command" 2>/dev/null || true); '
@@ -205,7 +207,7 @@ def discover_provider_commands(
         return result
     if proc.returncode != 0:
         return result
-    for line in proc.stdout.splitlines():
+    for line in (proc.stdout or "").splitlines():
         name, separator, executable = line.partition("\t")
         if separator and name in result and executable.strip():
             result[name] = WSLCommand(

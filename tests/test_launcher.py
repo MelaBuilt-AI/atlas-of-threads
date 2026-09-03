@@ -5,6 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from thought_archaeology import cli
 from thought_archaeology import harness as harness_module
 from thought_archaeology import store as store_module
@@ -111,6 +113,19 @@ def test_windows_discovers_the_official_native_codex_install(monkeypatch, tmp_pa
     assert discover_provider_command("codex") == str(codex.absolute())
 
 
+def test_windows_discovers_the_official_native_claude_install(
+    monkeypatch, tmp_path: Path
+):
+    claude = tmp_path / ".local" / "bin" / "claude.exe"
+    claude.parent.mkdir(parents=True)
+    claude.write_bytes(b"test")
+    monkeypatch.setattr(provider_command_module.sys, "platform", "win32")
+    monkeypatch.setattr(provider_command_module.Path, "home", lambda: tmp_path)
+    monkeypatch.setattr(provider_command_module.shutil, "which", lambda _name: None)
+
+    assert discover_provider_command("claude") == str(claude.absolute())
+
+
 def test_windows_codex_uses_the_physical_standalone_release(monkeypatch, tmp_path: Path):
     codex_home = tmp_path / ".codex"
     standalone = codex_home / "packages" / "standalone"
@@ -186,6 +201,7 @@ def test_one_provider_discovery_error_does_not_hide_another(monkeypatch):
 def test_windows_discovers_and_invokes_provider_clis_in_wsl(monkeypatch):
     wsl = Path("C:/Windows/System32/wsl.exe")
     monkeypatch.setattr(provider_command_module.sys, "platform", "win32")
+    monkeypatch.setenv("TA_WSL_DISTRO", "Ubuntu")
     monkeypatch.setenv("GROK_HOME", "/provider-not-installed")
     monkeypatch.setenv("CODEX_HOME", "/provider-not-installed")
     monkeypatch.setattr(provider_command_module, "_known_windows_paths", lambda _name: ())
@@ -212,15 +228,42 @@ def test_windows_discovers_and_invokes_provider_clis_in_wsl(monkeypatch):
     )
 
     codex = commands["codex"]
-    assert codex == WSLCommand(str(wsl.absolute()), "/home/test/.local/bin/codex")
+    assert codex == WSLCommand(
+        str(wsl.absolute()), "/home/test/.local/bin/codex", "Ubuntu"
+    )
     assert command_argv(codex, "--version") == [
         str(wsl.absolute()),
+        "--distribution",
+        "Ubuntu",
         "--exec",
         "/home/test/.local/bin/codex",
         "--version",
     ]
     assert isinstance(commands["claude"], WSLCommand)
     assert commands["grok"] is None
+
+
+def test_windows_does_not_implicitly_use_a_wsl_provider(monkeypatch):
+    wsl = Path("C:/Windows/System32/wsl.exe")
+    monkeypatch.setattr(provider_command_module.sys, "platform", "win32")
+    monkeypatch.delenv("TA_WSL_DISTRO", raising=False)
+    monkeypatch.setenv("GROK_HOME", "/provider-not-installed")
+    monkeypatch.setenv("CODEX_HOME", "/provider-not-installed")
+    monkeypatch.setattr(provider_command_module, "_known_windows_paths", lambda _name: ())
+    monkeypatch.setattr(
+        provider_command_module.shutil,
+        "which",
+        lambda name: str(wsl) if name in {"wsl.exe", "wsl"} else None,
+    )
+    monkeypatch.setattr(
+        provider_command_module.subprocess,
+        "run",
+        lambda *_args, **_kwargs: pytest.fail("WSL was probed without explicit opt-in"),
+    )
+
+    assert discover_provider_commands(
+        [("codex", None), ("claude", None), ("grok", None)]
+    ) == {"codex": None, "claude": None, "grok": None}
 
 
 def test_wsl_command_translates_paths_and_selects_a_distribution(monkeypatch):

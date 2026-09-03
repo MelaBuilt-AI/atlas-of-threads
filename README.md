@@ -732,6 +732,11 @@ Thought Archaeology owns the durable boundary and graph compilation; the
 harness owns credentials, model invocation, and provider-specific prompt
 assembly. No vendor SDK or callback URL is required by the core.
 
+On Windows, provider discovery uses native CLIs by default. WSL provider
+fallback is opt-in: set `TA_WSL_DISTRO` to the exact distribution name when a
+WSL-hosted CLI is deliberately required. A detected default WSL installation
+does not suppress native Windows installation or sign-in onboarding.
+
 Provider errors close the current request without stopping the watcher. The
 terminal chamber shows a sanitized failure and offers a retry; raw provider
 output and credentials are not stored in the failure receipt.
