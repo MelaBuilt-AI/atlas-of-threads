@@ -365,6 +365,24 @@ def _parser() -> argparse.ArgumentParser:
         metavar="VALUE",
         help="fixed adapter argument; repeat as needed (use --arg=VALUE for leading dashes)",
     )
+    p_harness_register.add_argument(
+        "--collaborator",
+        default=None,
+        metavar="ID",
+        help="bind this harness to one registered Agent Bridge collaborator",
+    )
+    p_harness_register.add_argument(
+        "--memory-root",
+        default=None,
+        metavar="PATH",
+        help="approved read-only memory workspace for the bound collaborator",
+    )
+    p_harness_register.add_argument(
+        "--model",
+        default=None,
+        metavar="NAME",
+        help="pin this harness to one provider model",
+    )
     p_harness_register.add_argument("--default", action="store_true")
     p_harness_use = harness_sub.add_parser(
         "use", parents=[sub_globals], help="select the default adapter"
@@ -2349,6 +2367,9 @@ def _harness_rows(registry: HarnessRegistry) -> list[dict]:
             "default": spec.name == default,
             "argv": list(spec.argv),
             "registered_at": spec.registered_at,
+            "collaborator_id": spec.collaborator_id,
+            "agent_name": spec.agent_name,
+            "memory_mode": spec.memory_mode,
         }
         for spec in registry.specs()
     ]
@@ -2374,11 +2395,22 @@ def cmd_harness(args: argparse.Namespace) -> int:
         print(spec.name)
         return EXIT_OK
     if args.harness_cmd == "register":
+        collaborator = None
+        if args.collaborator:
+            collaborator = _store(args).load_agent_collaborator(args.collaborator)
+        if bool(collaborator) != bool(args.memory_root):
+            raise HarnessError(
+                "--collaborator and --memory-root must be supplied together"
+            )
         spec = registry.register(
             args.name,
             args.adapter,
             args=tuple(args.arg),
             make_default=args.default,
+            collaborator_id=collaborator.id if collaborator else None,
+            agent_name=collaborator.display_name if collaborator else None,
+            memory_root=args.memory_root,
+            model=args.model,
         )
         print(spec.name)
         return EXIT_OK

@@ -379,6 +379,12 @@ def workspace_payload(store: Store) -> dict:
             "selected": spec.name == default,
             "model": spec.model,
             "model_refreshed_at": spec.model_refreshed_at,
+            "collaborator_id": spec.collaborator_id,
+            "agent_name": spec.agent_name,
+            "memory_mode": spec.memory_mode,
+            "memory_ready": bool(
+                spec.session_state and Path(spec.session_state).is_file()
+            ),
         }
         for spec in registry.specs()
     ]
@@ -441,7 +447,7 @@ def workspace_payload(store: Store) -> dict:
         )
     completions = (
         {
-            completion.graph_id: completion.harness
+            completion.graph_id: completion
             for completion in store.iter_continuation_completions()
         }
         if store.exists()
@@ -463,7 +469,8 @@ def workspace_payload(store: Store) -> dict:
             if graph is not None:
                 node = entry_node(graph)
                 model = graph.model.to_dict()
-                harness = completions.get(graph.id)
+                completion = completions.get(graph.id)
+                harness = completion.harness if completion else None
                 turn = next(
                     (
                         item
@@ -473,7 +480,10 @@ def workspace_payload(store: Store) -> dict:
                     None,
                 )
                 if harness:
-                    author_label = f"{harness.capitalize()} · {graph.model.name}"
+                    author_label = (
+                        f"{completion.agent_name or harness.capitalize()} · "
+                        f"{graph.model.name}"
+                    )
                 elif turn and turn.role == "human_edit":
                     author_label = "Human edit"
                 elif graph.metadata.get("workspace_origin"):
@@ -755,7 +765,7 @@ def thread_payload(
             label = " · ".join(
                 part
                 for part in (
-                    completion.harness.capitalize(),
+                    completion.agent_name or completion.harness.capitalize(),
                     graph.model.name if graph.model.name != "unknown" else "",
                 )
                 if part

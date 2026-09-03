@@ -720,9 +720,10 @@
     if (pending.length) {
       elOnboardingStatus.textContent = "A collaborator is already responding. Finish or cancel that path before starting another Threadwalk.";
     } else if (firstCollaboratorReady) {
+      const selectedName = workspaceHarnessName(selectedRegistry);
       elOnboardingStatus.textContent = watcherActive
-        ? `${workspaceName(payload.active_harness)} is ready. Write the inquiry that should open your first chamber.`
-        : `${workspaceName(payload.active_harness)} will open the first path. Starting the Threadwalk will activate its local worker.`;
+        ? `${selectedName} is ready. Write the inquiry that should open your first chamber.`
+        : `${selectedName} will open the first path. Starting the Threadwalk will activate its local worker.`;
     } else if ((payload.available_harnesses || []).some(
       (harness) => harness.registered && harness.provider_state !== "ready"
     )) {
@@ -983,6 +984,10 @@
     return names[name] || (name ? name.charAt(0).toUpperCase() + name.slice(1) : "Unknown");
   }
 
+  function workspaceHarnessName(harness) {
+    return (harness && harness.agent_name) || workspaceName(harness && harness.name);
+  }
+
   function renderParallelProgress(progress) {
     elWorkspaceParallelProgress.replaceChildren();
     if (!progress) {
@@ -1033,7 +1038,7 @@
       input.disabled = Boolean(harness.selected || live || workspaceBusy);
       input.addEventListener("change", updateParallelSubmitCopy);
       const name = document.createElement("span");
-      name.textContent = workspaceName(harness.name);
+      name.textContent = workspaceHarnessName(harness);
       const model = document.createElement("small");
       model.textContent = harness.model || "model not refreshed";
       label.append(input, name, model);
@@ -1049,19 +1054,26 @@
     const watcherActive = service.active === "active" || service.active === "activating";
     const pending = payload.pending || [];
     const active = payload.active_harness;
+    const activeHarness = (payload.harnesses || []).find(
+      (harness) => harness.name === active
+    );
+    const activeName = workspaceHarnessName(activeHarness || { name: active });
     if (!active) {
       elWorkspaceHarnessStatus.textContent = "No collaborator is registered.";
     } else if (pending.length) {
       const responding = pending.find((item) => item.harness);
+      const respondingHarness = responding && (payload.harnesses || []).find(
+        (harness) => harness.name === responding.harness
+      );
       elWorkspaceHarnessStatus.textContent = responding
-        ? `${workspaceName(responding.harness)} is responding now · switching waits until it finishes`
-        : `A continuation is queued for ${workspaceName(active)} · switching waits until it finishes`;
+        ? `${workspaceHarnessName(respondingHarness || { name: responding.harness })} is responding now · switching waits until it finishes`
+        : `A continuation is queued for ${activeName} · switching waits until it finishes`;
     } else if (watcherActive) {
       elWorkspaceHarnessStatus.textContent =
-        `${workspaceName(active)} will author future continuations. Existing graphs keep their recorded authorship.`;
+        `${activeName} will author future continuations. Existing graphs keep their recorded authorship.`;
     } else {
       elWorkspaceHarnessStatus.textContent =
-        `${workspaceName(active)} is selected, but the background watcher is ${service.active || "not active"}.`;
+        `${activeName} is selected, but the background watcher is ${service.active || "not active"}.`;
     }
     if (service.error) {
       elWorkspaceHarnessStatus.textContent += ` ${service.error}`;
@@ -1078,12 +1090,16 @@
       if (isActive) button.classList.add("active");
       const action = document.createElement("strong");
       action.textContent = isActive
-        ? `${workspaceName(harness.name)} · active`
-        : `Activate ${workspaceName(harness.name)}`;
+        ? `${workspaceHarnessName(harness)} · active`
+        : `Activate ${workspaceHarnessName(harness)}`;
       const model = document.createElement("small");
-      model.textContent = harness.model
+      const modelLabel = harness.model
         ? `model · ${harness.model}`
         : "model · refresh to read";
+      const memoryLabel = harness.memory_mode
+        ? ` · memory ${harness.memory_ready ? "ready" : "starts with first answer"}`
+        : "";
+      model.textContent = modelLabel + memoryLabel;
       button.append(action, model);
       button.disabled = workspaceBusy || isActive || pending.length > 0;
       button.addEventListener("click", () => activateWorkspaceHarness(harness.name));
@@ -1091,8 +1107,8 @@
       refresh.type = "button";
       refresh.className = "workspace-model-refresh";
       refresh.textContent = "↻ Refresh";
-      refresh.setAttribute("aria-label", `Refresh ${workspaceName(harness.name)} model`);
-      refresh.title = `Refresh ${workspaceName(harness.name)} model`;
+      refresh.setAttribute("aria-label", `Refresh ${workspaceHarnessName(harness)} model`);
+      refresh.title = `Refresh ${workspaceHarnessName(harness)} model`;
       refresh.disabled = workspaceBusy;
       refresh.addEventListener("click", () => refreshWorkspaceHarnessModel(harness.name));
       row.append(button, refresh);

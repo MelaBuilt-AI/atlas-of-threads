@@ -6,8 +6,10 @@ is local stdio MCP. It opens no port, performs no remote call, receives no
 provider credential, and never publishes a Threadwalk.
 
 Slice A is intentionally read-only. Slice B adds explicit local collaborator
-registration, one private root, and one attributed child path. The memory
-receipt handshake remains a subsequent slice.
+registration, one private root, and one attributed child path. Slice C adds a
+bounded memory candidate and an opaque client-owned acknowledgement. A
+connected Codex harness can also bind that same collaborator identity to one
+resumable, read-only session in a user-approved memory workspace.
 
 ## Direction and recursion boundary
 
@@ -74,8 +76,9 @@ ta --store /path/to/personal-atlas mcp serve --collaborator COLLABORATOR_ID
 ```
 
 Registration is a local human-approved CLI action; an MCP client cannot
-self-register or expand its own scopes. `atlas:memory:ack` is reserved for
-Slice C and grants no current tool. There is no publication scope.
+self-register or expand its own scopes. Grant `atlas:memory:ack` only when the
+client will preserve the returned memory candidate in its own second brain.
+There is no publication scope.
 
 ## Resources
 
@@ -180,16 +183,71 @@ Inbound interactions and completions live under the store's `agent-bridge/`
 ledger, separate from `continuations/`. Consequently the outbound watcher never
 sees or invokes an inbound MCP request.
 
-## Slice C reserved contract
+## Slice C memory contract
+
+`begin_threadwalk` and `append_agent_path` return a compact
+`memory_candidate`. It contains the collaborator identity, stable Atlas IDs,
+private visibility, publication state, a bounded Threadwalk subject, and a
+short user-visible action summary.
+It deliberately omits the full seed/prose, hidden reasoning, credentials,
+temporary chatter, and external memory contents.
 
 ### `acknowledge_memory_receipt`
 
-Required input: Atlas `receipt_id`. Optional input: one opaque external-memory
-reference. Atlas records only the client's acknowledgement and never reads or
-mutates the external second brain.
+Required input: Atlas `receipt_id` and `client_request_id`. Optional input: one
+opaque `external_memory_ref` of at most 500 characters. Atlas records only the
+client's acknowledgement and never reads or mutates the external second brain.
+An exact retry returns the original acknowledgement; conflicting reuse fails
+closed. A second acknowledgement of the same receipt is rejected.
 
-`acknowledge_memory_receipt` is not exposed by Slice B. Publication remains a
-separate future capability and cannot be implicit.
+The tool appears only for a collaborator with `atlas:memory:ack`. Publication
+remains a separate future capability and cannot be implicit.
+
+## Connect one named Codex agent in both directions
+
+First register the stable collaborator identity with the inbound scopes the
+person approves:
+
+```bash
+ta --store /path/to/personal-atlas mcp collaborator register \
+  --name Indy \
+  --client-family codex \
+  --scope atlas:read \
+  --scope atlas:write:threadwalk \
+  --scope atlas:write:path \
+  --scope atlas:memory:ack
+```
+
+Then bind that returned ID to a distinct outbound harness. The memory root must
+be a directory the person intentionally approves for read-only recall:
+
+```bash
+ta --store /path/to/personal-atlas harness register indy \
+  --adapter "$(command -v ta-harness-codex)" \
+  --collaborator COLLABORATOR_ID \
+  --memory-root /path/to/agent-workspace \
+  --model gpt-5.6-sol \
+  --default
+
+ta --store /path/to/personal-atlas harness doctor indy
+```
+
+The first Atlas question starts one persisted Codex session in that workspace;
+later questions resume the exact session ID. Codex loads workspace guidance,
+including `AGENTS.md`, and can read durable memory the person placed inside the
+approved root. It ignores the ordinary Codex user configuration so unrelated
+MCP servers cannot re-enter Atlas through the outbound path. It runs in a
+read-only sandbox and is instructed not to browse, modify files, make network
+calls, or delegate. The private session-state file
+lives beside the user-owned harness registry under `agent-sessions/`, not in
+the Personal Atlas store, and is mode `0600`.
+
+Atlas records the stable collaborator ID and display name separately from the
+model actually used for each answer. Workspace shows the agent name, model,
+and whether its resumable memory session has started. This supports asking a
+named agent questions from Atlas based on the context available to that agent;
+it records the visible answer and structured story graph, never hidden
+chain-of-thought or a claim about the model's private internal state.
 
 ## Acceptance boundary
 
@@ -202,6 +260,8 @@ created.
 Slice B is complete when a physically configured client creates exactly one
 private root and one attributed child, retrying both calls without duplicates,
 and inspection confirms stable provenance, no continuation request, no network
-call, and no publication artifact. The full Agent Bridge is not accepted until
-Slice C adds and physically verifies the client-owned second-brain
-acknowledgement.
+call, and no publication artifact. Slice C is source-complete when memory
+candidates and acknowledgements pass local verification. The full Agent Bridge
+is not live-accepted until a physically configured client preserves a candidate
+in its own second brain, acknowledges it, reconnects, and recovers the stable
+receipt and Threadwalk IDs.

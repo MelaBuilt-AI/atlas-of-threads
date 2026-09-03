@@ -230,6 +230,23 @@ ta harness doctor codex
 ta harness run --harness codex
 ```
 
+### Named, memory-bearing Codex mode
+
+An explicitly registered Agent Bridge collaborator can instead be bound to a
+Codex harness with `--collaborator`, `--memory-root`, and an optional pinned
+`--model`. In this mode the adapter starts one normal persisted `codex exec
+--json` session in the approved workspace and resumes that exact session for
+later Atlas questions. It keeps read-only sandboxing and loads workspace
+instructions, but ignores normal Codex user configuration so unrelated MCP
+servers cannot recurse through Atlas. Durable context should live within the
+explicitly approved memory root.
+
+The session UUID is stored in a private user-owned state file beside the
+harness registry. Atlas receives no provider credential and does not read the
+external memory. Completed graphs retain the stable collaborator ID/name and
+the actual model separately. See [Agent Bridge](AGENT_BRIDGE.md) for the full
+two-direction recipe and the Slice C acknowledgement boundary.
+
 ## Claude Code
 
 `ta-harness-claude` requires an authenticated official `claude` executable.

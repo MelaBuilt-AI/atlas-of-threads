@@ -7,7 +7,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Literal, Self
 
 from thought_archaeology.compile_common import finalize, policy_warnings
-from thought_archaeology.ids import new_ulid, now_iso
+from thought_archaeology.ids import is_ulid, new_ulid, now_iso
 from thought_archaeology.models import (
     SCHEMA_VERSION,
     ModelInfo,
@@ -143,6 +143,8 @@ class AgentPathCompletion:
     model: dict[str, str]
     harness: dict[str, str]
     warnings: tuple[str, ...]
+    node_id: str | None = None
+    subject: str | None = None
     visibility: Literal["private"] = "private"
     transport: Literal["mcp"] = "mcp"
 
@@ -171,12 +173,101 @@ class AgentPathCompletion:
             "source_node_id": self.source_node_id,
             "graph_id": self.graph_id,
             "turn_id": self.turn_id,
+            **({"node_id": self.node_id} if self.node_id is not None else {}),
+            **({"subject": self.subject} if self.subject is not None else {}),
             "model": self.model,
             "harness": self.harness,
             "warnings": list(self.warnings),
             "visibility": self.visibility,
             "transport": self.transport,
         }
+
+
+@dataclass(frozen=True)
+class AgentMemoryAcknowledgement:
+    schema_version: str
+    id: str
+    receipt_id: str
+    receipt_kind: Literal["interaction", "path_completion"]
+    collaborator_id: str
+    created_at: str
+    client_request_id: str
+    request_sha256: str
+    external_memory_ref: str | None = None
+    visibility: Literal["private"] = "private"
+    transport: Literal["mcp"] = "mcp"
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        return cls(**data)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "id": self.id,
+            "receipt_id": self.receipt_id,
+            "receipt_kind": self.receipt_kind,
+            "collaborator_id": self.collaborator_id,
+            "created_at": self.created_at,
+            "client_request_id": self.client_request_id,
+            "request_sha256": self.request_sha256,
+            **(
+                {"external_memory_ref": self.external_memory_ref}
+                if self.external_memory_ref is not None
+                else {}
+            ),
+            "visibility": self.visibility,
+            "transport": self.transport,
+        }
+
+
+def _memory_candidate(
+    collaborator: AgentCollaborator,
+    *,
+    receipt_id: str,
+    action: Literal["begin_threadwalk", "append_agent_path"],
+    created_at: str,
+    outcome: Literal["open", "completed"],
+    session_id: str,
+    graph_id: str,
+    node_id: str | None,
+    interaction_id: str,
+    completion_id: str | None = None,
+    model: dict[str, str] | None = None,
+    subject: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "receipt_id": receipt_id,
+        "action": action,
+        "created_at": created_at,
+        "outcome": outcome,
+        "summary": (
+            "Opened one private Atlas Threadwalk."
+            if action == "begin_threadwalk"
+            else "Appended one private, attributed path to an Atlas Threadwalk."
+        ),
+        **({"subject": subject} if subject else {}),
+        "collaborator": {
+            "id": collaborator.id,
+            "display_name": collaborator.display_name,
+            "client_family": collaborator.client_family,
+        },
+        "atlas_ids": {
+            "session_id": session_id,
+            "graph_id": graph_id,
+            **({"node_id": node_id} if node_id is not None else {}),
+            "interaction_id": interaction_id,
+            **({"completion_id": completion_id} if completion_id is not None else {}),
+        },
+        **({"model": model} if model else {}),
+        "visibility": "private",
+        "publication": False,
+        "memory_instruction": (
+            "Preserve only these user-visible facts and stable IDs in your own "
+            "memory, then acknowledge this receipt if your harness supports it."
+        ),
+    }
 
 
 def register_collaborator(
@@ -219,7 +310,9 @@ def require_scope(collaborator: AgentCollaborator, scope: str) -> None:
 
 def _existing_request(
     store: Store, collaborator_id: str, client_request_id: str
-) -> tuple[str, AgentInteraction | AgentPathCompletion] | None:
+) -> tuple[
+    str, AgentInteraction | AgentPathCompletion | AgentMemoryAcknowledgement
+] | None:
     for interaction in store.iter_agent_interactions():
         if (
             interaction.collaborator_id == collaborator_id
@@ -232,10 +325,21 @@ def _existing_request(
             and completion.client_request_id == client_request_id
         ):
             return "append_agent_path", completion
+    for acknowledgement in store.iter_agent_memory_acknowledgements():
+        if (
+            acknowledgement.collaborator_id == collaborator_id
+            and acknowledgement.client_request_id == client_request_id
+        ):
+            return "acknowledge_memory_receipt", acknowledgement
     return None
 
 
-def interaction_result(interaction: AgentInteraction, *, replayed: bool = False) -> dict[str, Any]:
+def interaction_result(
+    interaction: AgentInteraction,
+    collaborator: AgentCollaborator,
+    *,
+    replayed: bool = False,
+) -> dict[str, Any]:
     return {
         "status": "open",
         "interaction_id": interaction.id,
@@ -257,6 +361,18 @@ def interaction_result(interaction: AgentInteraction, *, replayed: bool = False)
             "forbidden": ["hidden chain-of-thought", "credentials"],
         },
         "receipt": interaction.to_dict(),
+        "memory_candidate": _memory_candidate(
+            collaborator,
+            receipt_id=interaction.id,
+            action="begin_threadwalk",
+            created_at=interaction.created_at,
+            outcome="open",
+            session_id=interaction.session_id,
+            graph_id=interaction.root_graph_id,
+            node_id=interaction.root_node_id,
+            interaction_id=interaction.id,
+            subject=interaction.title,
+        ),
         "idempotent_replay": replayed,
         "publication": False,
         "outbound_harness_queued": False,
@@ -264,7 +380,10 @@ def interaction_result(interaction: AgentInteraction, *, replayed: bool = False)
 
 
 def completion_result(
-    completion: AgentPathCompletion, *, replayed: bool = False
+    completion: AgentPathCompletion,
+    collaborator: AgentCollaborator,
+    *,
+    replayed: bool = False,
 ) -> dict[str, Any]:
     return {
         "status": "completed",
@@ -279,6 +398,20 @@ def completion_result(
         "harness": completion.harness,
         "warnings": list(completion.warnings),
         "receipt": completion.to_dict(),
+        "memory_candidate": _memory_candidate(
+            collaborator,
+            receipt_id=completion.id,
+            action="append_agent_path",
+            created_at=completion.created_at,
+            outcome="completed",
+            session_id=completion.session_id,
+            graph_id=completion.graph_id,
+            node_id=completion.node_id,
+            interaction_id=completion.interaction_id,
+            completion_id=completion.id,
+            model=completion.model,
+            subject=completion.subject,
+        ),
         "idempotent_replay": replayed,
         "publication": False,
         "outbound_harness_queued": False,
@@ -302,8 +435,10 @@ def _check_idempotency(
             "client_request_id was already used with different content"
         )
     if isinstance(receipt, AgentInteraction):
-        return interaction_result(receipt, replayed=True)
-    return completion_result(receipt, replayed=True)
+        return interaction_result(receipt, collaborator, replayed=True)
+    if isinstance(receipt, AgentPathCompletion):
+        return completion_result(receipt, collaborator, replayed=True)
+    return memory_acknowledgement_result(receipt, replayed=True)
 
 
 def begin_threadwalk(
@@ -434,7 +569,7 @@ def begin_threadwalk(
         path=str(path),
         warnings=[],
     )
-    return interaction_result(interaction)
+    return interaction_result(interaction, collaborator)
 
 
 def _public_mapping(value: Any, field: str) -> dict[str, str]:
@@ -617,6 +752,8 @@ def append_agent_path(
             model=reported_model,
             harness=reported_harness,
             warnings=warnings,
+            node_id=graph.nodes[0].id,
+            subject=interaction.title,
         )
         store.write_graph(graph)
         store.append_turn(turn)
@@ -636,4 +773,98 @@ def append_agent_path(
         path=str(path),
         warnings=list(warnings),
     )
-    return completion_result(completion)
+    return completion_result(completion, collaborator)
+
+
+def memory_acknowledgement_result(
+    acknowledgement: AgentMemoryAcknowledgement, *, replayed: bool = False
+) -> dict[str, Any]:
+    return {
+        "status": "acknowledged",
+        "receipt_id": acknowledgement.receipt_id,
+        "receipt_kind": acknowledgement.receipt_kind,
+        "acknowledgement": acknowledgement.to_dict(),
+        "idempotent_replay": replayed,
+        "visibility": acknowledgement.visibility,
+        "publication": False,
+        "external_memory_read": False,
+        "external_memory_written_by_atlas": False,
+    }
+
+
+def acknowledge_memory_receipt(
+    store: Store,
+    collaborator: AgentCollaborator,
+    *,
+    receipt_id: str,
+    client_request_id: str,
+    external_memory_ref: str | None = None,
+) -> dict[str, Any]:
+    from thought_archaeology.store import StoreError
+
+    require_scope(collaborator, "atlas:memory:ack")
+    receipt_id = receipt_id.strip()
+    client_request_id = client_request_id.strip()
+    memory_ref = external_memory_ref.strip() if external_memory_ref else None
+    if not is_ulid(receipt_id):
+        raise AgentBridgeError("receipt_id must be an Atlas ULID")
+    if not client_request_id or len(client_request_id) > 200:
+        raise AgentBridgeError("client_request_id must contain 1 to 200 characters")
+    if memory_ref is not None and len(memory_ref) > 500:
+        raise AgentBridgeError("external_memory_ref must be 500 characters or fewer")
+    arguments = {
+        "receipt_id": receipt_id,
+        "client_request_id": client_request_id,
+        **({"external_memory_ref": memory_ref} if memory_ref is not None else {}),
+    }
+    digest = request_sha256("acknowledge_memory_receipt", arguments)
+    with store.agent_bridge_lock():
+        replay = _check_idempotency(
+            store,
+            collaborator,
+            action="acknowledge_memory_receipt",
+            client_request_id=client_request_id,
+            digest=digest,
+        )
+        if replay is not None:
+            return replay
+        receipt_kind: Literal["interaction", "path_completion"]
+        try:
+            receipt = store.load_agent_interaction(receipt_id)
+            receipt_kind = "interaction"
+        except StoreError as interaction_error:
+            try:
+                receipt = store.load_agent_path_completion(receipt_id)
+                receipt_kind = "path_completion"
+            except StoreError:
+                raise AgentBridgeError(
+                    f"Agent Bridge receipt not found: {receipt_id}"
+                ) from interaction_error
+        if receipt.collaborator_id != collaborator.id:
+            raise AgentBridgeError("receipt belongs to a different collaborator")
+        if any(
+            item.receipt_id == receipt_id
+            for item in store.iter_agent_memory_acknowledgements()
+        ):
+            raise AgentBridgeError("memory receipt is already acknowledged")
+        acknowledgement = AgentMemoryAcknowledgement(
+            schema_version=SCHEMA_VERSION,
+            id=new_ulid(),
+            receipt_id=receipt_id,
+            receipt_kind=receipt_kind,
+            collaborator_id=collaborator.id,
+            created_at=now_iso(),
+            client_request_id=client_request_id,
+            request_sha256=digest,
+            external_memory_ref=memory_ref,
+        )
+        path = store.write_agent_memory_acknowledgement(acknowledgement)
+    store.log(
+        "agent_bridge_memory_acknowledged",
+        collaborator_id=collaborator.id,
+        receipt_id=receipt_id,
+        acknowledgement_id=acknowledgement.id,
+        path=str(path),
+        warnings=[],
+    )
+    return memory_acknowledgement_result(acknowledgement)

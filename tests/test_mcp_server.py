@@ -342,6 +342,8 @@ def test_slice_b_registered_collaborator_appends_one_private_path_idempotently(
 
     root = store.load_graph(begin["root_graph_id"])
     child = store.load_graph(completion["graph_id"])
+    assert completion["memory_candidate"]["atlas_ids"]["node_id"] == child.nodes[0].id
+    assert completion["memory_candidate"]["outcome"] == "completed"
     assert root.nodes[0].agent == "human"
     assert root.metadata["agent_bridge"]["seed_origin"] == "human_instruction"
     assert child.parent_graph_id == root.id
@@ -415,3 +417,94 @@ def test_slice_b_agent_proposal_is_not_attributed_to_human_and_conflicts_fail_cl
     assert first[2]["result"]["isError"] is True
     assert "different content" in first[2]["result"]["content"][0]["text"]
     assert len(list(store.iter_session_ids())) == 1
+
+
+def test_slice_c_memory_candidate_and_opaque_acknowledgement_are_idempotent(
+    tmp_path: Path,
+):
+    store = Store(tmp_path / "data")
+    collaborator = register_collaborator(
+        store,
+        display_name="Indy",
+        client_family="codex",
+        scopes=[
+            "atlas:read",
+            "atlas:write:threadwalk",
+            "atlas:memory:ack",
+        ],
+    )
+    begin = _bridge(
+        store,
+        [
+            *_initialize(),
+            {"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
+            {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/call",
+                "params": {
+                    "name": "begin_threadwalk",
+                    "arguments": {
+                        "seed": "What is your name and who is Aaron?",
+                        "title": "Identity and collaborator context",
+                        "seed_origin": "human_instruction",
+                        "client_request_id": "memory-begin-1",
+                    },
+                },
+            },
+        ],
+        collaborator_id=collaborator.id,
+    )
+    assert begin[0]["result"]["instructions"].count("memory_candidate") == 1
+    assert [item["name"] for item in begin[1]["result"]["tools"]][-1] == (
+        "acknowledge_memory_receipt"
+    )
+    opened = begin[2]["result"]["structuredContent"]
+    candidate = opened["memory_candidate"]
+    assert candidate["receipt_id"] == opened["interaction_id"]
+    assert candidate["collaborator"]["display_name"] == "Indy"
+    assert candidate["atlas_ids"]["session_id"] == opened["session_id"]
+    assert candidate["publication"] is False
+    assert candidate["subject"] == "Identity and collaborator context"
+    assert "What is your name" not in json.dumps(candidate)
+
+    arguments = {
+        "receipt_id": candidate["receipt_id"],
+        "client_request_id": "memory-ack-1",
+        "external_memory_ref": "codex-session:opaque-test-ref",
+    }
+    replies = _bridge(
+        store,
+        [
+            *_initialize(),
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {
+                    "name": "acknowledge_memory_receipt",
+                    "arguments": arguments,
+                },
+            },
+            {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/call",
+                "params": {
+                    "name": "acknowledge_memory_receipt",
+                    "arguments": arguments,
+                },
+            },
+        ],
+        collaborator_id=collaborator.id,
+    )
+    acknowledged = replies[1]["result"]["structuredContent"]
+    replay = replies[2]["result"]["structuredContent"]
+    assert acknowledged["status"] == "acknowledged"
+    assert acknowledged["external_memory_read"] is False
+    assert acknowledged["external_memory_written_by_atlas"] is False
+    assert replay["acknowledgement"]["id"] == acknowledged["acknowledgement"]["id"]
+    assert replay["idempotent_replay"] is True
+    stored = list(store.iter_agent_memory_acknowledgements())
+    assert len(stored) == 1
+    assert stored[0].external_memory_ref == "codex-session:opaque-test-ref"

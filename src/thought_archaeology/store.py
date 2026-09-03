@@ -384,6 +384,10 @@ class Store:
         return self.root / "agent-bridge" / "path-completions"
 
     @property
+    def agent_memory_acknowledgements_dir(self) -> Path:
+        return self.root / "agent-bridge" / "memory-acknowledgements"
+
+    @property
     def agent_bridge_lock_path(self) -> Path:
         return self.root / "agent-bridge" / "bridge.lock"
 
@@ -505,6 +509,10 @@ class Store:
             or graph.session_id != completion.session_id
             or graph.parent_graph_id != completion.source_graph_id
             or graph.turn_id != completion.turn_id
+            or (
+                completion.node_id is not None
+                and completion.node_id not in {node.id for node in graph.nodes}
+            )
         ):
             raise StoreError("Agent Bridge path completion provenance does not match")
         _mkdir(self.agent_path_completions_dir)
@@ -527,6 +535,57 @@ class Store:
             raw = json.loads(path.read_text(encoding="utf-8"))
             validate_schema("agent-path-completion.schema.json", raw)
             yield AgentPathCompletion.from_dict(raw)
+
+    def load_agent_path_completion(self, completion_id: str):
+        from thought_archaeology.agent_bridge import AgentPathCompletion
+
+        self._require()
+        path = self.agent_path_completions_dir / f"{completion_id}.json"
+        if not path.is_file():
+            raise StoreError(
+                f"Agent Bridge path completion not found: {completion_id}"
+            )
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        validate_schema("agent-path-completion.schema.json", raw)
+        return AgentPathCompletion.from_dict(raw)
+
+    def write_agent_memory_acknowledgement(self, acknowledgement) -> Path:
+        self._require()
+        validate_schema(
+            "agent-memory-acknowledgement.schema.json", acknowledgement.to_dict()
+        )
+        collaborator = self.load_agent_collaborator(
+            acknowledgement.collaborator_id
+        )
+        if collaborator.id != acknowledgement.collaborator_id:
+            raise StoreError("Agent Bridge acknowledgement collaborator does not match")
+        if acknowledgement.receipt_kind == "interaction":
+            receipt = self.load_agent_interaction(acknowledgement.receipt_id)
+        else:
+            receipt = self.load_agent_path_completion(acknowledgement.receipt_id)
+        if receipt.collaborator_id != acknowledgement.collaborator_id:
+            raise StoreError("Agent Bridge acknowledgement receipt does not match")
+        _mkdir(self.agent_memory_acknowledgements_dir)
+        path = self.agent_memory_acknowledgements_dir / f"{acknowledgement.id}.json"
+        if path.exists():
+            raise StoreError(
+                "Agent Bridge memory acknowledgement "
+                f"{acknowledgement.id} already exists (write-once)"
+            )
+        _write_private_json_atomic(path, acknowledgement.to_dict())
+        return path
+
+    def iter_agent_memory_acknowledgements(self):
+        from thought_archaeology.agent_bridge import AgentMemoryAcknowledgement
+
+        self._require()
+        if not self.agent_memory_acknowledgements_dir.is_dir():
+            return
+            yield  # pragma: no cover
+        for path in sorted(self.agent_memory_acknowledgements_dir.glob("*.json")):
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            validate_schema("agent-memory-acknowledgement.schema.json", raw)
+            yield AgentMemoryAcknowledgement.from_dict(raw)
 
     @property
     def field_notes_dir(self) -> Path:
@@ -1260,6 +1319,17 @@ class Store:
     def write_continuation_completion(self, completion: ContinuationCompletion) -> Path:
         self._require()
         request = self.load_continuation_request(completion.request_id)
+        agent_identity = (
+            completion.collaborator_id,
+            completion.agent_name,
+            completion.memory_mode,
+        )
+        if any(agent_identity) and not all(agent_identity):
+            raise StoreError("connected-agent completion identity is incomplete")
+        if completion.collaborator_id is not None:
+            collaborator = self.load_agent_collaborator(completion.collaborator_id)
+            if collaborator.display_name != completion.agent_name:
+                raise StoreError("connected-agent completion identity does not match")
         if (
             request.requested_harness
             and request.requested_harness != completion.harness

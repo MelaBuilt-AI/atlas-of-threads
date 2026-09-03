@@ -63,6 +63,59 @@ def test_codex_model_prompt_is_utf8_on_windows_boundary(monkeypatch):
     assert "→" in captured["input"]
 
 
+def test_codex_connected_agent_starts_then_resumes_one_session(
+    monkeypatch, tmp_path: Path
+):
+    calls = []
+    state_path = tmp_path / "state" / "indy.json"
+    memory_root = tmp_path / "memory"
+    memory_root.mkdir()
+    monkeypatch.setenv("TA_HARNESS_AGENT_NAME", "Indy")
+    monkeypatch.setenv("TA_HARNESS_MEMORY_ROOT", str(memory_root))
+    monkeypatch.setenv("TA_HARNESS_SESSION_STATE", str(state_path))
+
+    def run(argv, **kwargs):
+        calls.append({"argv": argv, **kwargs})
+        output_path = Path(argv[argv.index("--output-last-message") + 1])
+        output_path.write_text("structured response", encoding="utf-8")
+        thread_id = (
+            argv[argv.index("resume") + 1]
+            if "resume" in argv
+            else "0199a213-81c0-7800-8aa1-bbab2a035a53"
+        )
+        stdout = json.dumps({"type": "thread.started", "thread_id": thread_id})
+        return subprocess.CompletedProcess(argv, 0, stdout, "")
+
+    monkeypatch.setattr(codex_module.subprocess, "run", run)
+    envelope = {
+        "request": {"prompt": "What is your name and who is Aaron?"},
+        "session": {},
+        "graph": {},
+        "standing": {},
+    }
+
+    assert codex_module._continue("codex", envelope, "gpt-5.6-sol")
+    assert codex_module._continue("codex", envelope, "gpt-5.6-sol")
+
+    first, second = calls
+    assert "--ephemeral" not in first["argv"]
+    assert "--ignore-user-config" in first["argv"]
+    assert "--ignore-rules" not in first["argv"]
+    assert first["argv"][first["argv"].index("--sandbox") + 1] == "read-only"
+    assert first["argv"][first["argv"].index("--cd") + 1] == str(memory_root)
+    assert "resume" not in first["argv"]
+    assert "You are Indy" in first["input"]
+    assert "user-approved workspace" in first["input"]
+    assert "Do not modify files" in first["input"]
+    assert second["argv"][second["argv"].index("resume") + 1] == (
+        "0199a213-81c0-7800-8aa1-bbab2a035a53"
+    )
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    assert state["agent_name"] == "Indy"
+    assert state["memory_root"] == str(memory_root)
+    assert state_path.stat().st_mode & 0o777 == 0o600
+
+
 def _source(store_path: Path) -> tuple[str, str]:
     code, out, err = run(["init", "--title", "Codex adapter test"], store=store_path)
     assert code == 0, err

@@ -286,7 +286,7 @@ def test_thread_compass_and_legend_controls_are_chamber_overlays():
     assert "Online" in html
     assert "Online collaboration comes later" in html
     assert 'id="threshold-parallel"' in html
-    assert "Activate ${workspaceName(harness.name)}" in js
+    assert "Activate ${workspaceHarnessName(harness)}" in js
     assert 'refresh.textContent = "↻ Refresh"' in js
     assert 'post("/api/workspace/harness"' in js
     assert 'post("/api/onboarding/harness"' in js

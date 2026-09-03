@@ -9,6 +9,7 @@ from thought_archaeology import __version__
 from thought_archaeology.agent_bridge import (
     AgentBridgeError,
     AgentCollaborator,
+    acknowledge_memory_receipt,
     append_agent_path,
     begin_threadwalk,
     require_scope,
@@ -44,7 +45,10 @@ WRITE_SERVER_INSTRUCTIONS = (
     "instruction or an agent proposal. Use append_agent_path only with the exact source "
     "IDs returned by that interaction. Every mutation needs a stable client_request_id. "
     "Send final user-visible prose and a structured thought graph, never credentials or "
-    "hidden chain-of-thought. Inbound writes never publish or invoke an outbound harness."
+    "hidden chain-of-thought. Preserve returned memory_candidate fields only through "
+    "your own memory system; acknowledge_memory_receipt records an opaque receipt and "
+    "never gives Atlas access to that memory. Inbound writes never publish or invoke "
+    "an outbound harness."
 )
 
 EMPTY_OBJECT_SCHEMA = {
@@ -71,7 +75,11 @@ def atlas_status(
 ) -> dict[str, Any]:
     ready = store.exists()
     write_enabled = collaborator is not None and bool(
-        {"atlas:write:threadwalk", "atlas:write:path"}.intersection(
+        {
+            "atlas:write:threadwalk",
+            "atlas:write:path",
+            "atlas:memory:ack",
+        }.intersection(
             collaborator.scopes
         )
     )
@@ -87,7 +95,12 @@ def atlas_status(
         "schema_version": SCHEMA_VERSION,
         "bridge": {
             "transport": "stdio",
-            "slice": "B" if write_enabled else "A",
+            "slice": (
+                "C"
+                if collaborator is not None
+                and "atlas:memory:ack" in collaborator.scopes
+                else "B" if write_enabled else "A"
+            ),
             "read_only": not write_enabled,
             "network": False,
             "publication": False,
@@ -332,6 +345,36 @@ def _tools(collaborator: AgentCollaborator | None = None) -> list[dict[str, Any]
                 "annotations": write_annotations,
             }
         )
+    if "atlas:memory:ack" in collaborator.scopes:
+        tools.append(
+            {
+                "name": "acknowledge_memory_receipt",
+                "title": "Acknowledge client-owned memory",
+                "description": (
+                    "Record that the client preserved an Atlas memory candidate "
+                    "without exposing or mutating the external memory."
+                ),
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "receipt_id": ULID_SCHEMA,
+                        "client_request_id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200,
+                        },
+                        "external_memory_ref": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500,
+                        },
+                    },
+                    "required": ["receipt_id", "client_request_id"],
+                    "additionalProperties": False,
+                },
+                "annotations": write_annotations,
+            }
+        )
     return tools
 
 
@@ -434,6 +477,29 @@ def _call_tool(
             ) or "thought_graph" not in arguments:
                 raise McpError(-32602, "invalid append_agent_path arguments")
             return _tool_result(append_agent_path(store, collaborator, **arguments))
+        if name == "acknowledge_memory_receipt":
+            if collaborator is None:
+                raise AgentBridgeError(
+                    "acknowledge_memory_receipt requires a registered collaborator"
+                )
+            if not isinstance(arguments, dict):
+                raise McpError(-32602, "tool arguments must be an object")
+            expected = {
+                "receipt_id",
+                "client_request_id",
+                "external_memory_ref",
+            }
+            required = expected - {"external_memory_ref"}
+            if set(arguments) - expected or any(
+                not isinstance(arguments.get(field), str) for field in required
+            ) or (
+                "external_memory_ref" in arguments
+                and not isinstance(arguments["external_memory_ref"], str)
+            ):
+                raise McpError(-32602, "invalid acknowledge_memory_receipt arguments")
+            return _tool_result(
+                acknowledge_memory_receipt(store, collaborator, **arguments)
+            )
     except (
         StoreError,
         ForkError,
@@ -533,6 +599,7 @@ class AtlasMcpServer:
                     and {
                         "atlas:write:threadwalk",
                         "atlas:write:path",
+                        "atlas:memory:ack",
                     }.intersection(self.collaborator.scopes)
                     else SERVER_INSTRUCTIONS
                 ),

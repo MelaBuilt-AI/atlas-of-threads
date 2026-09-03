@@ -38,6 +38,13 @@ def main() -> int:
         / "simple-structured.txt"
     ).read_text(encoding="utf-8")
     output_path.write_text(response, encoding="utf-8")
+    if "--json" in args:
+        thread_id = (
+            args[args.index("resume") + 1]
+            if "resume" in args
+            else "0199a213-81c0-7800-8aa1-bbab2a035a53"
+        )
+        print(json.dumps({"type": "thread.started", "thread_id": thread_id}))
     print('{"type":"turn.completed"}')
     return 0
 
