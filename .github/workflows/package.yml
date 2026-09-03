@@ -2,6 +2,11 @@ name: package
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing stable tag to rebuild and republish
+        required: false
+        type: string
   release:
     types: [published]
   push:
@@ -101,7 +106,7 @@ jobs:
           if-no-files-found: error
 
   publish:
-    if: github.event_name == 'release'
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
     needs: [linux, windows]
     runs-on: ubuntu-22.04
     permissions:
@@ -112,7 +117,7 @@ jobs:
       AWS_DEFAULT_REGION: auto
       R2_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       R2_BUCKET: atlas-of-threads-downloads
-      RELEASE_VERSION: ${{ github.event.release.tag_name }}
+      RELEASE_VERSION: ${{ github.event.release.tag_name || inputs.release_tag }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v7

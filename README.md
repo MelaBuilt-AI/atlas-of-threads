@@ -330,7 +330,8 @@ CLI exit codes are `0` for success, `1` for validation or strict-policy failure,
 | [Human Field Notes](docs/FIELD_NOTES.md) | Human authorship, exact references, and revision rules |
 | [Knowledge Capsules](docs/KNOWLEDGE_CAPSULES.md) | Eligibility, frozen manifests, launch, and privacy |
 | [Technical design](docs/DESIGN.md) | Data model, evidence layers, architecture, and guardrails |
-| [Public-preview audit](docs/PUBLIC_PREVIEW.md) | Repository-publication gates and unresolved rights decisions |
+| [Public-release audit](docs/PUBLIC_PREVIEW.md) | Publication record and repeatable release checks |
+| [Third-party notices](THIRD_PARTY_NOTICES.md) | Vendored-code and generated-asset provenance |
 
 ## Current boundary
 
@@ -342,4 +343,5 @@ already exists.
 
 ## License
 
-[MIT](LICENSE). Atlas of Threads is a project from MelaBuilt AI.
+[MIT](LICENSE). Atlas of Threads is a project from MelaBuilt AI. See the
+[third-party and generated-asset notices](THIRD_PARTY_NOTICES.md).
