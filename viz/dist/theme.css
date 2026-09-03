@@ -88,6 +88,57 @@ html, body {
   pointer-events: none;
 }
 
+#update-notice {
+  position: absolute;
+  z-index: 34;
+  top: 3.2rem;
+  left: 50%;
+  width: min(35rem, calc(100vw - 2rem));
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.75rem 0.8rem;
+  border: 1px solid rgba(200, 242, 106, 0.58);
+  background: rgba(8, 9, 12, 0.97);
+  box-shadow: 0 0.8rem 2.5rem rgba(0, 0, 0, 0.5);
+}
+
+#update-notice[hidden] { display: none; }
+
+#update-notice strong,
+#update-notice small { display: block; }
+
+#update-notice strong {
+  color: var(--phosphor);
+  font: 0.68rem ui-monospace, Menlo, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+#update-notice small {
+  margin-top: 0.2rem;
+  color: var(--mute);
+  font-size: 0.72rem;
+}
+
+#update-notice button {
+  border: 1px solid rgba(176, 141, 87, 0.45);
+  background: rgba(18, 16, 14, 0.72);
+  color: var(--bronze-hot);
+  padding: 0.48rem 0.62rem;
+  font: 0.64rem ui-monospace, Menlo, monospace;
+  cursor: pointer;
+}
+
+#update-notice button:hover,
+#update-notice button:focus-visible {
+  border-color: var(--phosphor);
+  color: var(--phosphor);
+  outline: none;
+}
+
 .topbar-instruments {
   display: flex;
   gap: 0.9rem;
@@ -1050,6 +1101,21 @@ body[data-atlas-map="true"] #knowledge-capsule-ready {
   margin-top: 0.55rem;
   color: var(--uncertain);
   font: 0.65rem/1.4 ui-monospace, Menlo, monospace;
+}
+
+#workspace-application-status {
+  min-height: 1.1rem;
+  margin-top: 0.55rem;
+  color: var(--uncertain);
+  font: 0.65rem/1.4 ui-monospace, Menlo, monospace;
+}
+
+.workspace-danger { margin-top: 0.7rem; }
+
+.workspace-danger:hover,
+.workspace-danger:focus-visible {
+  border-color: var(--rejected);
+  color: var(--rejected);
 }
 
 .menu-section {
@@ -2049,6 +2115,11 @@ body[data-atlas-map="true"] #knowledge-capsule-ready {
 @media (max-width: 38rem) {
   #topbar { align-items: start; }
   .topbar-instruments { display: grid; gap: 0.3rem; text-align: right; }
+  #update-notice {
+    top: 5.6rem;
+    grid-template-columns: 1fr auto;
+  }
+  #update-notice > div { grid-column: 1 / -1; }
   #atlas-map-hud {
     top: 5.6rem;
     left: 0.75rem;

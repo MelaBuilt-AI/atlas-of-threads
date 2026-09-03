@@ -9,6 +9,14 @@
 </head>
 <body>
   <canvas id="c" tabindex="-1"></canvas>
+  <section id="update-notice" hidden aria-live="polite">
+    <div>
+      <strong id="update-notice-title">Atlas update available</strong>
+      <small id="update-notice-detail"></small>
+    </div>
+    <button id="update-notice-install" type="button">Update Atlas</button>
+    <button id="update-notice-later" type="button">later</button>
+  </section>
   <div id="topbar">
     <button id="legend-trigger" type="button">press L for Legend and controls</button>
     <div class="topbar-instruments">
@@ -164,6 +172,15 @@
       <div class="menu-section-label">historical</div>
       <p class="menu-empty">Re-enter another session without changing its graph data.</p>
       <div id="workspace-history"></div>
+    </section>
+
+    <section class="menu-section">
+      <div class="menu-section-label">application</div>
+      <p class="menu-empty" id="workspace-version">Reading this Atlas version…</p>
+      <button id="workspace-update" class="workspace-action" type="button" hidden>Update Atlas</button>
+      <p class="menu-empty">Closing this browser tab leaves the local application ready. Quit Atlas ends its server and collaborator worker.</p>
+      <button id="workspace-quit" class="workspace-action workspace-danger" type="button">Quit Atlas</button>
+      <p id="workspace-application-status" role="status"></p>
     </section>
   </aside>
   <div id="legend-scrim" hidden></div>

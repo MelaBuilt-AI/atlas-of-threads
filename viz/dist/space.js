@@ -137,6 +137,14 @@
   const elOnboardingInquiry = document.getElementById("onboarding-inquiry");
   const elOnboardingStart = document.getElementById("onboarding-start");
   const elWorkspaceOnboarding = document.getElementById("workspace-onboarding");
+  const elUpdateNotice = document.getElementById("update-notice");
+  const elUpdateNoticeDetail = document.getElementById("update-notice-detail");
+  const elUpdateNoticeInstall = document.getElementById("update-notice-install");
+  const elUpdateNoticeLater = document.getElementById("update-notice-later");
+  const elWorkspaceVersion = document.getElementById("workspace-version");
+  const elWorkspaceUpdate = document.getElementById("workspace-update");
+  const elWorkspaceQuit = document.getElementById("workspace-quit");
+  const elWorkspaceApplicationStatus = document.getElementById("workspace-application-status");
   const elRelicIndex = document.getElementById("relic-index");
   const elRelicGrid = document.getElementById("relic-grid");
   const elRelicClose = document.getElementById("relic-close");
@@ -162,6 +170,7 @@
     "parallel-green": 13,
     "blue-arrival": 22,
   };
+  let applicationUpdate = null;
 
   const renderer = new THREE.WebGLRenderer({
     canvas,
@@ -883,6 +892,60 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
+  }
+
+  async function checkForApplicationUpdate() {
+    try {
+      const status = await api("/api/application/update");
+      applicationUpdate = status;
+      elWorkspaceVersion.textContent = status.supported
+        ? `Atlas ${status.current_version} · release updates enabled`
+        : `Atlas ${status.current_version}`;
+      if (!status.available) return;
+      elUpdateNoticeDetail.textContent = `${status.latest_version} is ready for this ${status.platform} installation.`;
+      elUpdateNotice.hidden = false;
+      elWorkspaceUpdate.hidden = false;
+      elWorkspaceUpdate.textContent = `Update to ${status.latest_version}`;
+    } catch (_error) {
+      elWorkspaceVersion.textContent = "Atlas version check unavailable";
+    }
+  }
+
+  async function installApplicationUpdate() {
+    if (!applicationUpdate || !applicationUpdate.available) return;
+    elUpdateNoticeInstall.disabled = true;
+    elWorkspaceUpdate.disabled = true;
+    elUpdateNoticeDetail.textContent = `Downloading and verifying ${applicationUpdate.latest_version}…`;
+    elWorkspaceApplicationStatus.textContent = "downloading and verifying the tagged release…";
+    try {
+      const result = await post("/api/application/update", {
+        version: applicationUpdate.latest_version,
+      });
+      const message = result.platform === "windows"
+        ? "Verified installer opened. Atlas will quit so Windows can update it."
+        : "Update installed. Atlas is restarting now.";
+      elUpdateNoticeDetail.textContent = message;
+      elWorkspaceApplicationStatus.textContent = message;
+    } catch (error) {
+      const message = String(error.message || error);
+      elUpdateNoticeDetail.textContent = message;
+      elWorkspaceApplicationStatus.textContent = message;
+      elUpdateNoticeInstall.disabled = false;
+      elWorkspaceUpdate.disabled = false;
+    }
+  }
+
+  async function quitApplication() {
+    if (!window.confirm("Quit Atlas of Threads and stop its local collaborator worker?")) return;
+    elWorkspaceQuit.disabled = true;
+    elWorkspaceApplicationStatus.textContent = "quitting Atlas…";
+    try {
+      await post("/api/application/quit", {});
+      elWorkspaceApplicationStatus.textContent = "Atlas has quit. You may close this tab.";
+    } catch (error) {
+      elWorkspaceApplicationStatus.textContent = String(error.message || error);
+      elWorkspaceQuit.disabled = false;
+    }
   }
 
   function openLegendMenu() {
@@ -5853,6 +5916,12 @@
     elOnboardingStart.disabled = !onboardingCanStart || !elOnboardingInquiry.value.trim();
   });
   elWorkspaceOnboarding.addEventListener("click", openOnboardingFromWorkspace);
+  elUpdateNoticeInstall.addEventListener("click", installApplicationUpdate);
+  elUpdateNoticeLater.addEventListener("click", () => {
+    elUpdateNotice.hidden = true;
+  });
+  elWorkspaceUpdate.addEventListener("click", installApplicationUpdate);
+  elWorkspaceQuit.addEventListener("click", quitApplication);
   elStartResume.addEventListener("click", () => {
     if (startupState && startupState.resume) chooseStartup(startupState.resume);
   });
@@ -6573,6 +6642,7 @@
   pmrem.dispose();
   neuralSky = makeNeuralSky(skyMap);
   scene.add(neuralSky.group);
+  checkForApplicationUpdate();
   boot();
   window.setInterval(pollLiveCompanion, 2500);
   tick();

@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Atlas of Threads — Thread Compass app icon</title>
+  <desc id="desc">Rounded-square application icon with transparent outer corners.</desc>
+  <defs>
+    <radialGradient id="appbg" cx="50%" cy="25%" r="80%">
+      <stop stop-color="#112E4B"/>
+      <stop offset=".6" stop-color="#050914"/>
+      <stop offset="1" stop-color="#020308"/>
+    </radialGradient>
+  </defs>
+  <rect x="24" y="24" width="976" height="976" rx="224" fill="url(#appbg)" stroke="#295E73" stroke-width="16"/>
+  <svg x="146" y="146" width="732" height="732" viewBox="0 0 512 512">
+    <defs>
+      <filter id="g" x="-60%" y="-60%" width="220%" height="220%">
+        <feGaussianBlur stdDeviation="5" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <linearGradient id="b" x1="0" y1="0" x2="1" y2="1">
+        <stop stop-color="#35D5E8"/><stop offset="1" stop-color="#2F70F0"/>
+      </linearGradient>
+    </defs>
+    <g fill="none" stroke-linecap="round" stroke-linejoin="round" filter="url(#g)">
+      <path d="M256 38C222 128 216 175 256 198c40-23 34-70 0-160Z" stroke="#32D998" stroke-width="25"/>
+      <path d="M474 256c-90-34-137-40-160 0 23 40 70 34 160 0Z" stroke="url(#b)" stroke-width="25"/>
+      <path d="M256 474c34-90 40-137 0-160-40 23-34 70 0 160Z" stroke="#FFB455" stroke-width="25"/>
+      <path d="M38 256c90 34 137 40 160 0-23-40-70-34-160 0Z" stroke="url(#b)" stroke-width="25"/>
+      <circle cx="256" cy="256" r="61" stroke="#4D91A0" stroke-width="9"/>
+      <g fill="#DDFEFF" stroke="#DDFEFF" stroke-width="4">
+        <circle cx="256" cy="38" r="13"/><circle cx="474" cy="256" r="13"/>
+        <circle cx="256" cy="474" r="13"/><circle cx="38" cy="256" r="13"/>
+      </g>
+    </g>
+  </svg>
+</svg>

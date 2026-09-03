@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 import webbrowser
 from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -70,6 +71,13 @@ from thought_archaeology.models import (
 )
 from thought_archaeology.schema import ValidationError
 from thought_archaeology.store import Store, StoreError
+from thought_archaeology.updates import (
+    UpdateError,
+    activate_update,
+    prepare_update,
+    restart_linux_application,
+    update_status,
+)
 
 DEFAULT_PORT = 7462
 DEFAULT_BIND = "127.0.0.1"
@@ -879,6 +887,9 @@ class InhabitHandler(BaseHTTPRequestHandler):
             if path == "/api/health":
                 self._json(200, {"ok": True, "write": True, "bind": "localhost"})
                 return
+            if path == "/api/application/update":
+                self._json(200, update_status())
+                return
             if path == "/api/sessions":
                 self._json(200, bootstrap_payload(self.store))
                 return
@@ -1081,7 +1092,7 @@ class InhabitHandler(BaseHTTPRequestHandler):
     def _require_local_json_request(self) -> None:
         content_type = (self.headers.get("Content-Type") or "").split(";", 1)[0]
         if content_type.strip().lower() != "application/json":
-            raise ServeError("provider setup requires a local JSON request")
+            raise ServeError("application action requires a local JSON request")
         origin = (self.headers.get("Origin") or "").rstrip("/")
         host = self.headers.get("Host") or ""
         hostname = urlparse(f"//{host}").hostname
@@ -1158,6 +1169,12 @@ class InhabitHandler(BaseHTTPRequestHandler):
             if path == "/api/workspace/inquiry":
                 self._workspace_inquiry()
                 return
+            if path == "/api/application/update":
+                self._application_update()
+                return
+            if path == "/api/application/quit":
+                self._application_quit()
+                return
             self._json(405, {"error": "unknown write"})
         except ServeError as exc:
             self._json(400, {"error": str(exc)})
@@ -1169,6 +1186,8 @@ class InhabitHandler(BaseHTTPRequestHandler):
             self._json(400, {"error": str(exc)})
         except ValidationError as exc:
             self._json(400, {"error": "; ".join(exc.messages)})
+        except UpdateError as exc:
+            self._json(400, {"error": str(exc)})
         except json.JSONDecodeError as exc:
             self._json(400, {"error": str(exc)})
 
@@ -1658,6 +1677,44 @@ class InhabitHandler(BaseHTTPRequestHandler):
             self.store, str(body.get("prompt") or "")
         )
         self._json(200, result)
+
+    def _application_update(self) -> None:
+        self._require_local_json_request()
+        body = self._read_json()
+        version = str(body.get("version") or "").strip()
+        status = update_status()
+        if not status["available"] or version != status["latest_version"]:
+            raise UpdateError(
+                "that Atlas release is no longer available as the latest update"
+            )
+        prepared = prepare_update(version)
+        action = activate_update(prepared)
+        self._json(
+            200,
+            {
+                "ok": True,
+                "version": version,
+                "platform": prepared.platform,
+                "action": action,
+            },
+        )
+        threading.Thread(
+            target=self._finish_application_update,
+            args=(prepared.platform,),
+            daemon=True,
+        ).start()
+
+    def _finish_application_update(self, platform: str) -> None:
+        self.server.shutdown()
+        self.server.server_close()
+        if platform == "linux":
+            restart_linux_application()
+
+    def _application_quit(self) -> None:
+        self._require_local_json_request()
+        self._read_json()
+        self._json(200, {"ok": True})
+        threading.Thread(target=self.server.shutdown, daemon=True).start()
 
     def do_PUT(self) -> None:  # noqa: N802
         self._json(405, {"error": "PUT is not a gesture"})

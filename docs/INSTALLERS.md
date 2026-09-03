@@ -26,6 +26,12 @@ The completion action starts Atlas and opens the local browser automatically.
 Uninstalling the application leaves the user's Personal Atlas and
 provider-owned configuration intact.
 
+Closing the browser tab does not quit the installed application. On Windows,
+the three idle `AtlasOfThreads.exe` processes are the PyInstaller one-file
+parent and application child plus Atlas's collaborator worker. Use **Workspace
+→ Quit Atlas** to stop the server and worker cleanly; all three processes then
+exit.
+
 The installer, application executable, Start menu entry, and optional desktop
 shortcut use the Thread Compass `13-app-icon` identity. Onboarding detects
 supported provider CLIs installed natively on Windows and distinguishes missing,
@@ -39,6 +45,10 @@ subscription access, and any API billing; Atlas neither selects nor changes that
 billing route. It also checks the default WSL distribution as a
 fallback; set `TA_WSL_DISTRO` before starting Atlas to select a different
 distribution.
+
+The checked-in Windows SVG is the icon source. Run
+`packaging/windows/build-icon.sh` on a machine with ImageMagick to rebuild the
+multi-size ICO while preserving transparent pixels outside the rounded square.
 
 The official Codex standalone installer exposes a stable Windows command through
 directory junctions. Atlas reads that provider-owned junction metadata and runs
@@ -72,15 +82,30 @@ but a new signing identity can still receive early SmartScreen warnings while
 publisher reputation develops. Microsoft documents the current behavior in
 [SmartScreen reputation for Windows app developers](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation).
 
-## Releases
+## Releases and application updates
 
 The `package` GitHub Actions workflow always produces private Linux and Windows
-acceptance artifacts. A manual run can additionally publish a version to the
-public `atlas-of-threads-downloads` Cloudflare R2 bucket when its explicit
-`publish` input is enabled. Ordinary pushes never publish.
+acceptance artifacts for relevant `master` commits, and it can be run manually
+for private acceptance. Public publication happens only when a GitHub Release
+is published. Its tag must be a stable `vMAJOR.MINOR.PATCH` and must match the
+version in `pyproject.toml`, the Python package, and the Windows installer.
+Ordinary pushes and manual workflow runs never publish an update.
 
 Each release is stored under an immutable versioned path and copied to
 `releases/latest`. SHA-256 files are published beside both platform packages.
+The same packages and manifest are attached to the private GitHub Release.
+Because the repository is private, installed clients read the anonymous public
+R2 manifest and then download the exact immutable version authorized by that
+GitHub Release.
+
+Installed Linux and Windows applications check the small `releases/latest`
+manifest at startup. A newer stable version raises an in-app prompt; no prompt
+is shown for a commit build or for an equal/older version. **Update Atlas**
+downloads the platform package from its immutable version path and verifies its
+published SHA-256. Windows opens the verified installer and quits the running
+application. Linux atomically replaces the installed binary and restarts the
+user service (or relaunches the standalone process when systemd is unavailable).
+
 The packages remain unsigned until a publisher identity and signing service or
 certificate are provisioned; code signing must happen before checksums and
 publication.

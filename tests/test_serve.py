@@ -118,6 +118,45 @@ def test_health_and_static_shell(httpd_url: str):
     assert "dashboard" not in body.lower() or "not a dashboard" in body.lower()
 
 
+def test_application_update_status_is_exposed(monkeypatch, httpd_url: str):
+    monkeypatch.setattr(
+        "thought_archaeology.serve.update_status",
+        lambda: {
+            "current_version": "v0.1.0",
+            "latest_version": "v0.2.0",
+            "available": True,
+            "supported": True,
+            "platform": "windows",
+            "published_at": "2026-09-02T12:00:00Z",
+        },
+    )
+
+    code, body, _ctype = _get(httpd_url + "/api/application/update")
+
+    assert code == 200
+    assert json.loads(body)["latest_version"] == "v0.2.0"
+
+
+def test_application_quit_requires_local_json_and_shuts_down_after_reply():
+    stopped = threading.Event()
+    replies = []
+    handler = object.__new__(InhabitHandler)
+    handler.headers = {
+        "Content-Type": "application/json",
+        "Host": "127.0.0.1:7462",
+        "Origin": "http://127.0.0.1:7462",
+        "Sec-Fetch-Site": "same-origin",
+    }
+    handler._read_json = lambda: {}
+    handler._json = lambda code, body: replies.append((code, body))
+    handler.server = type("Server", (), {"shutdown": lambda self: stopped.set()})()
+
+    handler._application_quit()
+
+    assert stopped.wait(1)
+    assert replies == [(200, {"ok": True})]
+
+
 def test_thread_compass_is_server_authored_generation_lineage(
     httpd_url: str, tmp_path: Path
 ):
@@ -238,6 +277,9 @@ def test_thread_compass_and_legend_controls_are_chamber_overlays():
     assert 'id="workspace-harnesses"' in html
     assert 'id="workspace-new-form"' in html
     assert 'id="workspace-history"' in html
+    assert 'id="update-notice"' in html
+    assert 'id="workspace-update"' in html
+    assert 'id="workspace-quit"' in html
     assert 'id="workspace-parallel-form"' in html
     assert 'id="onboarding-menu"' in html
     assert "Start a Threadwalk" in html
@@ -262,6 +304,11 @@ def test_thread_compass_and_legend_controls_are_chamber_overlays():
     assert "view.graph_id === circuit.sourceGraphId" in js
     assert "liveArrivals.slice(-240)" in js
     assert 'api("/api/workspace")' in js
+    assert 'api("/api/application/update")' in js
+    assert 'post("/api/application/update"' in js
+    assert 'post("/api/application/quit"' in js
+    assert "checkForApplicationUpdate" in js
+    assert "Quit Atlas" in html
     assert "showOnboarding" in js
     assert "connectOnboardingHarness" in js
     assert "selectOnboardingHarness" in js

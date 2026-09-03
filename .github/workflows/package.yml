@@ -2,17 +2,8 @@ name: package
 
 on:
   workflow_dispatch:
-    inputs:
-      publish:
-        description: Publish the completed packages to the public download bucket
-        required: true
-        type: boolean
-        default: false
-      version:
-        description: Release version; must match pyproject.toml with a v prefix
-        required: true
-        type: string
-        default: v0.1.0
+  release:
+    types: [published]
   push:
     branches: [master]
     paths:
@@ -110,18 +101,18 @@ jobs:
           if-no-files-found: error
 
   publish:
-    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    if: github.event_name == 'release'
     needs: [linux, windows]
     runs-on: ubuntu-22.04
     permissions:
-      contents: read
+      contents: write
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
       AWS_DEFAULT_REGION: auto
       R2_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       R2_BUCKET: atlas-of-threads-downloads
-      RELEASE_VERSION: ${{ inputs.version }}
+      RELEASE_VERSION: ${{ github.event.release.tag_name }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v7
@@ -134,9 +125,13 @@ jobs:
           path: packages/windows
       - name: Validate and stage release
         run: |
-          printf '%s' "$RELEASE_VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$'
+          printf '%s' "$RELEASE_VERSION" | grep -Eq '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
           package_version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' pyproject.toml | head -n 1)"
           test "${RELEASE_VERSION#v}" = "$package_version"
+          source_version="$(sed -n 's/^__version__ = "\([^"]*\)"/\1/p' src/thought_archaeology/__init__.py | head -n 1)"
+          installer_version="$(sed -n 's/^#define AppVersion "\([^"]*\)"/\1/p' packaging/windows/atlas-of-threads.iss | head -n 1)"
+          test "$source_version" = "$package_version"
+          test "$installer_version" = "$package_version"
 
           linux_binary="$(find packages/linux -type f -name atlas-of-threads-linux-x86_64 -print -quit)"
           linux_checksum="$(find packages/linux -type f -name atlas-of-threads-linux-x86_64.sha256 -print -quit)"
@@ -156,6 +151,18 @@ jobs:
             --arg published_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             '{version: $version, commit: $commit, published_at: $published_at}' \
             > release/release.json
+      - name: Attach packages to the private GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "$RELEASE_VERSION" \
+            release/atlas-of-threads-linux-x86_64 \
+            release/atlas-of-threads-linux-x86_64.sha256 \
+            release/AtlasOfThreadsSetup.exe \
+            release/AtlasOfThreadsSetup.exe.sha256 \
+            release/SHA256SUMS \
+            release/release.json \
+            --clobber
       - name: Publish version and latest aliases
         run: |
           endpoint="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
