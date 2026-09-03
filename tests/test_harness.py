@@ -111,6 +111,41 @@ def test_harness_registry_is_user_owned_and_secret_free(monkeypatch, tmp_path: P
     assert HarnessRegistry(config).default_name() is None
 
 
+def test_adapter_protocol_is_ascii_safe_over_an_explicit_utf8_pipe(
+    monkeypatch, tmp_path: Path
+):
+    captured = {}
+    spec = HarnessRegistry(tmp_path / "harnesses.json").register(
+        "fake", sys.executable, make_default=True
+    )
+
+    def run(argv, **kwargs):
+        captured.update(kwargs)
+        return __import__("subprocess").CompletedProcess(
+            argv,
+            0,
+            json.dumps(
+                {
+                    "protocol_version": "1",
+                    "response": "retained → path",
+                    "model_name": "fake",
+                },
+                ensure_ascii=True,
+            ),
+            "",
+        )
+
+    monkeypatch.setattr(harness_module.subprocess, "run", run)
+    result = harness_module._adapter_call(
+        spec, "continue", {"text": "rejected → retained"}, timeout=5
+    )
+
+    assert result["response"] == "retained → path"
+    assert captured["encoding"] == "utf-8"
+    assert "→" not in captured["input"]
+    assert "\\u2192" in captured["input"]
+
+
 def test_harness_run_completes_request_and_advances_session(
     monkeypatch, tmp_path: Path
 ):

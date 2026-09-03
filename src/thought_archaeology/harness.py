@@ -262,9 +262,10 @@ def _adapter_call(
     try:
         proc = subprocess.run(
             [*spec.argv, operation],
-            input=(json.dumps(payload, ensure_ascii=False) + "\n") if payload else None,
+            input=(json.dumps(payload, ensure_ascii=True) + "\n") if payload else None,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             shell=False,
             timeout=timeout,
             check=False,

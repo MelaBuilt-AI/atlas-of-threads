@@ -132,3 +132,21 @@ def test_grok_empty_captured_stream_is_a_bounded_adapter_error(monkeypatch):
     }
     with pytest.raises(GrokAdapterError, match="returned no response"):
         grok_module._continue("grok", envelope, "grok-test")
+
+
+def test_grok_model_output_is_read_as_utf8(monkeypatch):
+    captured = {}
+
+    def run(argv, **kwargs):
+        captured.update(kwargs)
+        return subprocess.CompletedProcess(argv, 0, "rejected → retained", "")
+
+    monkeypatch.setattr(grok_module.subprocess, "run", run)
+    response = grok_module._continue(
+        "grok",
+        {"request": {}, "graph": {}, "standing": {}, "session": {}},
+        "grok-test",
+    )
+
+    assert response == "rejected → retained"
+    assert captured["encoding"] == "utf-8"

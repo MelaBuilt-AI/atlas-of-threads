@@ -12,10 +12,12 @@ from thought_archaeology import harness as harness_module
 from thought_archaeology import store as store_module
 from thought_archaeology.harness import HarnessRegistry
 from thought_archaeology.harness_service import (
+    _stop_portable_worker,
     application_worker_status,
     ensure_application_worker,
     stop_application_worker,
 )
+import thought_archaeology.harness_service as harness_service_module
 from thought_archaeology.launcher import main as launcher_main
 from thought_archaeology.adapters import provider_command as provider_command_module
 from thought_archaeology.adapters.provider_command import (
@@ -66,6 +68,35 @@ def test_windows_application_paths_use_roaming_and_local_app_data(
     assert harness_module.resolve_harness_config_path() == (
         tmp_path / "roaming" / "MelaBuilt AI" / "Atlas of Threads" / "harnesses.json"
     )
+
+
+def test_windows_worker_stop_terminates_its_adapter_process_tree(monkeypatch):
+    calls = []
+
+    class Process:
+        pid = 42
+
+        def poll(self):
+            return None
+
+        def wait(self, *, timeout):
+            assert timeout == 5
+
+        def terminate(self):
+            pytest.fail("successful taskkill should stop the whole process tree")
+
+    monkeypatch.setattr(harness_service_module.os, "name", "nt")
+    monkeypatch.setattr(harness_service_module, "_PORTABLE_PROCESS", Process())
+    monkeypatch.setattr(
+        harness_service_module.subprocess,
+        "run",
+        lambda argv, **kwargs: calls.append((argv, kwargs))
+        or subprocess.CompletedProcess(argv, 0),
+    )
+
+    _stop_portable_worker()
+
+    assert calls[0][0] == ["taskkill.exe", "/PID", "42", "/T", "/F"]
 
 
 def test_launcher_dispatches_the_packaged_adapter(monkeypatch):

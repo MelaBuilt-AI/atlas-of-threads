@@ -73,6 +73,22 @@ def _stop_portable_worker() -> None:
         _PORTABLE_HARNESS = None
     if process is None or process.poll() is not None:
         return
+    if os.name == "nt":
+        try:
+            stopped = subprocess.run(
+                ["taskkill.exe", "/PID", str(process.pid), "/T", "/F"],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=5,
+                check=False,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            if stopped.returncode == 0:
+                process.wait(timeout=5)
+                return
+        except (OSError, subprocess.TimeoutExpired):
+            pass
     process.terminate()
     try:
         process.wait(timeout=5)

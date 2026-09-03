@@ -48,6 +48,7 @@ def _run_metadata(argv: list[str], *, timeout: float = 30) -> str:
             argv,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             shell=False,
             timeout=timeout,
             check=False,
@@ -198,6 +199,7 @@ def _continue(
                 input=prompt,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
                 shell=False,
                 timeout=_model_timeout(),
                 check=False,
@@ -226,7 +228,7 @@ def _continue(
 
 
 def _emit(data: dict[str, Any]) -> None:
-    print(json.dumps(data, ensure_ascii=False))
+    print(json.dumps(data, ensure_ascii=True))
 
 
 def main(argv: list[str] | None = None) -> int:

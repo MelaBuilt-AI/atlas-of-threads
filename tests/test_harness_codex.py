@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
+import thought_archaeology.adapters.codex as codex_module
 from thought_archaeology.adapters.codex import _codex_bin, _default_model
 from thought_archaeology.store import Store
 
@@ -33,6 +35,32 @@ def test_codex_uses_saved_harness_model(monkeypatch, tmp_path: Path):
     monkeypatch.setenv("CODEX_HOME", str(codex_root))
 
     assert _default_model(str(FAKE_CODEX)) == "codex-saved"
+
+
+def test_codex_model_prompt_is_utf8_on_windows_boundary(monkeypatch):
+    captured = {}
+
+    def run(argv, **kwargs):
+        captured.update(kwargs)
+        output_path = Path(argv[argv.index("--output-last-message") + 1])
+        output_path.write_text("structured response", encoding="utf-8")
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(codex_module.subprocess, "run", run)
+    response = codex_module._continue(
+        "codex",
+        {
+            "request": {"prompt": "Continue through a rejected path → keep it."},
+            "session": {},
+            "graph": {},
+            "standing": {},
+        },
+        "codex-test",
+    )
+
+    assert response == "structured response"
+    assert captured["encoding"] == "utf-8"
+    assert "→" in captured["input"]
 
 
 def _source(store_path: Path) -> tuple[str, str]:
