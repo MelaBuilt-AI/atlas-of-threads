@@ -19,6 +19,8 @@
 </p>
 
 <p align="center">
+  <a href="https://atlasofthreads.com/threadwalk/filiolae"><strong>Threadwalk now — Make Equivalence Visible</strong></a>
+  ·
   <a href="https://atlasofthreads.com"><strong>Visit the Atlas</strong></a>
   ·
   <a href="https://app.atlasofthreads.com"><strong>How to play</strong></a>
