@@ -12,6 +12,47 @@
 
 ---
 
+## Navigation clarity amendment — 2026-09-05 (Codex / Astra)
+
+This amendment supersedes older descriptions below of Up as an unconditional
+north shortcut, click-to-traverse, and the generation-only Atlas Map.
+
+The chamber remains a local, recentered 3D view. A persistent wayfinder identifies
+the Threadwalk, answer attribution, and exact thought's stable ordinal; this
+ordinal is not a prescribed reading order or the number of steps walked.
+The standing thought stays visible while a separate destination card previews
+the next move. Left/right or a spatial click selects; Enter/Up or the explicit
+destination button enters that selection. Without a selection, both keys use
+the first forward thought. At an endpoint they do not choose a side road for you.
+Layer-specific Field Note and Knowledge Capsule controls remain distinct.
+
+Retrace (B/Down) follows actual visits. Answer start (O) goes to this graph's
+entry thought. A separately named source return goes to the exact question
+that produced a collaborator's answer. Returning to an earlier trail destination
+trims the retrace stack instead of creating an origin/back loop. Recent trail
+buttons, visited destination text, and visited map rings support recognition.
+This is bounded tab-local navigation memory (80 trail entries, 200 visited
+thoughts, eight visible recent destinations), not a canonical research artifact.
+Refresh recovers the trail when resuming the same exact stand; storage failure
+does not prevent navigation. Loading is guarded against duplicate traversal;
+a failed request leaves the previous stand and trail intact with a visible error.
+
+A opens the thoughts of the current answer, including premises, rejected roads,
+and uncertainties. All answers switches to the whole-Threadwalk generation
+map; selecting an answer and choosing Thoughts in this answer previews its
+internal map without moving the inhabitant. Every destination has a numbered
+relic and full-text keyboard/touch list. Selection and visiting are separate.
+Current and visited markers use graph plus node identity; recorded relationship
+lines are not inferred causal evidence. Large maps retain pan/zoom, and the
+scene gets its own viewport so it does not disappear behind the map controls.
+T remains the answer-level compass; choosing the current answer preserves the
+exact current thought instead of resetting to its entry node.
+
+Python provides `position` in the standing payload and `chamber_map` in the
+thread payload, scoped to the requested graph in that session. No graph-store
+format, provider action, hidden reasoning, or publication behavior changes.
+This source change is not automatically a deployed-site or installer update.
+
 ## Living terminology amendment — 2026-08-28
 
 The user adopted **judgment call** as the canonical term because it states the concept directly: a consequential choice not forced by the premises. New graphs use `judgment_call`; the shaping edge is `shapes`; fingerprints expose `model_judgments`. Readers and loaders still accept the original `taste_call`, `taste_of`, and `model_taste` spellings so append-only artifacts remain readable.

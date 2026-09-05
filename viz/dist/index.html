@@ -24,25 +24,55 @@
       <button id="atlas-map-trigger" type="button" aria-pressed="false">Atlas Map · A</button>
     </div>
   </div>
+  <nav id="wayfinder" hidden aria-label="Your place and walking trail">
+    <div id="wayfinder-location"></div>
+    <div class="wayfinder-actions">
+      <button id="walk-back" type="button"></button>
+      <button id="walk-origin" type="button"></button>
+      <button id="walk-source" type="button" hidden></button>
+      <details id="walk-history">
+        <summary>Recent trail</summary>
+        <div id="walk-trail"></div>
+      </details>
+    </div>
+    <p id="walk-status" role="status"></p>
+  </nav>
   <section id="atlas-map-hud" hidden aria-label="Atlas Map">
     <div>
-      <div class="kind">whole Threadwalk · stable spatial projection</div>
+      <div class="kind">your Threadwalk · answers and thoughts</div>
       <h1 id="atlas-map-title">Atlas Map</h1>
       <p id="atlas-map-status" aria-live="polite">Reading the current Threadwalk…</p>
-      <small>click a relic to traverse · drag to pan · wheel to zoom</small>
+      <small>select to preview · enter to visit · drag to pan · wheel to zoom</small>
+      <div class="map-levels" role="group" aria-label="Map level">
+        <button id="map-generations" type="button" aria-pressed="false">All answers</button>
+        <button id="map-thoughts" type="button" aria-pressed="true">Thoughts in this answer</button>
+      </div>
+      <p id="map-selection" aria-live="polite"></p>
+      <button id="map-visit" type="button" disabled>Choose a destination</button>
     </div>
     <button id="atlas-map-close" type="button">return to chamber · A / esc</button>
     <nav id="atlas-map-keyboard" aria-label="Keyboard Atlas Map">
-      <span>Keyboard Atlas Map</span>
+      <span id="map-list-title">Thoughts · stable order, not a required reading sequence</span>
       <div id="atlas-map-entry-buttons"></div>
     </nav>
   </section>
   <div id="plate">
+    <div class="standing-label">Standing here</div>
     <div class="kind" id="kind"></div>
     <h1 id="text"></h1>
     <div class="here" id="here"></div>
     <div class="meta" id="meta"></div>
   </div>
+  <section id="path-preview" hidden aria-label="Selected destination">
+    <div class="preview-label" id="path-preview-label">Selected destination</div>
+    <p id="path-preview-text"></p>
+    <div class="preview-actions">
+      <button id="path-previous" type="button" aria-label="Preview previous destination">←</button>
+      <button id="path-enter" type="button">Enter this thought · ↑ / Enter</button>
+      <button id="path-next" type="button" aria-label="Preview next destination">→</button>
+    </div>
+    <small id="path-preview-detail"></small>
+  </section>
   <div id="threshold" hidden aria-live="polite">
     <div class="kind" id="threshold-kind">end of this graph path</div>
     <p id="threshold-text"></p>
@@ -224,7 +254,7 @@
         <div><dt>J</dt><dd>store one earned Capsule launcher for later in this Threadwalk</dd></div>
         <div><dt>L</dt><dd>open or close this legend</dd></div>
         <div><dt>← / →</dt><dd>cycle counterclockwise / clockwise</dd></div>
-        <div><dt>Enter / ↑</dt><dd>walk the selected / north path</dd></div>
+        <div><dt>Enter / ↑</dt><dd>enter the selected destination; otherwise the first forward thought</dd></div>
         <div><dt>↓ / B</dt><dd>retrace your walk</dd></div>
         <div><dt>O</dt><dd>return to this graph's origin</dd></div>
         <div><dt>Q</dt><dd>mark an ending ready or cancel it</dd></div>

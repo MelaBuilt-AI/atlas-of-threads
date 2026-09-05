@@ -224,6 +224,37 @@ def test_thread_compass_and_parallel_endpoint_are_server_authored(tmp_path: Path
     ]
 
 
+def test_thought_map_preserves_exact_nodes_relations_and_store(tmp_path: Path):
+    store, source_node, request_ids = _parallel_study(tmp_path / "data")
+    request = store.load_continuation_request(request_ids[0])
+    graph = store.load_graph(request.graph_id)
+    before = {file: file.read_bytes() for file in store.root.rglob("*") if file.is_file()}
+    payload = thread_payload(store, request.session_id, graph_id=graph.id, node_id=source_node.id)
+    mapped = payload["chamber_map"]
+    assert mapped["graph_id"] == graph.id
+    assert {node["id"] for node in mapped["nodes"]} == {node.id for node in graph.nodes}
+    assert {node["kind"] for node in mapped["nodes"]} >= {"premise", "claim", "rejected_alternative", "uncertainty"}
+    assert [(edge["source_id"], edge["target_id"], edge["kind"]) for edge in mapped["edges"]] == [
+        (edge.source_id, edge.target_id, edge.kind) for edge in graph.edges
+    ]
+    assert "hidden_reasoning" not in json.dumps(mapped)
+    # A thought's ordinal is a stable address in this immutable answer, not visit order.
+    for index, node in enumerate(graph.nodes, 1):
+        standing = inhabit(store, node.id, graph_id=graph.id).to_dict()
+        assert standing["position"] == {"ordinal": index, "total": len(graph.nodes)}
+    assert before == {file: file.read_bytes() for file in store.root.rglob("*") if file.is_file()}
+
+
+def test_thought_map_rejects_a_graph_from_another_threadwalk(tmp_path: Path):
+    from thought_archaeology.store import StoreError
+
+    path = tmp_path / "data"
+    session_id, _ = _compile_simple(path)
+    _, foreign_graph_id = _compile_simple(path)
+    with pytest.raises(StoreError, match="not part of this Threadwalk"):
+        thread_payload(Store(path), session_id, graph_id=foreign_graph_id)
+
+
 def test_thread_compass_and_legend_controls_are_chamber_overlays():
     dist = viz_dist_path()
     html = (dist / "index.html").read_text(encoding="utf-8")
@@ -814,7 +845,7 @@ def test_space_shell_mentions_gestures(httpd_url: str):
     assert code == 200
     assert "counterclockwise" in body
     assert "cycle counterclockwise / clockwise" in body
-    assert "walk the selected / north path" in body
+    assert "enter the selected destination; otherwise the first forward thought" in body
     assert "overhead" in body
     assert "overhead view / camera home" in body
     assert "human no" in body
@@ -1089,7 +1120,8 @@ def test_live_companion_uses_finalized_store_heads_as_optional_doorways(tmp_path
     assert "continuationSourceArrival" in js
     assert "arrival.anchorGraphId === payload.graph_id" in js
     assert "arrival.graphId !== source.graphId || arrival.nodeId !== source.nodeId" in js
-    assert 'text: "Return to conversation origin"' in js
+    assert 'title: "Return to source thought"' in js
+    assert 'text: source.node?.text || "Source thought"' in js
     assert 'labelKind: "conversation origin"' in js
     assert 'relicKey: arrival.returnOrigin' in js
     assert "RETURN_COLOR" in js

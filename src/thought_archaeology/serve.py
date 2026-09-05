@@ -834,11 +834,34 @@ def thread_payload(
             store,
             comparison_request_id=group["representative_request_id"],
         )
+    selected_graph = graphs.get(graph_id or session.head_graph_id)
+    if graph_id and selected_graph is None:
+        raise StoreError("graph is not part of this Threadwalk")
+    chamber_map = None
+    if selected_graph is not None:
+        selected_entry = entry_node(selected_graph)
+        chamber_map = {
+            "graph_id": selected_graph.id,
+            "entry_node_id": selected_entry.id if selected_entry else None,
+            "nodes": [
+                {
+                    **_node_brief(node),
+                    "ordinal": index,
+                    "evidence": evidence_by_stand.get((selected_graph.id, node.id), []),
+                }
+                for index, node in enumerate(selected_graph.nodes, 1)
+            ],
+            "edges": [
+                {"source_id": edge.source_id, "target_id": edge.target_id, "kind": edge.kind}
+                for edge in selected_graph.edges
+            ],
+        }
     return {
         "session_id": session.id,
         "title": session.title,
         "head_graph_id": session.head_graph_id,
         "latest_ai_graph_id": latest_ai,
+        "chamber_map": chamber_map,
         "entries": entries,
         "parallel_groups": parallel_groups,
         "standing_field_notes": (

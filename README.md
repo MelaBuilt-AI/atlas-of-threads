@@ -126,13 +126,20 @@ From a chamber:
 | Cycle among paths | `←` / `→` or `[` / `]` |
 | Enter the selected path | `Enter` or `↑` |
 | Retrace | `↓` or `B` |
-| Return to graph origin | `O` |
+| Return to this answer's start | `O` |
 | Continue this ending | `Q` or **Ask from here…** |
 | Request parallel paths | `P` |
 | Open Thread Compass | `T` |
 | Open Atlas Map | `A` |
 | Open Workspace | `M` |
 | Open legend and all controls | `L` |
+
+The standing thought and selected destination have separate cards. Click a path
+to preview it before entering. The top wayfinder names your retrace destination
+and offers a recent trail; collaborator answers also name their source thought.
+The Atlas Map opens exact thoughts and can switch to **All answers**. Select an
+answer, then **Thoughts in this answer** to inspect its internal paths without
+losing your place. Current and previously visited locations are marked.
 
 The [field guide](https://app.atlasofthreads.com) covers every control, visual
 signal, lifecycle, and troubleshooting path.

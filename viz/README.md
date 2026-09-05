@@ -8,13 +8,21 @@ Gestures from the chamber:
 
 - `f` fork — cut a continuation; you stay at the discarded chamber; a bronze ring is the path you kept
 - `v` veto — the chamber remains, with a human no; you follow into the vetoed graph
-- `b` back — walk to the parent cut
-- arrows: left/right **preview** a path in front (no walk). Enter walks the focused path. No paths → keys do nothing. Up deeper, down/`b` retrace.
-- `a`: toggle Atlas Map, a stable top-down whole-Threadwalk generation grid. Click a relic to traverse; drag to pan and use the wheel to zoom.
+- `b` / down: retrace your actual visits; the named destination is visible above.
+- arrows: left/right **preview** a path. Enter and Up both enter the preview, or the first forward thought if nothing is selected. At an endpoint, select a side path explicitly.
+- `o`: return to this answer's entry thought. The separate named Source button returns to the question behind a collaborator's answer.
+- `a`: map exact thoughts, or switch to All answers and explore another answer's thoughts. Click a numbered relic or full-text list item to preview, then Enter/Up or Visit to enter. Drag pans; the wheel zooms.
+- `t`: answer-level Thread Compass; the current answer preserves your exact thought.
 - `e` descends through the typed evidence strata beneath the standing thought. When nothing is attached, the descent says that absence is not evidence.
 - `c` cycles camera: overhead map of the grid, then back behind the chamber. Drag pans the map overhead. Shift+c returns behind the home chamber. Overhead gets extra sun/hemisphere light.
 - `r` opens the relic index. Its 24 PNG cards document the vocabulary of forms. Choosing one previews its matching GLB at the standing chamber without changing graph data; Escape restores the semantic mapping.
-- click a ring to enter that graph
+- click a thought or path ring to preview its destination before entering
+
+The wayfinder identifies where you stand; the destination card never replaces
+that standing description. Recent trail lets you jump back to earlier visits.
+Bronze map rings and destination text mark visits remembered in this tab; green
+marks the current location. This bounded browser memory survives a refresh of
+the same stand and never writes navigation history into the canonical graph.
 
 The chamber also polls the local store for newly finalized graph heads. A graph
 written by `ta compile` while the space is open rises as a teal doorway beside
