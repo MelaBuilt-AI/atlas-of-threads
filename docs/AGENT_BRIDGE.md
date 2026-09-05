@@ -52,7 +52,12 @@ Agent Bridge compatibility is claimed for the installer.
 The process reads one UTF-8 JSON-RPC message per stdin line and writes only MCP
 messages to stdout. Diagnostics go to stderr. It supports MCP protocol versions
 `2025-11-25`, `2025-06-18`, `2025-03-26`, and `2024-11-05`, negotiating the
-client's requested version when supported.
+client's requested version when supported. The server explicitly configures
+both standard text pipes as UTF-8, independent of the host's locale or code
+page. This preserves Unicode tool descriptions, questions, and responses on
+native Windows. For source checkpoint `89412c1`, which predates this fix,
+launch the bridge with `python -X utf8 -m thought_archaeology.cli ...`;
+without that workaround Codex may time out during `tools/list`.
 
 Server instructions establish these rules for the client:
 

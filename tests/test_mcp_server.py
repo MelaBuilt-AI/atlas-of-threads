@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import io
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 
 from thought_archaeology.agent_bridge import register_collaborator
 from thought_archaeology.mcp_server import serve_stdio
@@ -191,6 +194,43 @@ def test_cli_exposes_mcp_serve_help():
     assert code == 0
     assert "read-only Atlas Agent Bridge" in out
     assert err == ""
+
+
+def test_stdio_uses_utf8_under_a_legacy_windows_pipe_encoding(tmp_path: Path):
+    store = Store(tmp_path / "data")
+    collaborator = register_collaborator(
+        store, display_name="Synthetic Unicode client", client_family="test",
+        scopes=["atlas:read", "atlas:write:threadwalk"],
+    )
+    seed = "Café garden – 植物 🌿"
+    messages = [
+        *_initialize(),
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
+        {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {
+            "name": "begin_threadwalk", "arguments": {
+                "seed": seed, "seed_origin": "human_instruction",
+                "client_request_id": "synthetic-unicode-1",
+            },
+        }},
+    ]
+    process = subprocess.run(
+        [sys.executable, "-m", "thought_archaeology.cli", "--store", str(store.root),
+         "mcp", "serve", "--collaborator", collaborator.id],
+        input="".join(json.dumps(message, ensure_ascii=False) + "\n"
+                      for message in messages).encode("utf-8"),
+        capture_output=True, timeout=20,
+        env={**os.environ, "PYTHONIOENCODING": "cp1252:strict",
+             "PYTHONPATH": str(Path(__file__).resolve().parents[1] / "src")},
+    )
+    assert process.returncode == 0, process.stderr
+    assert process.stderr == b""
+    replies = [json.loads(line) for line in process.stdout.decode("utf-8").splitlines()]
+    assert len(replies) == 3
+    tools = {tool["name"]: tool for tool in replies[1]["result"]["tools"]}
+    assert "1–4" in tools["read_guide_context"]["description"]
+    result = replies[2]["result"]["structuredContent"]
+    assert result["public_context"]["seed"] == seed
+    assert store.load_agent_interaction(result["interaction_id"]).seed == seed
 
 
 def test_cli_registers_and_lists_inbound_collaborator(tmp_path: Path):

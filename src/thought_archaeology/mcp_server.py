@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import json
 import sys
 from typing import Any, TextIO
@@ -746,6 +747,10 @@ def serve_stdio(
 ) -> None:
     source = input_stream or sys.stdin
     sink = output_stream or sys.stdout
+    # MCP uses UTF-8 in both directions, including on legacy Windows code pages.
+    for stream in (source, sink):
+        if isinstance(stream, io.TextIOWrapper):
+            stream.reconfigure(encoding="utf-8")
     collaborator = (
         store.load_agent_collaborator(collaborator_id)
         if collaborator_id is not None
