@@ -293,6 +293,10 @@ class InhabitView:
             "model": self.graph.model.to_dict(),
             "parent": parent,
             "node": node_payload(self.node),
+            "position": {
+                "ordinal": next(i for i, node in enumerate(self.graph.nodes, 1) if node.id == self.node.id),
+                "total": len(self.graph.nodes),
+            },
             "origin": node_payload(entry_node(self.graph)) if entry_node(self.graph) else None,
             "forward": [node_payload(n) for n in self.forward],
             "shaped": [node_payload(n) for n in self.shaped],

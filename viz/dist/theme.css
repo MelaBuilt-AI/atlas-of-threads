@@ -2185,4 +2185,106 @@ body[data-atlas-map="true"] #knowledge-capsule-ready {
   #story-groups { grid-template-columns: 1fr; }
 }
 
+/* Orientation stays readable while the chamber remains the primary surface. */
+#wayfinder {
+  position: absolute;
+  top: 3.5rem;
+  left: 1.25rem;
+  right: 1.25rem;
+  max-width: 65rem;
+  z-index: 9;
+  padding: 0.65rem 0.8rem;
+  border-left: 2px solid var(--phosphor-dim);
+  background: linear-gradient(90deg, rgba(3, 5, 12, 0.92), rgba(3, 5, 12, 0.25));
+  font: 0.74rem/1.45 ui-sans-serif, system-ui, sans-serif;
+}
+#wayfinder[hidden], #path-preview[hidden] { display: none; }
+#wayfinder-location { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wayfinder-actions { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 0.45rem; }
+#wayfinder button, #wayfinder summary, #path-preview button, .map-levels button, #map-visit {
+  border: 1px solid rgba(176, 141, 87, 0.5);
+  border-radius: 3px;
+  background: rgba(8, 12, 20, 0.88);
+  color: var(--ink);
+  padding: 0.45rem 0.65rem;
+  font: 0.72rem/1.35 ui-sans-serif, system-ui, sans-serif;
+  cursor: pointer;
+}
+#wayfinder button:disabled, #path-preview button:disabled, #map-visit:disabled { opacity: 0.5; cursor: default; }
+#wayfinder button:focus-visible, #wayfinder summary:focus-visible, #path-preview button:focus-visible,
+.map-levels button:focus-visible, #map-visit:focus-visible { outline: 2px solid var(--phosphor); outline-offset: 2px; }
+#walk-back { max-width: 28rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#walk-source { max-width: 23rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#walk-history { position: relative; }
+#walk-trail {
+  position: absolute; top: 100%; left: 0;
+  width: min(28rem, 80vw); max-height: 45vh; overflow: auto;
+  display: grid; gap: 0.4rem; padding: 0.7rem;
+  background: rgba(3, 5, 12, 0.98); border: 1px solid var(--bronze);
+}
+#walk-trail button { text-align: left; }
+#walk-status:empty { display: none; }
+#walk-status { color: #f0bd97; margin-top: 0.4rem; }
+.standing-label, .preview-label { color: var(--bronze-hot); font: 0.68rem ui-monospace, Menlo, monospace; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.5rem; }
+#plate { max-width: min(42rem, 51vw); padding: 0.9rem; background: linear-gradient(90deg, rgba(3,5,12,0.92), rgba(3,5,12,0.45)); pointer-events: auto; border-left: 2px solid var(--phosphor-dim); max-height: 39vh; overflow: auto; }
+#plate h1 { font-size: clamp(1.1rem, 1.8vw, 1.55rem); }
+#plate .here { font-size: 0.8rem; }
+#path-preview {
+  position: absolute; right: 1.25rem; bottom: 1.25rem;
+  width: min(29rem, 41vw); z-index: 7;
+  padding: 0.95rem;
+  border: 1px solid rgba(176,141,87,0.5);
+  background: rgba(3,5,12,0.92);
+}
+#path-preview p { font: 1rem/1.4 ui-sans-serif, system-ui, sans-serif; max-height: 7rem; overflow: auto; }
+.preview-actions { display: flex; gap: 0.4rem; margin-top: 0.7rem; }
+#path-enter { flex: 1; }
+#path-preview small { display: block; margin-top: 0.5rem; color: #a4aea6; font: 0.68rem/1.3 ui-sans-serif, system-ui, sans-serif; }
+#threshold { bottom: calc(var(--preview-height, 12rem) + 1.9rem); max-height: 26vh; overflow: auto; width: min(29rem, 41vw); }
+#atlas-map-hud { z-index: 11; }
+#atlas-map-hud > div { max-width: min(35rem, 56vw); }
+#atlas-map-hud p, #atlas-map-hud small { color: #b2beb6; }
+.map-levels { display: flex; gap: 0.45rem; margin: 0.65rem 0; pointer-events: auto; }
+.map-levels [aria-pressed="true"] { color: var(--phosphor); border-color: var(--phosphor); }
+#map-selection { max-width: 34rem; padding: 0.5rem 0; }
+#map-visit { pointer-events: auto; }
+#atlas-map-keyboard, #atlas-map-keyboard:focus-within {
+  position: absolute; top: 3.3rem; right: 0; left: auto;
+  width: min(23rem, 32vw); height: auto;
+  max-height: calc(100vh - 10rem); padding: 0.7rem;
+  margin: 0; clip: auto; white-space: normal; overflow: auto; pointer-events: auto;
+  background: rgba(3, 5, 12, 0.94); border: 1px solid rgba(176,141,87,0.4);
+}
+#atlas-map-entry-buttons button { font: 0.78rem/1.45 ui-sans-serif, system-ui, sans-serif; padding: 0.65rem; }
+#atlas-map-entry-buttons button[aria-pressed="true"] { border-color: var(--bronze-hot); background: #22241a; }
+#atlas-map-entry-buttons button[aria-current="location"] { border-left: 3px solid var(--phosphor); }
+body[data-atlas-map="true"] #wayfinder, body[data-atlas-map="true"] #path-preview,
+body:has(#start-menu:not([hidden])) #wayfinder, body:has(#start-menu:not([hidden])) #path-preview,
+body:has(#onboarding-menu:not([hidden])) #wayfinder, body:has(#onboarding-menu:not([hidden])) #path-preview,
+body:has(#thread-compass:not([hidden])) #wayfinder, body:has(#thread-compass:not([hidden])) #path-preview,
+body:has(#legend-menu:not([hidden])) #wayfinder, body:has(#legend-menu:not([hidden])) #path-preview,
+body:has(#workspace-menu:not([hidden])) #wayfinder, body:has(#workspace-menu:not([hidden])) #path-preview,
+body:has(#evidence-descent:not([hidden])) #wayfinder, body:has(#evidence-descent:not([hidden])) #path-preview,
+body:has(#relic-index:not([hidden])) #wayfinder, body:has(#relic-index:not([hidden])) #path-preview { display: none; }
+@media (max-width: 48rem) {
+  #wayfinder { top: 4.25rem; left: 0.75rem; right: 0.75rem; padding: 0.5rem; }
+  #walk-back { max-width: 100%; }
+  #walk-source { max-width: 100%; }
+  #walk-history { position: static; }
+  #walk-trail { left: 0; width: 100%; }
+  #path-preview { left: 0.75rem; right: 0.75rem; bottom: 0.65rem; width: auto; padding: 0.65rem; }
+  #path-preview p { max-height: 3.1rem; font-size: 0.88rem; }
+  #path-preview small { display: none; }
+  #plate { left: 0.75rem; right: 0.75rem; bottom: calc(var(--preview-height, 9rem) + 1rem); max-width: none; max-height: 22vh; padding: 0.65rem; }
+  #plate .here { max-height: 2.6rem; overflow: auto; }
+  #plate .meta { display: none; }
+  #threshold { width: auto; bottom: calc(var(--preview-height, 9rem) + var(--plate-height, 9rem) + 1.5rem); max-height: 19vh; }
+  #atlas-map-hud { top: 4.5rem; }
+  #atlas-map-hud > div { max-width: none; }
+  #atlas-map-hud h1 { font-size: 1.35rem; }
+  #atlas-map-close { position: absolute; right: 0; top: -0.8rem; font-size: 0.6rem; }
+  #atlas-map-hud .kind { padding-right: 10rem; }
+  #atlas-map-keyboard, #atlas-map-keyboard:focus-within { position: fixed; top: auto; bottom: 0.65rem; left: 0.75rem; right: 0.75rem; width: auto; max-height: 27vh; }
+}
+
 a { color: var(--phosphor); }
