@@ -101,6 +101,7 @@ class AgentInteraction:
     title: str
     visibility: Literal["private"] = "private"
     transport: Literal["mcp"] = "mcp"
+    action: Literal["begin_threadwalk", "open_chamber_interaction"] = "begin_threadwalk"
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
@@ -123,6 +124,7 @@ class AgentInteraction:
             "title": self.title,
             "visibility": self.visibility,
             "transport": self.transport,
+            **({"action": self.action} if self.action != "begin_threadwalk" else {}),
         }
 
 
@@ -225,7 +227,7 @@ def _memory_candidate(
     collaborator: AgentCollaborator,
     *,
     receipt_id: str,
-    action: Literal["begin_threadwalk", "append_agent_path"],
+    action: Literal["begin_threadwalk", "open_chamber_interaction", "append_agent_path"],
     created_at: str,
     outcome: Literal["open", "completed"],
     session_id: str,
@@ -245,6 +247,8 @@ def _memory_candidate(
         "summary": (
             "Opened one private Atlas Threadwalk."
             if action == "begin_threadwalk"
+            else "Opened a private inbound question at an existing Atlas thought."
+            if action == "open_chamber_interaction"
             else "Appended one private, attributed path to an Atlas Threadwalk."
         ),
         **({"subject": subject} if subject else {}),
@@ -318,7 +322,7 @@ def _existing_request(
             interaction.collaborator_id == collaborator_id
             and interaction.client_request_id == client_request_id
         ):
-            return "begin_threadwalk", interaction
+            return interaction.action, interaction
     for completion in store.iter_agent_path_completions():
         if (
             completion.collaborator_id == collaborator_id
@@ -364,7 +368,7 @@ def interaction_result(
         "memory_candidate": _memory_candidate(
             collaborator,
             receipt_id=interaction.id,
-            action="begin_threadwalk",
+            action=interaction.action,
             created_at=interaction.created_at,
             outcome="open",
             session_id=interaction.session_id,
@@ -572,6 +576,48 @@ def begin_threadwalk(
     return interaction_result(interaction, collaborator)
 
 
+def open_chamber_interaction(
+    store: Store, collaborator: AgentCollaborator, *, session_id: str,
+    graph_id: str, node_id: str, question: str, question_origin: str,
+    client_request_id: str,
+) -> dict[str, Any]:
+    """Open an inbound contribution at an existing thought, without a model call."""
+    require_scope(collaborator, "atlas:read")
+    require_scope(collaborator, "atlas:write:path")
+    question = question.strip()
+    client_request_id = client_request_id.strip()
+    if not question or len(question) > 4000:
+        raise AgentBridgeError("question must contain 1 to 4000 characters")
+    if question_origin not in {"human_instruction", "agent_proposal"}:
+        raise AgentBridgeError("question_origin must be human_instruction or agent_proposal")
+    if not client_request_id or len(client_request_id) > 200:
+        raise AgentBridgeError("client_request_id must contain 1 to 200 characters")
+    arguments = dict(session_id=session_id, graph_id=graph_id, node_id=node_id,
+                     question=question, question_origin=question_origin,
+                     client_request_id=client_request_id)
+    digest = request_sha256("open_chamber_interaction", arguments)
+    with store.agent_bridge_lock():
+        replay = _check_idempotency(
+            store, collaborator, action="open_chamber_interaction",
+            client_request_id=client_request_id, digest=digest,
+        )
+        if replay is not None:
+            return replay
+        session = store.load_session(session_id)
+        graph = store.load_graph(graph_id)
+        if graph.session_id != session_id or not any(node.id == node_id for node in graph.nodes):
+            raise AgentBridgeError("source thought is not part of the selected Threadwalk and graph")
+        interaction = AgentInteraction(
+            schema_version=SCHEMA_VERSION, id=new_ulid(), collaborator_id=collaborator.id,
+            created_at=now_iso(), client_request_id=client_request_id, request_sha256=digest,
+            session_id=session_id, root_turn_id=graph.turn_id, root_graph_id=graph_id,
+            root_node_id=node_id, seed=question, seed_origin=question_origin,
+            title=session.title[:200], action="open_chamber_interaction",
+        )
+        store.write_agent_interaction(interaction)
+    return interaction_result(interaction, collaborator)
+
+
 def _public_mapping(value: Any, field: str) -> dict[str, str]:
     if value is None:
         return {}
@@ -714,6 +760,8 @@ def append_agent_path(
             "client_family": collaborator.client_family,
             "source_graph_id": source_graph_id,
             "source_node_id": source_node_id,
+            **({"question": interaction.seed, "question_origin": interaction.seed_origin}
+               if interaction.action == "open_chamber_interaction" else {}),
             "model": reported_model,
             "harness": reported_harness,
             "visibility": "private",

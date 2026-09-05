@@ -6,6 +6,7 @@
   "additionalProperties": false,
   "required": ["schema_version", "id", "collaborator_id", "created_at", "client_request_id", "request_sha256", "session_id", "root_turn_id", "root_graph_id", "root_node_id", "seed", "seed_origin", "title", "visibility", "transport"],
   "properties": {
+    "action": { "enum": ["begin_threadwalk", "open_chamber_interaction"] },
     "schema_version": { "const": "1.0.0" },
     "id": { "type": "string", "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$" },
     "collaborator_id": { "type": "string", "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$" },

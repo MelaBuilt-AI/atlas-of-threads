@@ -12,6 +12,18 @@
 
 ---
 
+## Local personal-agent guide amendment — 2026-09-05 (Codex / Astra)
+
+The separate Agent Bridge development branch now adds read-only local thought
+search and compact cited context for guidance in an agent's existing client.
+An explicit inbound question can pin any existing chamber for the same
+duplicate-safe attributed contribution flow. Discovery and discussion do not
+create graphs, queue a model call, move a browser, publish, or read an external
+brain. The six-read-tool contract and separate contribution action are in
+`docs/AGENT_BRIDGE.md`. Search is lexical rather than evidence or semantic
+similarity. This is a foundation for a later in-app companion; the private
+discussion UI and native Windows memory acceptance are still pending.
+
 ## Navigation clarity amendment — 2026-09-05 (Codex / Astra)
 
 This amendment supersedes older descriptions below of Up as an unconditional

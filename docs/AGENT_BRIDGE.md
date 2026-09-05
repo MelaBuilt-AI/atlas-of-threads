@@ -12,6 +12,11 @@ connected Codex harness can also bind that same collaborator identity to one
 resumable session backed by a bounded projection of explicitly approved,
 read-only memory files.
 
+The development guide slice adds local thought search, bounded cited context,
+and an explicit inbound question at an existing thought. It does not yet add an
+in-app discussion panel, control the browser, or invoke a personal agent from
+Atlas. It can support guidance in the connected agent's own client today.
+
 ## Direction and recursion boundary
 
 Atlas has two distinct collaboration directions:
@@ -101,7 +106,7 @@ arbitrary filesystem paths.
 ## Read-only tools
 
 Some clients use tools more consistently than resources, so Slice A mirrors the
-same canonical reads as four tools:
+same canonical reads plus local guide discovery:
 
 | Tool | Input |
 |---|---|
@@ -109,10 +114,54 @@ same canonical reads as four tools:
 | `list_threadwalks` | `{}` |
 | `read_threadwalk` | `{ "session_id": "ULID" }` |
 | `read_chamber` | `{ "graph_id": "ULID", "node_id": "ULID" }` |
+| `search_thoughts` | `{ "query": "weight access", "kind": "rejected_alternative", "limit": 10 }`; optional `session_id` |
+| `read_guide_context` | `{ "references": [{ "graph_id": "ULID", "node_id": "ULID" }] }` |
 
 Every tool is marked read-only, non-destructive, idempotent, and closed-world.
 Domain failures are returned as MCP tool errors; malformed protocol requests
 remain JSON-RPC errors.
+
+## Local guide workflow (development)
+
+1. In the agent's own client, ask it to find relevant earlier thoughts. Search
+   is literal, case-insensitive AND matching across thought text and session
+   title; it is not semantic retrieval or an evidence-strength score. Query
+   length is 1–300 characters, at most 12 distinct terms, and results are capped
+   at 20. Narrow by session or thought kind when results are truncated.
+2. Read cited context for 1–4 selected exact graph/node pairs. It returns the
+   thought (up to 4,000 characters), up to 12 directly recorded relationships
+   with bounded peer excerpts, and up to 12 evidence IDs/kinds/results. Every
+   omission is flagged. Use `read_chamber` for further inspection. No whole
+   graph prose, hidden reasoning, raw evidence artifact paths, or external
+   memory is included by this tool.
+3. The agent can discuss relevance and offer `atlas://chamber/...` citations
+   and relative `#/g/.../n/...` links for the human to open in the local Atlas.
+   This does not move the browser or send another request automatically. The
+   client still owns its own memory; Atlas cannot claim that memory was read.
+4. Only after the human asks for a contribution at a chosen thought, call
+   `open_chamber_interaction` with `session_id`, `graph_id`, `node_id`,
+   `question`, `question_origin` (`human_instruction` or `agent_proposal`), and
+   stable `client_request_id`. Both `atlas:read` and `atlas:write:path` are
+   required. This adds one private interaction receipt, plus the normal bridge
+   lock if absent; it creates no graph or turn, moves no session head, and never
+   queues the outbound watcher. Mere discussion requires no write operation.
+5. Use the returned response contract with `append_agent_path` to explicitly
+   append one attributed child. The receipt pins the original source even if
+   another process advances the head. Exact retries reuse the same interaction
+   or path; changed content with the same request ID is rejected. The question
+   and whether it was human-instructed or agent-proposed remain in provenance.
+
+The optional interaction `action` field distinguishes opening at an existing
+thought from `begin_threadwalk`; old receipts without the field keep their
+original meaning. The historical `root_*` receipt fields designate the pinned
+source for both actions and do not imply that a new root was created.
+
+Read-only clients now see six tools. Clients with all read, threadwalk, path,
+and memory-ack scopes see ten. Reconnect/re-list tools after upgrading; older
+four/six-tool acceptance notes describe the earlier implementation. No scope
+is automatically added to an existing collaborator. Native Windows memory
+projection and callable companion acceptance remain pending; these automated
+tests do not establish original-runtime continuity or external-memory writes.
 
 ## Codex reference configuration
 

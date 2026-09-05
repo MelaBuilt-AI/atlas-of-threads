@@ -155,6 +155,8 @@ def test_slice_a_tools_are_explicitly_read_only(tmp_path: Path):
         "list_threadwalks",
         "read_threadwalk",
         "read_chamber",
+        "search_thoughts",
+        "read_guide_context",
     ]
     assert all(tool["annotations"]["readOnlyHint"] is True for tool in tools)
     assert replies[2]["result"]["structuredContent"]["store"]["ready"] is False
@@ -269,7 +271,10 @@ def test_slice_b_registered_collaborator_appends_one_private_path_idempotently(
         "list_threadwalks",
         "read_threadwalk",
         "read_chamber",
+        "search_thoughts",
+        "read_guide_context",
         "begin_threadwalk",
+        "open_chamber_interaction",
         "append_agent_path",
     ]
     begin = begin_replies[2]["result"]["structuredContent"]

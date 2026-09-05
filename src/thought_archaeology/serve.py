@@ -786,6 +786,7 @@ def thread_payload(
             request = None
             source_graph_id = inbound.get("source_graph_id")
             source_node_id = inbound.get("source_node_id")
+            prompt = str(inbound.get("question", ""))
         elif turn and turn.role == "human_edit":
             vetoed = any(
                 node.source == "human" and node.status == "vetoed"
