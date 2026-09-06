@@ -189,7 +189,7 @@ def test_opencode_adapter_handshake_and_real_cli_shape(monkeypatch, tmp_path: Pa
     assert not Path(call["cwd"]).exists()
     assert call["permission"] == '{"*":"deny"}'
     assert json.loads(call["config_content"]) == {
-        "share": "manual",
+        "share": "disabled",
         "permission": {"*": "deny"},
     }
     assert call["disable_project_config"] == "1"
@@ -270,3 +270,113 @@ def test_opencode_serving_model_mismatch_is_rejected(monkeypatch, capsys):
 
     assert main(["continue"]) == 1
     assert "served openai/other" in capsys.readouterr().err
+
+
+def _connected_setup(monkeypatch, tmp_path):
+    root = tmp_path / "memory"
+    root.mkdir()
+    note = root / "AGENTS.md"
+    note.write_text("Synthetic agent: Fern. Current marker: café-one.\n", encoding="utf-8")
+    state = tmp_path / "config" / "session.json"
+    capture = tmp_path / "call.json"
+    for key, value in {
+        "TA_HARNESS_AGENT_NAME": "Fern",
+        "TA_HARNESS_MEMORY_ROOT": str(root),
+        "TA_HARNESS_MEMORY_FILES": '["AGENTS.md"]',
+        "TA_HARNESS_SESSION_STATE": str(state),
+        "TA_HARNESS_MODEL": "openai/opencode-test",
+        "TA_OPENCODE_MODEL": "openai/wrong-global",
+        "TA_OPENCODE_VARIANT": "high",
+        "TA_OPENCODE_BIN": str(FAKE_OPENCODE),
+        "TA_TEST_OPENCODE_CALL": str(capture),
+        "TA_TEST_OPENCODE_MCP": "1",
+    }.items():
+        monkeypatch.setenv(key, value)
+    return note, state, capture
+
+
+def test_connected_opencode_resumes_and_refreshes_only_approved_memory(monkeypatch, tmp_path, capsys):
+    note, state, capture = _connected_setup(monkeypatch, tmp_path)
+    (note.parent / "unapproved.md").write_text("DO-NOT-PROJECT-THIS")
+    monkeypatch.setattr(sys, "stdin", _stdin_envelope())
+    assert main(["continue"]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["connected_agent"]["display_name"] == "Fern"
+    first = json.loads(capture.read_text())
+    assert "--session" not in first["argv"]
+    assert "deleted_session" not in first
+    assert "café-one" in first["prompt"]
+    assert "DO-NOT-PROJECT-THIS" not in first["prompt"]
+    assert json.loads(first["config_content"])["mcp"]["atlas-of-threads"]["enabled"] is False
+    saved = state.read_bytes()
+    note.write_text("Synthetic agent: Fern. Current marker: café-two.\n", encoding="utf-8")
+    monkeypatch.setattr(sys, "stdin", _stdin_envelope())
+    assert main(["continue"]) == 0
+    capsys.readouterr()
+    second = json.loads(capture.read_text())
+    assert second["argv"][second["argv"].index("--session") + 1] == json.loads(saved)["session_id"]
+    assert "café-two" in second["prompt"] and "café-one" not in second["prompt"]
+    assert "deleted_session" not in second
+    assert state.read_bytes() == saved
+    assert first['cwd'] == second['cwd']
+    assert Path(second['cwd']).is_dir()
+    assert Path(second['cwd']) == state.with_suffix('.workspace')
+    assert "from message" in second["metadata_query"] and "limit 1" in second["metadata_query"]
+    assert note.read_text() == "Synthetic agent: Fern. Current marker: café-two.\n"
+    assert main(["describe"]) == 0
+    info = json.loads(capsys.readouterr().out)
+    assert "resumable_session" in info["capabilities"]
+    assert info["connected_agent"]["session_ready"] is True
+    assert info["default_model"] == "openai/opencode-test (variant: high)"
+
+
+def test_connected_opencode_rejects_changed_binding_before_model_call(monkeypatch, tmp_path, capsys):
+    note, state, capture = _connected_setup(monkeypatch, tmp_path)
+    monkeypatch.setattr(sys, "stdin", _stdin_envelope())
+    assert main(["continue"]) == 0
+    capsys.readouterr()
+    original = capture.read_bytes()
+    monkeypatch.setenv("TA_HARNESS_AGENT_NAME", "Another agent")
+    assert main(["describe"]) == 1
+    assert "does not match" in capsys.readouterr().err
+    assert capture.read_bytes() == original
+
+
+def test_connected_opencode_retains_existing_session_on_failure_or_mismatch(monkeypatch, tmp_path, capsys):
+    note, state, capture = _connected_setup(monkeypatch, tmp_path)
+    monkeypatch.setattr(sys, "stdin", _stdin_envelope())
+    assert main(["continue"]) == 0
+    capsys.readouterr()
+    saved = state.read_bytes()
+    monkeypatch.setenv("TA_TEST_OPENCODE_ERROR", "1")
+    monkeypatch.setattr(sys, "stdin", _stdin_envelope())
+    assert main(["continue"]) == 1
+    capsys.readouterr()
+    assert state.read_bytes() == saved
+    assert "deleted_session" not in json.loads(capture.read_text())
+    monkeypatch.delenv("TA_TEST_OPENCODE_ERROR")
+    monkeypatch.setenv("TA_TEST_OPENCODE_SESSION_ID", "ses_unexpected")
+    monkeypatch.setattr(sys, "stdin", _stdin_envelope())
+    assert main(["continue"]) == 1
+    assert "different session" in capsys.readouterr().err
+    assert state.read_bytes() == saved
+    assert "deleted_session" not in json.loads(capture.read_text())
+
+
+def test_connected_opencode_does_not_bind_failed_first_call(monkeypatch, tmp_path, capsys):
+    note, state, capture = _connected_setup(monkeypatch, tmp_path)
+    monkeypatch.setenv("TA_TEST_OPENCODE_TOOL", "1")
+    monkeypatch.setattr(sys, "stdin", _stdin_envelope())
+    assert main(["continue"]) == 1
+    assert "attempted a tool call" in capsys.readouterr().err
+    assert not state.exists()
+    assert json.loads(capture.read_text())["deleted_session"] == "ses_ta_opencode_test"
+
+
+def test_opencode_ignores_commentary_and_reasoning_parts():
+    from thought_archaeology.adapters.opencode import _final_text
+    assert _final_text([
+        {"type": "text", "part": {"text": "Working...", "metadata": {"openai": {"phase": "commentary"}}}},
+        {"type": "reasoning", "part": {"text": "private"}},
+        {"type": "text", "part": {"text": "Final", "metadata": {"openai": {"phase": "final_answer"}}}},
+    ]) == "Final"

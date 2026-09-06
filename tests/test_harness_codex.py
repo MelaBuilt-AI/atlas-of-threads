@@ -14,6 +14,7 @@ from thought_archaeology.adapters.codex import (
     _codex_bin,
     _default_model,
 )
+from thought_archaeology.adapters.memory import MemoryConfigurationError
 from thought_archaeology.store import Store
 
 from tests.helpers import FIXTURES
@@ -196,7 +197,7 @@ def test_codex_rejects_an_oversized_approved_memory_file(monkeypatch, tmp_path: 
     monkeypatch.setenv("TA_HARNESS_SESSION_STATE", str(state_path))
     monkeypatch.setenv("TA_HARNESS_MEMORY_FILES", '["large.md"]')
 
-    with pytest.raises(CodexAdapterError, match="exceeds"):
+    with pytest.raises(MemoryConfigurationError, match="exceeds"):
         codex_module._continue(
             "codex",
             {

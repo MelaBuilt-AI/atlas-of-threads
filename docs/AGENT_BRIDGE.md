@@ -264,7 +264,7 @@ closed. A second acknowledgement of the same receipt is rejected.
 The tool appears only for a collaborator with `atlas:memory:ack`. Publication
 remains a separate future capability and cannot be implicit.
 
-## Connect one named Codex agent in both directions
+## Connect one named Codex or OpenCode agent in both directions
 
 First register the stable collaborator identity with the inbound scopes the
 person approves:
@@ -325,6 +325,57 @@ and whether its resumable memory session has started. This supports asking a
 named agent questions from Atlas based on the context available to that agent;
 it records the visible answer and structured story graph, never hidden
 chain-of-thought or a claim about the model's private internal state.
+
+### OpenCode return route
+
+The same registration and approved-file contract works with
+`ta-harness-opencode`. Reuse the existing inbound collaborator ID, select the
+agent's actual memory files, and pin its provider/model:
+
+```bash
+ta --store /path/to/personal-atlas harness register my-opencode \
+  --adapter /path/to/ta-harness-opencode \
+  --collaborator COLLABORATOR_ID \
+  --memory-root /path/to/agent-memory \
+  --memory-file AGENTS.md \
+  --memory-file Home.md \
+  --memory-file wiki/Entities/agent.md \
+  --memory-file wiki/Daily/latest.md \
+  --model openai/your-selected-model \
+  --default
+
+ta --store /path/to/personal-atlas harness doctor my-opencode
+```
+
+Set `TA_OPENCODE_VARIANT` in the Atlas launch environment if the chosen model
+uses an explicit variant. `TA_HARNESS_MODEL` from the saved registration takes
+precedence over the ordinary OpenCode model setting. This route is exercised
+with OpenCode 1.18.29 on Linux; native Windows and v2 return calls have not been
+live-accepted.
+
+The first return call starts a dedicated OpenCode conversation. Later calls,
+including questions from different Atlas Threadwalks, pass its exact saved
+`--session` ID and refresh the approved memory projection. This does not take
+over the user's existing interactive conversation. No memory files are written
+by the return route. The connected session is retained; ordinary unbound
+OpenCode calls still delete their transient sessions.
+
+OpenCode runs in a private persistent `.workspace` directory beside its session
+state with project configuration disabled,
+`--pure`, sharing disabled, and all tool permissions denied. Configured v1 MCP
+servers are explicitly disabled for that invocation to prevent re-entry into
+Atlas. Its provider-owned authentication is retained. The adapter accepts only
+public response text, excludes commentary/reasoning events, rejects tool calls,
+and verifies the serving model/variant through a bounded CLI metadata query
+before returning the answer. The working directory persists because OpenCode
+requires its original session directory to exist on resume. A failed
+resume never silently falls back to a fresh conversation or deletes the saved
+session. The same private state-file binding and memory-size limits as Codex
+apply.
+
+Use the interactive inbound client for deliberate native-memory writes and
+acknowledgements. The return adapter supplies read-only recall to Atlas; it
+does not implement a new memory writer or the planned prose companion panel.
 
 ## Acceptance boundary
 

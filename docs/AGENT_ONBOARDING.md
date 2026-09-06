@@ -166,8 +166,10 @@ guarantee. Test recall from a fresh client before claiming memory integration.
 Atlas's existing outbound adapters remain Claude, Codex, Grok, OpenCode, and
 Prime Agent. This onboarding adds OpenClaw and Hermes as **inbound MCP clients**;
 it does not add an outbound adapter or import their personas, authentication,
-or private memory. The accepted projected-memory reverse route is documented
-in [Agent Bridge](AGENT_BRIDGE.md).
+or private memory. Codex and OpenCode can additionally be bound to the same
+collaborator ID for return calls with approved file-memory projection and a
+dedicated resumable conversation. Register that route separately as described
+in [Agent Bridge](AGENT_BRIDGE.md#connect-one-named-codex-or-opencode-agent-in-both-directions).
 
 ## Compatibility evidence
 

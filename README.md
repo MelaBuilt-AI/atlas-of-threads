@@ -182,7 +182,7 @@ Slice B can explicitly register one inbound collaborator and grant only the
 local scopes needed to create a private Threadwalk and append one attributed
 agent path. Slice C returns compact memory candidates and accepts only an
 opaque client-owned acknowledgement. The same stable collaborator can now be
-bound to a resumable Codex harness in an approved read-only memory workspace,
+bound to a resumable Codex or OpenCode harness with approved read-only memory files,
 so questions asked inside Atlas can reach that named agent rather than a fresh
 stateless model call. None of these actions publishes or exposes hidden
 reasoning. The released `v0.2.0` installers predate these source changes. Read

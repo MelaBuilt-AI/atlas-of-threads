@@ -10,7 +10,7 @@ release. Follow [Agent onboarding](AGENT_ONBOARDING.md) for generated configurat
 | Codex | CLI 0.153.0 | Previously accepted native Windows source reads, attributed contributions, client-owned memory, restart and exact replays | New 0.153.4 Linux app-server probe cannot start in the development session's read-only Codex state directory; no new client acceptance claimed from that attempt |
 | Claude Code | 2.1.259 | Linux client `mcp get` reports connected to the frozen Atlas executable using an isolated user configuration | This check establishes startup/discovery, not an agent memory workflow |
 | Grok Build | 1.0.13 | Linux `mcp doctor`: executable found, process started, protocol `2025-11-25`, six tools, healthy | No new model-generated contribution or memory acceptance |
-| OpenCode | 1.18.29 | Linux discovery plus an actual existing agent's session fork: attributed contribution, Threadwalk/chamber readback, native Markdown memory save/readback, and acknowledgement. A new session recovers the same IDs from that memory and reads the saved thought | Inbound MCP and client-owned file memory; no memory-bearing reverse invocation. v2 configuration is generated but not exercised with a v2 binary |
+| OpenCode | 1.18.29 | Linux inbound contribution, native Markdown save/readback/acknowledgement and fresh-session recall; connected return adapter answers from approved memory and recalls a conversation-only marker across Threadwalks using its saved runtime session | Return calls use a dedicated conversation and read-only memory projection. Native Windows and v2 return calls are not live-accepted |
 | Prime Agent | 0.9.1 | CLI loads the generated user configuration. Its installed kernel MCP transport discovers tools, reads status, contributes, reads back, acknowledges a synthetic client-file memory candidate, replays, and reloads/reconnects | Probe supplies the generated config through the kernel's host-config callback; no model turn or native Prime memory-store claim |
 | OpenClaw | 2026.9.2 | Isolated Linux CLI `mcp probe` discovers six Atlas tools and resources without diagnostics | Agent runtime tool visibility/profile and memory behavior require a real agent session |
 | Hermes Agent | 0.21.0, source `5106e939e0b32d3cd70a6acf33943fd2d9ab58d7` | Its actual MCP transport with SDK 2.0.0 loads generated YAML, discovers ten scoped tools, reads status, contributes, reads back, acknowledges a synthetic client-file memory candidate and replays | Tested through its transport class, not a model turn or a full Hermes persona/native-memory session |
@@ -32,7 +32,26 @@ processes without changing store file bytes, modification times, or counts
 (one Threadwalk, two graphs). The original conversation and project bookmark
 were preserved; the new memory note and its index/log entries were intentional
 native-memory changes. Global client configuration was not edited. This proves
-the observed file-memory loop, not automatic future recall or a reverse adapter.
+the observed inbound file-memory loop, not automatic future recall.
+
+The subsequent connected OpenCode return-adapter test used the same collaborator
+identity and selected provider/model/variant. It answered from seven approved
+memory files, then recovered a conversation-only marker in a separate Atlas
+Threadwalk after an adapter-process restart. The marker was absent from the
+second request's envelope and approved files. The exact saved OpenCode session
+was reused, no runtime tools were called, and all source memory paths/hashes
+remained unchanged by the return calls. The packaged desktop exposes the
+configured external adapter as selected and memory-ready; its server starts
+and quits cleanly. This uses a source-backed external adapter, not a new bundled
+release.
+
+Live testing found that OpenCode needs its original session directory on resume,
+so connected calls retain a private workspace beside the state file. Serving
+model verification uses bounded CLI database metadata instead of a whole-session
+export, which can truncate on stdout as the conversation grows. The prompt
+explicitly permits prior public conversation turns and gives refreshed approved
+files precedence over stale recollections. Failed development attempts remain
+in the private test ledger; they are not successful acceptance evidence.
 
 ## Packaged host verification
 
@@ -71,7 +90,7 @@ successfully negotiates the existing handshake with this server.
 | Inbound local MCP | Seven client recipes; platform/client evidence above |
 | Outbound Atlas calls | Existing Claude, Codex, Grok, OpenCode, Prime Agent adapters; not inferred from inbound MCP discovery |
 | Runtime resume | Existing adapter/client-specific behavior; stable Atlas IDs survive MCP reconnect |
-| Approved memory projection | Existing tested Codex reverse route; not automatic for the other clients |
+| Approved memory projection | Tested Codex and Linux OpenCode return routes with dedicated saved sessions and explicitly approved files; not automatic for the other clients |
 | Client-owned memory acknowledgement | Available with explicit scope; tested synthetic protocol, earlier real Codex loop, and OpenCode native Markdown save/readback plus fresh-session recall |
 | OpenClaw/Hermes personas | No credential extraction, persona migration, or automatic connection to an existing named runtime |
 | In-app companion | Separate next slice; this pass does not implement the discussion panel |
