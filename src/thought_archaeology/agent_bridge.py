@@ -16,7 +16,7 @@ from thought_archaeology.models import (
     ThoughtNode,
     Turn,
 )
-from thought_archaeology.schema import validate_graph
+from thought_archaeology.schema import validate_graph, validator_for
 
 if TYPE_CHECKING:
     from thought_archaeology.store import Store
@@ -338,6 +338,50 @@ def _existing_request(
     return None
 
 
+def thought_graph_input_schema() -> dict[str, Any]:
+    """Advertise the existing inbound subset of the canonical graph schema."""
+    node = validator_for("thought-node.schema.json").schema["properties"]
+    edge = validator_for("thought-edge.schema.json").schema["properties"]
+    reference = {"type": "string", "minLength": 1}
+    return {
+        "type": "object",
+        "properties": {
+            "nodes": {
+                "type": "array", "minItems": 1,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        **{key: node[key] for key in (
+                            "kind", "text", "status", "confidence", "span", "tags", "notes"
+                        )},
+                        "local_id": {**reference, "description": "Unique label within this contribution; use it in edge from/to."},
+                        "id": {**reference, "description": "Legacy local label alias; Atlas assigns canonical IDs."},
+                    },
+                    "required": ["kind", "text"], "additionalProperties": False,
+                },
+            },
+            "edges": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "from": reference, "to": reference,
+                        "source_id": reference, "target_id": reference,
+                        "kind": edge["kind"], "notes": edge["notes"],
+                    },
+                    "required": ["kind"],
+                    "allOf": [
+                        {"anyOf": [{"required": ["from"]}, {"required": ["source_id"]}]},
+                        {"anyOf": [{"required": ["to"]}, {"required": ["target_id"]}]},
+                    ],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        "required": ["nodes", "edges"], "additionalProperties": False,
+    }
+
+
 def interaction_result(
     interaction: AgentInteraction,
     collaborator: AgentCollaborator,
@@ -363,6 +407,22 @@ def interaction_result(
             "source_node_id": interaction.root_node_id,
             "content": "final prose plus a structured thought graph",
             "forbidden": ["hidden chain-of-thought", "credentials"],
+            "thought_graph_schema": thought_graph_input_schema(),
+            "example_arguments": {
+                "interaction_id": interaction.id,
+                "source_graph_id": interaction.root_graph_id,
+                "source_node_id": interaction.root_node_id,
+                "client_request_id": f"append-{interaction.id}",
+                "prose": "A small trial makes the proposal testable. Its result may not generalize.",
+                "thought_graph": {
+                    "nodes": [
+                        {"local_id": "trial", "kind": "claim", "text": "A small trial makes the proposal testable."},
+                        {"local_id": "limit", "kind": "uncertainty", "text": "Its result may not generalize."},
+                    ],
+                    "edges": [{"from": "limit", "to": "trial", "kind": "qualifies"}],
+                },
+            },
+            "example_usage": "Replace the synthetic prose/graph with your answer. Keep exact interaction/source IDs and a stable request ID. Use only listed node/edge kinds; Atlas owns attribution and timestamps.",
         },
         "receipt": interaction.to_dict(),
         "memory_candidate": _memory_candidate(

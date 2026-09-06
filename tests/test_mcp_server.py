@@ -49,7 +49,7 @@ def _initialize() -> list[dict]:
 
 def _store_snapshot(root: Path) -> dict[str, tuple[int, bytes]]:
     return {
-        str(path.relative_to(root)): (path.stat().st_mtime_ns, path.read_bytes())
+        path.relative_to(root).as_posix(): (path.stat().st_mtime_ns, path.read_bytes())
         for path in root.rglob("*")
         if path.is_file()
     }

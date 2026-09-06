@@ -189,6 +189,13 @@ reasoning. The released `v0.2.0` installers predate these source changes. Read
 the exact setup, tools, idempotency, persistence, and privacy boundaries in
 [Agent Bridge](docs/AGENT_BRIDGE.md).
 
+[Connect your agent](docs/AGENT_ONBOARDING.md) covers Windows and Linux setup
+for Codex, Claude Code, Grok, OpenCode, Prime Agent, OpenClaw, and Hermes.
+`ta mcp config --client CLIENT` prints a client-specific configuration fragment;
+`ta mcp check` verifies the local stdio connection without creating a graph.
+Windows development installers include `AtlasOfThreadsMCP.exe` for these commands.
+See [compatibility evidence](docs/MCP_COMPATIBILITY.md) for tested versions and limits.
+
 ## Local-first ownership
 
 The packaged application binds only to `127.0.0.1`. The browser is a view into

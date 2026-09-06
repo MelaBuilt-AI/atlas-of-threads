@@ -657,6 +657,18 @@ def _parser() -> argparse.ArgumentParser:
         description="serve the read-only Atlas Agent Bridge or an authorized bridge over stdio",
     )
     p_mcp_serve.add_argument("--collaborator", default=None, metavar="ID")
+    from thought_archaeology.mcp_setup import CLIENTS
+    p_mcp_config = mcp_sub.add_parser(
+        "config", parents=[sub_globals], help="print client configuration without changing client settings"
+    )
+    p_mcp_config.add_argument("--client", choices=CLIENTS, required=True)
+    p_mcp_config.add_argument("--collaborator", default=None, metavar="ID")
+    p_mcp_config.add_argument("--executable", help="absolute path to the packaged console executable")
+    p_mcp_check = mcp_sub.add_parser(
+        "check", parents=[sub_globals], help="check stdio startup, tools, status, and shutdown without writing"
+    )
+    p_mcp_check.add_argument("--collaborator", default=None, metavar="ID")
+    p_mcp_check.add_argument("--executable", help="absolute path to the packaged console executable")
     p_mcp_collaborator = mcp_sub.add_parser(
         "collaborator",
         parents=[sub_globals],
@@ -1985,6 +1997,15 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
 def cmd_mcp(args: argparse.Namespace) -> int:
     store = _store(args)
+    if args.mcp_cmd in ("config", "check"):
+        from thought_archaeology.mcp_setup import CONFIG_PATHS, check_connection, client_config, server_command
+        command = server_command(store, args.collaborator, args.executable)
+        if args.mcp_cmd == "config":
+            print(client_config(args.client, command), end="")
+            print(f"Merge this entry into {CONFIG_PATHS[args.client]}; preserve other entries. On Windows, ~ means your user profile. Restart/reconnect the client, then ask it to call atlas_status.", file=sys.stderr)
+        else:
+            print(json.dumps(check_connection(command), ensure_ascii=True, indent=2))
+        return EXIT_OK
     if args.mcp_cmd == "serve":
         serve_mcp_stdio(store, collaborator_id=args.collaborator)
         return EXIT_OK
@@ -1996,7 +2017,7 @@ def cmd_mcp(args: argparse.Namespace) -> int:
                 client_family=args.client_family,
                 scopes=args.scope,
             )
-            print(json.dumps(collaborator.to_dict(), ensure_ascii=False))
+            print(json.dumps(collaborator.to_dict(), ensure_ascii=True))
             return EXIT_OK
         if args.collaborator_cmd == "list":
             if not store.exists():
@@ -2005,7 +2026,7 @@ def cmd_mcp(args: argparse.Namespace) -> int:
                 print(
                     json.dumps(
                         [item.to_dict() for item in store.iter_agent_collaborators()],
-                        ensure_ascii=False,
+                        ensure_ascii=True,
                     )
                 )
             return EXIT_OK

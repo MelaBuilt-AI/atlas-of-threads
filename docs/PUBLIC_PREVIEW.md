@@ -19,6 +19,12 @@ part of future releases.
 
 ## Verified release boundary
 
+The development Agent Bridge onboarding and console host are described in
+[Agent onboarding](AGENT_ONBOARDING.md) and [MCP compatibility](MCP_COMPATIBILITY.md).
+These changes do not advance the published `v0.2.0` channel. A future package
+release must include the console host and pass `packaging/smoke_mcp.py` against
+the installed Windows executable and standalone Linux executable.
+
 - The project is MIT-licensed and owned under `MelaBuilt-AI`.
 - Runtime data, environments, caches, and package metadata are ignored. No live
   Personal Atlas data is tracked.

@@ -35,6 +35,7 @@ jobs:
           sha256sum atlas-of-threads-linux-x86_64 > atlas-of-threads-linux-x86_64.sha256
       - name: Smoke test packaged CLI
         run: |
+          python packaging/smoke_mcp.py "$PWD/dist/atlas-of-threads-linux-x86_64"
           dist/atlas-of-threads-linux-x86_64 --help
           TA_WORKER_BACKEND=application dist/atlas-of-threads-linux-x86_64 \
             --store "$RUNNER_TEMP/atlas-smoke" launch --no-browser --port 7468 &
@@ -70,6 +71,8 @@ jobs:
       - name: Smoke test packaged application
         shell: pwsh
         run: |
+          python packaging/smoke_mcp.py (Resolve-Path dist\AtlasOfThreadsMCP.exe)
+          if ($LASTEXITCODE -ne 0) { throw "Packaged MCP smoke failed" }
           $store = Join-Path $env:RUNNER_TEMP "atlas-smoke"
           $app = Start-Process dist\AtlasOfThreads.exe -ArgumentList @("--store", $store, "launch", "--no-browser", "--port", "7468") -PassThru
           try {
@@ -94,9 +97,18 @@ jobs:
         run: |
           choco install innosetup --no-progress -y
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" packaging\windows\atlas-of-threads.iss
+          if ($LASTEXITCODE -ne 0) { throw "Installer build failed" }
           $installer = "dist\windows-installer\AtlasOfThreadsSetup.exe"
           $checksum = (Get-FileHash $installer -Algorithm SHA256).Hash.ToLowerInvariant()
           "$checksum  AtlasOfThreadsSetup.exe" | Set-Content dist\windows-installer\AtlasOfThreadsSetup.exe.sha256 -Encoding ascii -NoNewline
+      - name: Smoke test installed MCP host
+        shell: pwsh
+        run: |
+          $installDir = Join-Path $env:RUNNER_TEMP "Atlas installed smoke"
+          $setup = Start-Process dist\windows-installer\AtlasOfThreadsSetup.exe -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', ('/DIR="' + $installDir + '"')) -Wait -PassThru
+          if ($setup.ExitCode -ne 0) { throw "Installer failed" }
+          python packaging/smoke_mcp.py (Join-Path $installDir 'AtlasOfThreadsMCP.exe')
+          if ($LASTEXITCODE -ne 0) { throw "Installed MCP smoke failed" }
       - uses: actions/upload-artifact@v6
         with:
           name: atlas-of-threads-windows-x86_64

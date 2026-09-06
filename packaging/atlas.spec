@@ -52,3 +52,12 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
 )
+
+# Keep the desktop launcher windowed; MCP clients need real stdin/stdout pipes.
+if sys.platform == "win32":
+    mcp_exe = EXE(
+        pyz, a.scripts, a.binaries, a.datas, [],
+        name="AtlasOfThreadsMCP", console=True,
+        debug=False, strip=False, upx=True,
+        icon=str(root / "packaging" / "windows" / "atlas-of-threads.ico"),
+    )

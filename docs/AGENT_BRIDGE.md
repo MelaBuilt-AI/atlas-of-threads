@@ -32,6 +32,11 @@ from silently calling itself through Atlas.
 
 ## Server modes
 
+Start with [Connect your agent](AGENT_ONBOARDING.md) for the seven client
+recipes, permission choices, generated configuration, and a read-only connection
+check. [Compatibility evidence](MCP_COMPATIBILITY.md) separates client discovery,
+packaged contributions, and agent-owned memory acceptance.
+
 Run the bridge against the same store used by Atlas:
 
 ```bash
@@ -44,10 +49,10 @@ A Linux package built from this source accepts the same command:
 atlas-of-threads --store /path/to/personal-atlas mcp serve
 ```
 
-The released `v0.2.0` packages predate this bridge. The Windows desktop
-executable is also a windowed application and is not yet a supported stdio
-host. Windows packaging must add a console-capable bridge entry point before
-Agent Bridge compatibility is claimed for the installer.
+The released `v0.2.0` packages predate this bridge. New Windows development
+installers include `AtlasOfThreadsMCP.exe`, a console-capable host alongside the
+windowed desktop executable. Use the console host for registration, configuration,
+checks, and `mcp serve`. Linux uses the same executable for desktop and stdio.
 
 The process reads one UTF-8 JSON-RPC message per stdin line and writes only MCP
 messages to stdout. Diagnostics go to stderr. It supports MCP protocol versions
@@ -164,9 +169,10 @@ source for both actions and do not imply that a new root was created.
 Read-only clients now see six tools. Clients with all read, threadwalk, path,
 and memory-ack scopes see ten. Reconnect/re-list tools after upgrading; older
 four/six-tool acceptance notes describe the earlier implementation. No scope
-is automatically added to an existing collaborator. Native Windows memory
-projection and callable companion acceptance remain pending; these automated
-tests do not establish original-runtime continuity or external-memory writes.
+is automatically added to an existing collaborator. The tested native Windows
+Codex memory loop and UTF-8 correction have passed acceptance. Other clients'
+memory and the callable companion remain separate; automated protocol checks
+do not establish original-runtime continuity or external-memory writes.
 
 ## Codex reference configuration
 

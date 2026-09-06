@@ -12,6 +12,20 @@
 
 ---
 
+## MCP onboarding and packaging amendment — 2026-09-06 (Codex)
+
+Manual inbound setup now covers the five existing collaborator clients plus
+OpenClaw and Hermes. `mcp config` prints a client-specific fragment with absolute
+paths and explicit collaborator scope; it never edits client settings.
+`mcp check` performs read-only stdio startup, discovery, status, and shutdown.
+Windows packages include a separate console MCP executable; Linux reuses the
+application executable. Contribution discovery exposes the canonical schema's
+permitted inbound node/edge fields and a valid example with pinned source IDs.
+Canonical validation, immutable records, and inbound/outbound separation remain.
+OpenClaw/Hermes are inbound clients, not new outbound adapters. See
+`docs/AGENT_ONBOARDING.md` and `docs/MCP_COMPATIBILITY.md`; local package testing
+does not publish a release or complete the in-app companion.
+
 ## Local personal-agent guide amendment — 2026-09-05 (Codex / Astra)
 
 The separate Agent Bridge development branch now adds read-only local thought

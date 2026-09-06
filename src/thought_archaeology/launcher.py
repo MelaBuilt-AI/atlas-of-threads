@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 from collections.abc import Callable
 
 from thought_archaeology import cli
@@ -49,7 +50,8 @@ def main(argv: list[str] | None = None) -> int:
                     file=sys.stderr,
                 )
             return 1
-    app_args = args or ["launch"]
+    console_bridge = Path(sys.executable).name.lower() == "atlasofthreadsmcp.exe"
+    app_args = args or (["--help"] if console_bridge else ["launch"])
     if (
         getattr(sys, "frozen", False)
         and "launch" in app_args

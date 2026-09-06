@@ -15,6 +15,7 @@ from thought_archaeology.agent_bridge import (
     begin_threadwalk,
     open_chamber_interaction,
     require_scope,
+    thought_graph_input_schema,
 )
 from thought_archaeology.compile_common import CompileError
 from thought_archaeology.fork import ForkError
@@ -366,7 +367,10 @@ def _tools(collaborator: AgentCollaborator | None = None) -> list[dict[str, Any]
                 "title": "Append an attributed agent path",
                 "description": (
                     "Validate and append final prose plus one structured graph "
-                    "to an open interaction."
+                    "to an open interaction. Use the returned response_contract example and "
+                    "the node/edge schemas below. Use local_id with edge from/to; Atlas assigns "
+                    "canonical IDs, attribution, and timestamps. Edges express relationships, "
+                    "not prose order: followed_by is not a valid kind."
                 ),
                 "inputSchema": {
                     "type": "object",
@@ -375,22 +379,7 @@ def _tools(collaborator: AgentCollaborator | None = None) -> list[dict[str, Any]
                         "source_graph_id": ULID_SCHEMA,
                         "source_node_id": ULID_SCHEMA,
                         "prose": {"type": "string", "minLength": 1},
-                        "thought_graph": {
-                            "type": "object",
-                            "properties": {
-                                "nodes": {
-                                    "type": "array",
-                                    "minItems": 1,
-                                    "items": {"type": "object"},
-                                },
-                                "edges": {
-                                    "type": "array",
-                                    "items": {"type": "object"},
-                                },
-                            },
-                            "required": ["nodes", "edges"],
-                            "additionalProperties": False,
-                        },
+                        "thought_graph": thought_graph_input_schema(),
                         "client_request_id": {
                             "type": "string",
                             "minLength": 1,

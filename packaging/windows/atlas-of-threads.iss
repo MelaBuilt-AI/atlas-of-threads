@@ -25,6 +25,7 @@ RestartApplications=no
 
 [Files]
 Source: "..\..\dist\AtlasOfThreads.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\dist\AtlasOfThreadsMCP.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\Atlas of Threads"; Filename: "{app}\{#AppExeName}"

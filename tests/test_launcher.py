@@ -38,6 +38,14 @@ def test_launcher_defaults_to_the_local_application(monkeypatch):
     assert seen == [["launch"]]
 
 
+def test_console_bridge_defaults_to_help_without_launching_desktop(monkeypatch, tmp_path):
+    seen = []
+    monkeypatch.setattr(cli, "main", lambda argv: seen.append(argv) or 0)
+    monkeypatch.setattr(sys, "executable", str(tmp_path / "AtlasOfThreadsMCP.exe"))
+    assert launcher_main([]) == 0
+    assert seen == [["--help"]]
+
+
 def test_frozen_launcher_uses_the_private_application_store(monkeypatch, tmp_path: Path):
     seen = []
     monkeypatch.setattr(cli, "main", lambda argv: seen.append(argv) or 0)
