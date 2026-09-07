@@ -32,6 +32,13 @@ OpenCode return and guide acceptance remain pending. See
 [Agent Spark](AGENT_BRIDGE.md#agent-spark--local-guide-discussion) for the runtime
 and memory boundaries.
 
+The optional source [remote-agent connection](REMOTE_AGENTS.md) adds verified SSH
+calls to existing Hermes/OpenClaw installations and an optional private
+Unix-socket forward for inbound MCP. Linux-to-WSL path/guide/session-reconnect
+acceptance passes. It is not a new packaged release or a shared Atlas service;
+native Windows remote execution and model-driven inbound memory loops remain
+untested.
+
 - The project is MIT-licensed and owned under `MelaBuilt-AI`.
 - Runtime data, environments, caches, and package metadata are ignored. No live
   Personal Atlas data is tracked.
@@ -64,7 +71,8 @@ and memory boundaries.
 - Python 3.11 and 3.12 are the supported source-install versions.
 - `ta harness service` requires a systemd user session; other platforms use
   the foreground `ta harness watch` path.
-- Accounts, networking, and the shared Atlas are future work. The current
+- Accounts and the shared Atlas are future work. The explicit private SSH
+  connection above is the development exception for networking. The current
   release is a local-first Personal Atlas.
 
 Passing this checklist does not replace an explicit owner decision for future

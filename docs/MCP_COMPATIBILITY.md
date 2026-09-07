@@ -88,12 +88,12 @@ successfully negotiates the existing handshake with this server.
 | Capability | Scope of support |
 |---|---|
 | Inbound local MCP | Seven client recipes; platform/client evidence above |
-| Outbound Atlas calls | Existing Claude, Codex, Grok, OpenCode, Prime Agent adapters; not inferred from inbound MCP discovery |
+| Outbound Atlas calls | Claude, Codex, Grok, OpenCode, Prime Agent; source SSH routes for existing Hermes/OpenClaw with separate live evidence below |
 | Runtime resume | Existing adapter/client-specific behavior; stable Atlas IDs survive MCP reconnect |
 | Approved memory projection | Tested Codex and Linux OpenCode return routes with dedicated saved sessions and explicitly approved files; not automatic for the other clients |
 | Client-owned memory acknowledgement | Available with explicit scope; tested synthetic protocol, earlier real Codex loop, and OpenCode native Markdown save/readback plus fresh-session recall |
-| OpenClaw/Hermes personas | No credential extraction, persona migration, or automatic connection to an existing named runtime |
-| In-app companion | Agent Spark private prose discussion; OpenCode is the first supported guide adapter |
+| OpenClaw/Hermes personas | Explicit SSH config connects existing remote native sessions; no credential extraction or persona migration; selected OpenClaw persona files refresh on the host |
+| In-app companion | Agent Spark private prose discussion; OpenCode and the source remote Hermes/OpenClaw adapters support guide calls |
 
 Linux OpenCode 1.18.29 live role acceptance (2026-09-07) exercised a GPT-5.6
 Terra collaborator and a separate GPT-6 Astra guide, both with the `high`
@@ -108,6 +108,36 @@ from private discussion context. Native guide-memory files remained unchanged.
 This verifies this Linux arrangement; native Windows and OpenCode v2 return/guide
 acceptance remain separate. Guide recall here includes the supplied persisted
 discussion history, so it is not evidence of runtime-only recall.
+
+## Remote Hermes and OpenClaw acceptance — September 7
+
+Linux Atlas called an existing Hermes 0.21.0 (`245e4800`) and OpenClaw 2026.9.2
+(`3928bad`) on another PC's Ubuntu WSL through verified key-based SSH.
+Both produced compiled, attributed paths using GPT-6 Astra, answered as guides,
+and recalled separate conversation-only markers and their earlier success
+conditions in fresh Threadwalks after adapter-process restart. Final paths
+correctly distinguished the native persona from the underlying runtime.
+Saved native session IDs were unchanged, and each guide call left canonical
+Atlas files unchanged. Seven snapshotted native identity/memory files remained
+byte-identical. This is bounded file/session evidence, not a native memory-write
+or arbitrary future-recall claim.
+
+Hermes's native metadata confirmed zero tool calls and an empty tool list. Its
+public final assistant record avoids a CLI warning being included in prose.
+OpenClaw confirmed its per-session deny-all tool policy. Its restricted session
+initially lacked persona context and named its underlying Codex runtime;
+refreshing the explicitly selected native IDENTITY/SOUL/USER files on the remote
+host corrected that. Gateway-rejected backend-only fields were removed, with
+model selection moved to the public session-patch operation. Failed development
+requests remain separate from successful acceptance results.
+
+Inbound read-only MCP used SSH-forwarded private Unix sockets and fixed local
+store/collaborator commands. Hermes's installed MCP transport discovered six
+tools and read status/Threadwalks; OpenClaw's CLI probe discovered six tools plus
+resources without diagnostics. No native global MCP config was changed, and no
+model-driven inbound contribution or native memory save/acknowledgement is
+claimed. These are source adapters; remote native Windows and packaged remote
+onboarding are not accepted. [Setup and boundaries](REMOTE_AGENTS.md).
 
 Before claiming a new client/platform's complete lived-use acceptance, use its
 actual agent session to read an existing thought, append an explicitly requested

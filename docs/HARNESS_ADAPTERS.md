@@ -156,6 +156,7 @@ harness can be tested against the same protocol before the next is added:
 | Claude Code | implemented as `ta-harness-claude`; deterministic CLI-contract coverage complete |
 | OpenCode | implemented as `ta-harness-opencode`; deterministic CLI-contract coverage complete |
 | Prime Agent | implemented as `ta-harness-prime-agent`; deterministic CLI-contract coverage complete |
+| Remote Hermes / OpenClaw | source `ta-harness-ssh`; live Linux-to-WSL path, guide and session-reconnect acceptance; [setup](REMOTE_AGENTS.md) |
 
 These are optional adapter bridges, not provider dependencies of the TA
 package. Each adapter owns its authentication, invocation flags, output

@@ -129,6 +129,11 @@ add`, `claude mcp add`, `grok mcp add`, and `prime-agent mcp add` can register
 the same executable/argument list if preferred. Atlas does not silently edit
 global client settings or register real agents for you.
 
+For an existing agent on another machine, use the optional
+[SSH connection and private MCP forward](REMOTE_AGENTS.md). The canonical
+Atlas store stays on its original machine; neither agent credentials nor a
+duplicate agent installation are needed there.
+
 ## 4. Verify from your agent
 
 Start with: **“Use Atlas's atlas_status and list_threadwalks tools. Report the
