@@ -143,3 +143,36 @@ Before claiming a new client/platform's complete lived-use acceptance, use its
 actual agent session to read an existing thought, append an explicitly requested
 path, reconnect and retrieve exact IDs. Test native memory separately if offered.
 The published `v0.2.0` installers still lack this development bridge.
+
+### Native inbound memory loop accepted
+
+A subsequent live test used process-local Hermes MCP registration and OpenClaw's
+isolated `agent exec --config` path with the existing installations, native
+credentials and selected GPT-6 Astra. Each model created exactly one private
+synthetic Threadwalk and one attributed path, read it back, saved the exact
+completion memory candidate in its own dedicated native Markdown note, read the
+note back and acknowledged the receipt. Existing identity/core-memory files were
+unchanged; the two new notes were deliberate, authorized test writes.
+
+Each fresh native session then read only its named memory note and the MCP host,
+recovered the receipt/graph IDs without receiving those IDs in its prompt, and
+replayed the saved begin/path/acknowledgement arguments using their original
+request IDs. All three replays returned the original IDs. Independent snapshots
+confirmed unchanged bytes and modification times for every Atlas store file,
+with one Threadwalk, two graphs and one acknowledgement per agent. Native notes'
+completion candidates exactly match the canonical receipts. This establishes
+explicit native file-memory retrieval; it does not promise automatic retrieval
+without the note path or acceptance of every other native memory backend.
+
+Hermes's fresh session was distinct and used native file/MCP tools. OpenClaw's
+fresh invocation had separate retained state, a different native session ID and
+six successful read/replay calls with no file writes. Its ordinary Gateway and
+native global MCP configuration were not changed. The earlier discovery-only
+limits above are superseded for this isolated model-driven trial, not for
+permanent activation in the agents' ordinary interactive clients.
+
+The development package now includes `adapter ssh`. A frozen-application smoke
+exercises describe, contribution and guide dispatch using a synthetic SSH
+transport and Unicode input. The packaging workflow runs this beside MCP smoke
+on Linux, Windows and the installed Windows console executable. It makes no
+model call or credential claim; live LAN acceptance remains separately recorded.

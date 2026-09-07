@@ -159,9 +159,10 @@ change subscription eligibility.
 | Prime Agent | Yes | No — configure its CLI first |
 
 Existing Hermes and OpenClaw agents on another Linux/macOS/WSL host can use the
-source [SSH connection](docs/REMOTE_AGENTS.md) for contributions and Spark guide
+explicit [SSH connection](docs/REMOTE_AGENTS.md) for contributions and Spark guide
 discussion. Native credentials and memory stay on the agent host; these are
-external source adapters, not additional packaged setup buttons.
+manually configured connections, not additional guided setup buttons. The
+development package dispatches them through `adapter ssh`.
 
 The adapter's `describe` handshake confirms that a CLI can answer and reports
 its current public model/version. A desktop chat application alone is not a

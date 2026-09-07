@@ -20,6 +20,8 @@ def _adapter(name: str) -> Callable[[list[str] | None], int]:
         from thought_archaeology.adapters.opencode import main
     elif name == "prime-agent":
         from thought_archaeology.adapters.prime_agent import main
+    elif name == "ssh":
+        from thought_archaeology.adapters.ssh import main
     else:
         raise ValueError(f"unknown packaged collaborator {name!r}")
     return main
@@ -31,7 +33,7 @@ def main(argv: list[str] | None = None) -> int:
         if len(args) < 3:
             print(
                 "usage: atlas-of-threads adapter "
-                "claude|codex|grok|opencode|prime-agent describe|continue",
+                "claude|codex|grok|opencode|prime-agent|ssh [options] describe|continue|discuss",
                 file=sys.stderr,
             )
             return 2

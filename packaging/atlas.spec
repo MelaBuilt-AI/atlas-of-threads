@@ -22,6 +22,7 @@ a = Analysis(
         "thought_archaeology.adapters.grok",
         "thought_archaeology.adapters.opencode",
         "thought_archaeology.adapters.prime_agent",
+        "thought_archaeology.adapters.ssh",
     ],
     hookspath=[],
     hooksconfig={},

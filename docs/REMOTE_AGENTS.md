@@ -1,6 +1,6 @@
 # Existing agents on another machine
 
-The source SSH adapter connects Atlas to an existing **Hermes** or **OpenClaw**
+The SSH adapter connects Atlas to an existing **Hermes** or **OpenClaw**
 installation. The agent can contribute a path or serve as the Spark guide.
 The native installation, provider authentication, persona files and conversation
 remain on that host. Atlas keeps the canonical store on its own machine.
@@ -19,6 +19,13 @@ is not implemented. No duplicate agent installation is needed on the Atlas PC.
    on the remote host. This standalone helper uses only Python's standard library.
 4. Create one private host config and state directory per connected agent. Use
    absolute paths appropriate to that machine; examples below are placeholders.
+
+The development standalone application also includes this adapter. Substitute
+`atlas-of-threads adapter ssh` (Linux) or `AtlasOfThreadsMCP.exe adapter ssh`
+(Windows) for `ta-harness-ssh`. Register that executable with the fixed arguments
+`adapter`, `ssh`, `--config`, and the local connection-file path. The console
+executable is required for Windows JSON stdio. SSH must be available on the Atlas
+machine; no local Hermes/OpenClaw runtime is required.
 
 Hermes host config:
 
@@ -137,8 +144,24 @@ The SSH forward is available only while both foreground processes run. On
 reconnect, remove a stale socket only after confirming no process listens on it.
 Do not make the directories or sockets accessible to other OS users.
 
-Live inbound evidence is bounded: Hermes's installed transport read status and
-Threadwalks; OpenClaw's installed CLI discovered six scoped tools plus resources.
-These checks do not claim a model-driven inbound contribution or native memory
-write/acknowledgement loop. The live outbound path/guide/reconnect tests are
-separate evidence. See [compatibility results](MCP_COMPATIBILITY.md).
+Live inbound acceptance also exercised both native agents with contribution and
+memory-acknowledgement scopes. Each model created one Threadwalk/path, wrote the
+exact completion candidate to a dedicated native memory note, read it back and
+acknowledged it. A fresh native session recovered IDs from that note and replayed
+the three original requests without changing any Atlas file bytes or mtimes.
+The follow-up supplied the note path, not receipt IDs: this proves deliberate
+file-memory retrieval, not automatic recall from every future conversation.
+
+Hermes used process-local `register_mcp_servers` and its normal CLI, with only
+file tools and the Atlas toolset selected. OpenClaw used `agent exec --config`
+with separate retained run state and its existing credentials/plugins. The test
+config was a sibling of the native config and used its supported `$include`,
+leaving the ordinary Gateway and native global MCP configuration unchanged.
+OpenClaw `agent exec` requires exclusive ownership of its run-state directory;
+do not point it at a directory owned by the live Gateway. See the native
+[Hermes MCP documentation](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp/)
+and [OpenClaw agent-exec documentation](https://docs.openclaw.ai/cli/agent#agent-exec).
+
+These isolated configurations are acceptance fixtures; they are not permanent
+MCP activation in the ordinary interactive clients. See
+[compatibility results](MCP_COMPATIBILITY.md).

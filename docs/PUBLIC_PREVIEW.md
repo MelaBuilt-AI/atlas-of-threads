@@ -36,8 +36,10 @@ The optional source [remote-agent connection](REMOTE_AGENTS.md) adds verified SS
 calls to existing Hermes/OpenClaw installations and an optional private
 Unix-socket forward for inbound MCP. Linux-to-WSL path/guide/session-reconnect
 acceptance passes. It is not a new packaged release or a shared Atlas service;
-native Windows remote execution and model-driven inbound memory loops remain
-untested.
+native Windows remote execution remains unimplemented. Subsequent isolated native
+Hermes/OpenClaw inbound contribution, file-memory readback and fresh-session
+replay checks pass. The development package now includes manual `adapter ssh`
+dispatch, exercised by `packaging/smoke_ssh.py` alongside the existing MCP smoke.
 
 - The project is MIT-licensed and owned under `MelaBuilt-AI`.
 - Runtime data, environments, caches, and package metadata are ignored. No live

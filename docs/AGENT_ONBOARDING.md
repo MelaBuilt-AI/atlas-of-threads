@@ -136,6 +136,10 @@ duplicate agent installation are needed there.
 
 ## 4. Verify from your agent
 
+For inbound paths, the client-reported model/provider is preserved in the receipt
+and `agent_bridge` metadata. The graph's execution provider remains `none`
+because Atlas did not invoke a model itself; it does not mean the model is absent.
+
 Start with: **“Use Atlas's atlas_status and list_threadwalks tools. Report the
 store counts and available Threadwalks. Do not create or change anything.”**
 
