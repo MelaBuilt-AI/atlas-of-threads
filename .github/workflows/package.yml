@@ -38,6 +38,7 @@ jobs:
           python packaging/smoke_mcp.py "$PWD/dist/atlas-of-threads-linux-x86_64"
           python packaging/smoke_ssh.py "$PWD/dist/atlas-of-threads-linux-x86_64"
           python packaging/smoke_discovery.py "$PWD/dist/atlas-of-threads-linux-x86_64"
+          python packaging/smoke_guides.py "$PWD/dist/atlas-of-threads-linux-x86_64"
           dist/atlas-of-threads-linux-x86_64 --help
           TA_WORKER_BACKEND=application dist/atlas-of-threads-linux-x86_64 \
             --store "$RUNNER_TEMP/atlas-smoke" launch --no-browser --port 7468 &
@@ -79,6 +80,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Packaged SSH adapter smoke failed" }
           python packaging/smoke_discovery.py (Resolve-Path dist\AtlasOfThreadsMCP.exe)
           if ($LASTEXITCODE -ne 0) { throw "Packaged discovery smoke failed" }
+          python packaging/smoke_guides.py (Resolve-Path dist\AtlasOfThreadsMCP.exe)
+          if ($LASTEXITCODE -ne 0) { throw "Packaged guide smoke failed" }
           $store = Join-Path $env:RUNNER_TEMP "atlas-smoke"
           $app = Start-Process dist\AtlasOfThreads.exe -ArgumentList @("--store", $store, "launch", "--no-browser", "--port", "7468") -PassThru
           try {
@@ -119,6 +122,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Installed SSH adapter smoke failed" }
           python packaging/smoke_discovery.py (Join-Path $installDir 'AtlasOfThreadsMCP.exe')
           if ($LASTEXITCODE -ne 0) { throw "Installed discovery smoke failed" }
+          python packaging/smoke_guides.py (Join-Path $installDir 'AtlasOfThreadsMCP.exe')
+          if ($LASTEXITCODE -ne 0) { throw "Installed guide smoke failed" }
       - uses: actions/upload-artifact@v6
         with:
           name: atlas-of-threads-windows-x86_64

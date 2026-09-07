@@ -15,6 +15,7 @@ from thought_archaeology.adapters.provider_command import (
     discover_provider_command,
     read_wsl_config,
 )
+from thought_archaeology.adapters.guide_prompt import guide_prompt
 from thought_archaeology.harness import HARNESS_PROTOCOL_VERSION
 from thought_archaeology.schema import read_prompt
 
@@ -101,13 +102,15 @@ def _selected_model(executable: ProviderCommand | None = None) -> str:
     return _configured_model(executable) or PROVIDER_DEFAULT
 
 
-def _validate_envelope(raw: Any) -> dict[str, Any]:
+def _validate_envelope(raw: Any, operation: str | None = None) -> dict[str, Any]:
     if not isinstance(raw, dict):
-        raise ClaudeAdapterError("continue expects one JSON object on stdin")
+        raise ClaudeAdapterError("adapter expects one JSON object on stdin")
     if raw.get("protocol_version") != HARNESS_PROTOCOL_VERSION:
         raise ClaudeAdapterError("unsupported Thought Archaeology harness protocol")
-    if raw.get("operation") != "continue":
-        raise ClaudeAdapterError("adapter input operation must be 'continue'")
+    if raw.get("operation") not in {"continue", "discuss"}:
+        raise ClaudeAdapterError("adapter input operation must be 'continue' or 'discuss'")
+    if operation is not None and raw["operation"] != operation:
+        raise ClaudeAdapterError("adapter input operation does not match command")
     request = raw.get("request")
     graph = raw.get("graph")
     standing = raw.get("standing")
@@ -121,6 +124,8 @@ def _validate_envelope(raw: Any) -> dict[str, Any]:
 
 
 def _prompt(envelope: dict[str, Any]) -> str:
+    if envelope.get("operation") == "discuss":
+        return guide_prompt(envelope, "Claude Code")
     request = envelope["request"]
     optional_prompt = str(request.get("prompt") or "").strip()
     task = (
@@ -270,8 +275,12 @@ def _continue(
         raise ClaudeAdapterError(
             f"Claude model call exited {proc.returncode}: {detail}"
         )
+    # A mise launcher can announce its selected tool on stdout before JSON.
+    lines = proc.stdout.splitlines()
+    while lines and lines[0].startswith("mise "):
+        lines.pop(0)
     try:
-        result = json.loads(proc.stdout)
+        result = json.loads("\n".join(lines))
     except json.JSONDecodeError as exc:
         raise ClaudeAdapterError(f"Claude Code returned invalid JSON: {exc}") from exc
     if not isinstance(result, dict) or result.get("type") != "result":
@@ -292,8 +301,8 @@ def _emit(data: dict[str, Any]) -> None:
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     try:
-        if len(args) != 1 or args[0] not in {"describe", "continue"}:
-            raise ClaudeAdapterError("usage: ta-harness-claude describe|continue")
+        if len(args) != 1 or args[0] not in {"describe", "continue", "discuss"}:
+            raise ClaudeAdapterError("usage: ta-harness-claude describe|continue|discuss")
         executable = _claude_bin()
         version = _version(executable)
         configured_model = _selected_model(executable)
@@ -302,13 +311,13 @@ def main(argv: list[str] | None = None) -> int:
                 {
                     "protocol_version": HARNESS_PROTOCOL_VERSION,
                     "name": "claude",
-                    "capabilities": ["continue"],
+                    "capabilities": ["continue", "discuss"],
                     "cli_version": version,
                     "default_model": configured_model,
                 }
             )
             return 0
-        envelope = _validate_envelope(json.load(sys.stdin))
+        envelope = _validate_envelope(json.load(sys.stdin), args[0])
         response, model = _continue(executable, envelope, configured_model)
         _emit(
             {

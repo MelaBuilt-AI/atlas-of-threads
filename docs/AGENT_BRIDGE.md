@@ -399,9 +399,14 @@ receipt and Threadwalk IDs.
 Agent roles are independent. Workspace shows five collaborator slots with the
 agent name and model, followed by **Agent as Guide**. Assign either role or both
 for an already registered adapter; guide assignment requires its advertised
-`discuss` capability. OpenCode is the first supported prose adapter. Registration
+`discuss` capability. OpenCode, Codex, Claude Code, Grok, Prime Agent, Hermes
+and OpenClaw support prose discussion. Registration
 and provider authentication keep using the existing setup; selecting a guide
 does not grant new files, tools, memory-write permissions, or MCP scopes.
+Checking a different guide marks a pending change: its checkbox blinks, its Apply
+roles button pulses, and a note names the guide being replaced. The current
+guide stays checked until Apply roles succeeds; unchecking the proposed guide
+cancels the cue. Reduced motion uses a steady highlight.
 
 A guide appears as a glowing 3D orb in the upper-right shoulder or C-overhead view.
 Its gently pulsing cyan point light illuminates nearby surfaces and casts scene
@@ -438,8 +443,12 @@ OpenCode `discuss` uses the tested return route, approved fresh memory projectio
 and the same persistent conversation as its collaborator role, but asks for
 ordinary prose instead of a thought-graph. A process lock prevents simultaneous
 calls from altering the same runtime session. It retains the tool-denied and
-MCP-disabled outbound configuration. Other adapters can adopt `discuss` without
-changing the inbound MCP contribution contract.
+MCP-disabled outbound configuration. Local Codex, Claude Code, Grok and Prime
+Agent use their existing response-only CLI calls and Atlas supplies each guide
+with its recent saved public discussion. Plain registrations do not attach a
+personal memory vault or resume other native conversations. Codex registrations
+that already have approved memory retain that projection and session binding.
+Selecting a guide does not consume a collaborator slot.
 
 The local JSON API adds `GET /api/guide`, `POST /api/agent/roles`,
 `POST /api/guide/discuss`, and `POST /api/guide/clear`. Writes require the existing

@@ -26,8 +26,10 @@ release must include the console host and pass `packaging/smoke_mcp.py` against
 the installed Windows executable and standalone Linux executable.
 
 The development branch also includes Agent Spark private prose discussion and
-independent collaborator/guide roles. OpenCode is the first supported guide
-adapter. Linux source tests and isolated role/restart checks pass; native Windows
+independent collaborator/guide roles. Local OpenCode, Codex, Claude Code, Grok
+and Prime Agent support guide discussions. The four latter adapters use Atlas
+discussion history without attaching a personal memory vault by default.
+Linux source tests and isolated role/restart checks pass; native Windows
 OpenCode return and guide acceptance remain pending. See
 [Agent Spark](AGENT_BRIDGE.md#agent-spark--local-guide-discussion) for the runtime
 and memory boundaries.
@@ -43,6 +45,8 @@ dispatch, exercised by `packaging/smoke_ssh.py` alongside the existing MCP smoke
 Development Workspace setup also discovers local CLIs and offers Add Remote Agent
 with SSH verification and scoped firewall guidance. `packaging/smoke_discovery.py`
 checks frozen UI/API assets, local adapter dispatch and setup-origin protection.
+`packaging/smoke_guides.py` verifies the four additional guide entry points and
+private-context rejection in standalone and installed packages without model calls.
 Remote helper hosting still requires POSIX; Windows-native Hermes/OpenClaw session
 adapters and automatic LAN host discovery are not implied.
 

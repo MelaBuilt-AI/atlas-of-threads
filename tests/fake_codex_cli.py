@@ -37,6 +37,7 @@ def main() -> int:
         / "transcripts"
         / "simple-structured.txt"
     ).read_text(encoding="utf-8")
+    response = os.environ.get("TA_TEST_GUIDE_RESPONSE", response)
     output_path.write_text(response, encoding="utf-8")
     if "--json" in args:
         thread_id = (

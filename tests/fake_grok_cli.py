@@ -33,6 +33,7 @@ def main() -> int:
         / "transcripts"
         / "simple-structured.txt"
     ).read_text(encoding="utf-8")
+    response = os.environ.get("TA_TEST_GUIDE_RESPONSE", response)
     print(response)
     return 0
 

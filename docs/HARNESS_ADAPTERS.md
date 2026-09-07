@@ -67,6 +67,22 @@ No stdin is supplied. The adapter writes exactly one JSON object to stdout:
 Human-readable logs go to stderr. A nonzero exit, non-JSON stdout, protocol
 mismatch, or missing `continue` capability fails `ta harness doctor`.
 
+### `discuss`
+
+Guide-capable adapters advertise `discuss` alongside `continue`. The input uses
+`operation: "discuss"` with the exact request, session, public graph and standing
+context, plus `discussion`: the guide's recent completed public questions,
+replies and pinned sources. Return the same protocol envelope and `model_name`,
+with ordinary prose in `response`; do not emit a structured thought-graph.
+Atlas saves the discussion privately without appending canonical turns or graphs.
+
+The local Codex, Claude Code, Grok and Prime Agent adapters support this operation
+through their existing installed CLIs and authentication. They retain their
+response-only execution settings. Atlas supplies saved discussion history across
+app restarts; this does not attach personal memory files or other native sessions.
+See [Agent Spark](AGENT_BRIDGE.md#agent-spark--local-guide-discussion) for roles,
+bounds and the connected-memory routes.
+
 ### `continue`
 
 The adapter receives one JSON object on stdin:
