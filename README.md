@@ -125,7 +125,9 @@ From a chamber:
 |---|---|
 | Cycle among paths | `←` / `→` or `[` / `]` |
 | Enter the selected path | `Enter` or `↑` |
-| Retrace | `↓` or `B` |
+| Reflect / return to departure | `R` |
+| Retrace while reflecting | `↑` or `Enter` |
+| Browse relic forms | `Shift+R` |
 | Return to this answer's start | `O` |
 | Continue this ending | `Q` or **Ask from here…** |
 | Request parallel paths | `P` |
@@ -135,8 +137,19 @@ From a chamber:
 | Open legend and all controls | `L` |
 
 The standing thought and selected destination have separate cards. Click a path
-to preview it before entering. The top wayfinder names your retrace destination
-and offers a recent trail; collaborator answers also name their source thought.
+to preview it before entering. **Reflect** turns both shoulder and overhead views
+toward your experienced route; Up retraces one exact thought at a time. Press R
+again to return to the chamber where reflection began, even if a new AI answer
+arrives meanwhile. Back/Down enters Reflect; within a Field Note or Capsule it
+still returns to the underlying chamber.
+
+A curved terrain patch carries warm solid traveled paths, cool dashed generated
+destinations, and faint decorative filaments at the horizon. Only the generated
+destinations are selectable. Route positions stay fixed within this tab; nearby
+route relics stream as you retrace, with at most 16 route relics beside the
+current chamber and its immediate choices. Refresh preserves an exact-stand
+route in the same tab. This is local navigation memory, separate from the
+append-only graph store.
 The Atlas Map opens exact thoughts and can switch to **All answers**. Select an
 answer, then **Thoughts in this answer** to inspect its internal paths without
 losing your place. Current and previously visited locations are marked.

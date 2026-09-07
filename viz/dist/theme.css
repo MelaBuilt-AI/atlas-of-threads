@@ -146,6 +146,7 @@ html, body {
 }
 
 #legend-trigger,
+#reflect-trigger,
 #thread-trigger,
 #atlas-map-trigger {
   pointer-events: auto;
@@ -161,6 +162,8 @@ html, body {
 
 #legend-trigger:hover,
 #legend-trigger:focus-visible,
+#reflect-trigger:hover,
+#reflect-trigger:focus-visible,
 #thread-trigger:hover,
 #thread-trigger:focus-visible,
 #atlas-map-trigger:hover,
@@ -2410,3 +2413,8 @@ body[data-agent-spark="true"] #plate,body[data-agent-spark="true"] #path-preview
   #agent-remote-form label:last-of-type, #agent-remote-form > button { grid-column: 1 / -1; }
   #agent-remote-results, #agent-local-results { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Reflect reuses the destination card and a single mode instrument. */
+#reflect-trigger[aria-pressed="true"] { color: #ffe3a5; border-color: #e4bf77; background: #493a27; }
+body[data-reflecting="true"] #path-preview { border-color: #cbae78; }
+body[data-reflecting="true"] #threshold { display: none; }

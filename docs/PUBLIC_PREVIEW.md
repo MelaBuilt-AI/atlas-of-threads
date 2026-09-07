@@ -19,6 +19,12 @@ part of future releases.
 
 ## Verified release boundary
 
+The unreleased navigation increment adds curved terrain, a bounded resident route
+window and R Reflect traversal. Its interaction contract is in
+[the design amendment](DESIGN.md#reflect-and-curved-terrain-amendment--2026-09-07-codex).
+User acceptance in both views, branched/long routes and package checks are still
+required before a navigation release. Published `v0.2.0` is unchanged.
+
 The development Agent Bridge onboarding and console host are described in
 [Agent onboarding](AGENT_ONBOARDING.md) and [MCP compatibility](MCP_COMPATIBILITY.md).
 These changes do not advance the published `v0.2.0` channel. A future package

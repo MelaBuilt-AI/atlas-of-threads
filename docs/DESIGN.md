@@ -12,6 +12,43 @@
 
 ---
 
+## Reflect and curved terrain amendment — 2026-09-07 (Codex)
+
+This development increment supersedes the older recentered grid, 80-stop retrace
+stack and R relic-index shortcut below. It awaits navigation feel acceptance.
+
+R enters Reflect and turns the shoulder and overhead cameras behind the
+inhabitant. Up/Enter loads the previous exact graph/node on the experienced
+route. R returns to the departure chamber, facing forward; this anchor stays
+fixed if a newer continuation arrives. Arrivals wait without stealing focus
+while reflecting. A failed read leaves both stand and route cursor unchanged.
+The destination card states the mode, earlier stop and return action.
+
+Back/Down enters Reflect (and steps while already reflecting). Escape retains
+its local closing/selection behavior. Within Field Notes or Capsules, Back/Down
+and Escape leave that layer for the current thought. Shift+R opens the relic
+index. Choosing a map/compass destination while reflecting leaves that mode and
+continues the route from the inspected stand; R always keeps its pinned return.
+These defaults implement the previously unresolved interaction choices and
+remain subject to user acceptance.
+
+Continuous faceted terrain samples stable absolute coordinates on a gently
+curved local patch. The horizon bounds visibility; it is not a spherical-world
+simulation. Warm solid routes record travel, cool dashed paths lead to generated
+choices, and faint horizon filaments are non-interactive decoration. None is
+new causal evidence. Every chamber position is assigned once in the tab's
+Threadwalk, including generated destinations, and retained on revisits. Older
+traveled segments survive a return or a new branch. Existing map provenance,
+source-return doors, Field Notes, Capsules and Agent Spark retain their roles.
+
+The resident route window contains at most 16 route relics in addition to the
+standing chamber and its immediate neighborhood. Geometry/materials/labels are
+disposed when removed; cached canonical GLB geometry/textures remain shared.
+Entering a streamed stop fetches the canonical chamber payload afresh. Route
+metadata remains in tab session storage and restores only at the exact saved
+stand; the graph store is unchanged. Neither visual scenery nor local history
+writes a canonical artifact, calls a provider or publishes anything.
+
 ## MCP onboarding and packaging amendment — 2026-09-06 (Codex)
 
 Manual inbound setup now covers the five existing collaborator clients plus
