@@ -93,7 +93,21 @@ successfully negotiates the existing handshake with this server.
 | Approved memory projection | Tested Codex and Linux OpenCode return routes with dedicated saved sessions and explicitly approved files; not automatic for the other clients |
 | Client-owned memory acknowledgement | Available with explicit scope; tested synthetic protocol, earlier real Codex loop, and OpenCode native Markdown save/readback plus fresh-session recall |
 | OpenClaw/Hermes personas | No credential extraction, persona migration, or automatic connection to an existing named runtime |
-| In-app companion | Separate next slice; this pass does not implement the discussion panel |
+| In-app companion | Agent Spark private prose discussion; OpenCode is the first supported guide adapter |
+
+Linux OpenCode 1.18.29 live role acceptance (2026-09-07) exercised a GPT-5.6
+Terra collaborator and a separate GPT-6 Astra guide, both with the `high`
+variant. The collaborator created a synthetic path; the guide inspected its
+exact thought, identified the other model's authorship, and supplied its own
+critique without changing canonical Atlas files. After an application restart,
+both roles, model settings, distinct runtime sessions and guide history persisted.
+In a new Threadwalk, the collaborator recalled its earlier conversation marker
+without receiving it in the new inquiry or approved memory file, and reported
+the separate guide-only marker unavailable. The guide recovered its own marker
+from private discussion context. Native guide-memory files remained unchanged.
+This verifies this Linux arrangement; native Windows and OpenCode v2 return/guide
+acceptance remain separate. Guide recall here includes the supplied persisted
+discussion history, so it is not evidence of runtime-only recall.
 
 Before claiming a new client/platform's complete lived-use acceptance, use its
 actual agent session to read an existing thought, append an explicitly requested

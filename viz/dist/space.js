@@ -5455,6 +5455,7 @@
         sessionTitles.set(session.id, session.title || "untitled thought");
       }
       companionReady = true;
+      agentSpark.setWorkspace(workspace);
       const fromHash = parseHash();
       const lastStand = loadLastStand();
       const explicitDeepLink = Boolean(
@@ -5484,7 +5485,6 @@
       const resume = fromHash && lastStand
         ? { ...lastStand, graphId: fromHash.graphId, nodeId: fromHash.nodeId }
         : lastStand;
-      agentSpark.setWorkspace(workspace);
       if ((!(workspace.harnesses || []).length && !workspace.guide) || !(boot.sessions || []).length) {
         showOnboarding(boot, resume, workspace);
       } else {
