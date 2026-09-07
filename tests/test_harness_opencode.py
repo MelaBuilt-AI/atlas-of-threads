@@ -14,6 +14,7 @@ from thought_archaeology.adapters.opencode import (
     main,
 )
 from thought_archaeology.store import Store
+from thought_archaeology.harness import HarnessRegistry
 
 from tests.helpers import FIXTURES
 from tests.test_cli import run
@@ -59,6 +60,14 @@ def test_opencode_model_precedence_uses_fixed_config(monkeypatch):
     monkeypatch.setenv("TA_TEST_OPENCODE_CONFIG_MODEL", "openai/configured")
 
     assert _selected_model(str(FAKE_OPENCODE)) == ("openai/configured", None)
+
+
+def test_opencode_refreshed_model_preserves_variant_and_allows_override(monkeypatch):
+    monkeypatch.setenv("TA_HARNESS_MODEL", "openai/test (variant: high)")
+    monkeypatch.delenv("TA_OPENCODE_VARIANT", raising=False)
+    assert _selected_model(str(FAKE_OPENCODE)) == ("openai/test", "high")
+    monkeypatch.setenv("TA_OPENCODE_VARIANT", "max")
+    assert _selected_model(str(FAKE_OPENCODE)) == ("openai/test", "max")
 
 
 def test_opencode_uses_latest_session_selection(monkeypatch):
@@ -146,6 +155,15 @@ def test_opencode_adapter_handshake_and_real_cli_shape(monkeypatch, tmp_path: Pa
     assert diagnosis["name"] == "opencode"
     assert diagnosis["default_model"] == "openai/opencode-test (variant: high)"
     assert diagnosis["cli_version"] == "1.18.25"
+
+    # Exercise the same describe -> registry -> continue round trip as the
+    # Workspace model refresh, including repeated refreshes.
+    for _ in range(2):
+        HarnessRegistry().record_model("opencode", diagnosis["default_model"])
+        code, out, err = run(["harness", "doctor", "opencode"], store=store_path)
+        assert code == 0, err
+        diagnosis = json.loads(out)
+        assert diagnosis["default_model"] == "openai/opencode-test (variant: high)"
 
     code, out, err = run(
         [
@@ -237,13 +255,14 @@ def test_opencode_timeout_deletes_reported_session(monkeypatch, tmp_path: Path, 
     monkeypatch.setenv("TA_OPENCODE_BIN", str(FAKE_OPENCODE))
     monkeypatch.setenv("TA_OPENCODE_MODEL", "openai/opencode-test")
     monkeypatch.setenv("TA_OPENCODE_VARIANT", "high")
-    monkeypatch.setenv("TA_OPENCODE_TIMEOUT", "0.05")
+    # Allow the fake CLI to start and report its session before the deliberate stall.
+    monkeypatch.setenv("TA_OPENCODE_TIMEOUT", "0.5")
     monkeypatch.setenv("TA_TEST_OPENCODE_TIMEOUT", "1")
     monkeypatch.setenv("TA_TEST_OPENCODE_CALL", str(capture))
     monkeypatch.setattr(sys, "stdin", _stdin_envelope())
 
     assert main(["continue"]) == 1
-    assert "timed out after 0.05s" in capsys.readouterr().err
+    assert "timed out after 0.5s" in capsys.readouterr().err
     assert json.loads(capture.read_text())["deleted_session"] == "ses_ta_opencode_test"
 
 

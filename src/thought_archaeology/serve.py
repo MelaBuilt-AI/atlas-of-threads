@@ -13,6 +13,7 @@ from pathlib import Path
 from types import MappingProxyType
 from urllib.parse import parse_qs, urlparse
 
+from thought_archaeology.agent_spark import (guide_payload, assign_roles, discussion_payload, begin_discussion, clear_discussion)
 from thought_archaeology.adapters.provider_command import (
     command_argv,
     command_location,
@@ -516,7 +517,9 @@ def workspace_payload(store: Store) -> dict:
     return {
         "platform": "windows" if sys.platform == "win32" else sys.platform,
         "active_harness": default,
-        "harnesses": harnesses,
+        "harnesses": [item for item in harnesses if item["name"] in registry.collaborator_names()],
+        "agent_candidates": harnesses,
+        "guide": guide_payload(registry),
         "available_harnesses": available_harnesses,
         "service": {
             key: service.get(key)
@@ -645,7 +648,7 @@ def create_parallel_continuations(
         raise ServeError("select at least two unique collaborators")
     registry = HarnessRegistry()
     specs = registry.specs()
-    registered = {spec.name for spec in specs}
+    registered = set(HarnessRegistry().collaborator_names())
     if any(name not in registered for name in harnesses):
         raise ServeError("every selected collaborator must be registered")
     default = registry.default_name()
@@ -953,6 +956,9 @@ class InhabitHandler(BaseHTTPRequestHandler):
             if path == "/api/sessions":
                 self._json(200, bootstrap_payload(self.store))
                 return
+            if path == "/api/guide":
+                self._json(200, discussion_payload(self.store))
+                return
             if path == "/api/workspace":
                 self._json(200, workspace_payload(self.store))
                 return
@@ -1168,6 +1174,25 @@ class InhabitHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         try:
+            if path in {"/api/agent/roles", "/api/guide/discuss", "/api/guide/clear"}:
+                self._require_local_json_request()
+                body = self._read_json()
+                if path == "/api/agent/roles":
+                    previous = HarnessRegistry().default_name()
+                    assign_roles(self.store, body)
+                    registry = HarnessRegistry()
+                    if registry.default_name() != previous:
+                        if registry.default_name():
+                            ensure_application_worker(self.store, registry.get())
+                        else:
+                            stop_application_worker()
+                    self._json(200, {"workspace": workspace_payload(self.store)})
+                elif path == "/api/guide/discuss":
+                    self._json(202, begin_discussion(self.store, body))
+                else:
+                    clear_discussion(self.store)
+                    self._json(200, discussion_payload(self.store))
+                return
             if path == "/api/fork":
                 self._edit_fork()
                 return
@@ -1629,6 +1654,8 @@ class InhabitHandler(BaseHTTPRequestHandler):
             return
         registry = HarnessRegistry()
         spec = registry.get(name)
+        if name not in registry.collaborator_names():
+            raise HarnessError("Assign this agent a collaborator slot first.")
         previous = registry.default_name()
         registry.use(name)
         unit_path = resolve_harness_service_path()

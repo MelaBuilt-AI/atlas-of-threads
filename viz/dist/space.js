@@ -70,11 +70,6 @@
   const elMeta = document.getElementById("meta");
   const elPlate = document.getElementById("plate");
   const elWayfinder = document.getElementById("wayfinder");
-  const elLocation = document.getElementById("wayfinder-location");
-  const elWalkBack = document.getElementById("walk-back");
-  const elWalkOrigin = document.getElementById("walk-origin");
-  const elWalkSource = document.getElementById("walk-source");
-  const elWalkTrail = document.getElementById("walk-trail");
   const elWalkStatus = document.getElementById("walk-status");
   const elPathPreview = document.getElementById("path-preview");
   const elPathPreviewLabel = document.getElementById("path-preview-label");
@@ -304,6 +299,22 @@
   let parallelProgress = null;
   const parallelJobStates = new Map();
   let workspaceState = null;
+  const agentSpark = window.TAAgentSpark({
+    scene, camera, sound, getView: () => view, isOverhead: () => overhead,
+    canShow: () => Boolean(view && !atlasMapMode && !cinematicMode &&
+      elStartMenu.hidden && elOnboardingMenu.hidden && elWorkspaceMenu.hidden &&
+      elLegendMenu.hidden && elThreadCompass.hidden && !composing && !activeCapsule && !activeFieldNote),
+    navigate: (graph, node) => inhabit(graph, node, "return"),
+    askCollaborator: async (source, response) => {
+      await inhabit(source.graph_id, source.node_id, "return");
+      if (view?.graph_id !== source.graph_id || view?.node.id !== source.node_id) return;
+      openComposer("continuation");
+      elThresholdAskInput.value = `Assess this agent guide suggestion: ${response}`.slice(0, 400);
+      elThresholdAskInput.focus();
+    },
+    onWorkspace: (payload) => renderWorkspace(payload),
+  });
+
   const enteredFieldNotes = loadEnteredFieldNotes();
   const announcedCapsuleMilestones = loadAnnouncedCapsuleMilestones();
 
@@ -565,6 +576,12 @@
   scene.add(neuralFill);
   const overSun = new THREE.DirectionalLight(0xe8f2ff, 0);
   overSun.position.set(8, 42, 10);
+  overSun.castShadow = true;
+  overSun.shadow.mapSize.set(1024, 1024);
+  Object.assign(overSun.shadow.camera, {left: -25, right: 25, top: 25, bottom: -25, near: 0.5, far: 80});
+  overSun.shadow.camera.updateProjectionMatrix();
+  overSun.shadow.bias = -0.0004;
+  overSun.shadow.normalBias = 0.025;
   scene.add(overSun);
   const overHemi = new THREE.HemisphereLight(0xb8d4ff, 0x1a2438, 0);
   scene.add(overHemi);
@@ -681,6 +698,7 @@
 
   function renderOnboarding(payload) {
     workspaceState = payload;
+    agentSpark.setWorkspace(payload);
     const watcherActive = onboardingWatcherActive(payload);
     const pending = payload.pending || [];
     const firstRun = !(payload.history || []).length;
@@ -1088,6 +1106,7 @@
 
   function renderWorkspace(payload) {
     workspaceState = payload;
+    agentSpark.setWorkspace(payload);
     const service = payload.service || {};
     const watcherActive = service.active === "active" || service.active === "activating";
     const pending = payload.pending || [];
@@ -1153,6 +1172,12 @@
       elWorkspaceHarnesses.append(row);
     }
 
+    for (let slot = (payload.harnesses || []).length; slot < 5; slot++) {
+      const empty = document.createElement("div");
+      empty.className = "workspace-empty-slot";
+      empty.textContent = `Slot ${slot + 1} · available`;
+      elWorkspaceHarnesses.append(empty);
+    }
     elWorkspaceNewToggle.disabled = workspaceBusy || pending.length > 0 || !active;
     elWorkspaceHistory.replaceChildren();
     for (const session of payload.history || []) {
@@ -5310,18 +5335,6 @@
         sessionId: walkSession, current: next, trail, visited: visitedStands,
       }));
     } catch (_) { /* Navigation does not depend on persistence. */ }
-    elWalkTrail.replaceChildren();
-    if (!trail.length) elWalkTrail.textContent = "Your trail starts here. Visits are remembered in this browser tab.";
-    for (const item of trail.slice(-8).reverse()) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.textContent = `${item.label || "Earlier thought"} · ${item.text}`;
-      button.onclick = () => {
-        document.getElementById("walk-history").open = false;
-        inhabit(item.graphId, item.nodeId, "return");
-      };
-      elWalkTrail.append(button);
-    }
   }
 
   function backDestination() {
@@ -5335,26 +5348,7 @@
   function updateWayfinder() {
     elWayfinder.hidden = !view || Boolean(activeFieldNote || activeCapsule);
     if (!view) return;
-    const position = view.position;
-    elLocation.textContent = [
-      sessionTitles.get(view.session_id) || "Your Threadwalk",
-      graphAttribution(view) || "This answer",
-      position ? `Thought ${position.ordinal} of ${position.total}` : "Current thought",
-    ].join("  ›  ");
-    elLocation.title = `${elLocation.textContent}\n${view.node.text}`;
-    const back = backDestination();
-    const blocked = navigating || busy || Boolean(composing);
-    elWalkBack.disabled = blocked || !back;
-    elWalkBack.textContent = back ? `← Retrace: ${shortText(back.text, 55)}` : "← At the start of your trail";
-    elWalkBack.title = back ? `Retrace to: ${back.text} · B / ↓` : "No earlier visit in this trail";
-    elWalkOrigin.disabled = blocked || !view.origin || view.origin.id === view.node.id;
-    elWalkOrigin.textContent = "Answer start · O";
-    elWalkOrigin.title = `Return to answer start: ${view.origin?.text || "unavailable"}`;
-    const source = view.continuation_source;
-    elWalkSource.hidden = !source;
-    elWalkSource.disabled = blocked;
-    elWalkSource.textContent = `Source: ${shortText(source?.node?.text || "previous question", 42)}`;
-    elWalkSource.title = `Return to source thought: ${source?.node?.text || ""}`;
+
   }
 
   function shortText(text, limit = 85) {
@@ -5387,12 +5381,6 @@
     document.getElementById("path-next").disabled = !choices.length || navigating;
   }
 
-  elWalkBack.onclick = () => walkBack();
-  elWalkOrigin.onclick = () => walkOrigin();
-  elWalkSource.onclick = () => {
-    const source = view?.continuation_source;
-    if (source) inhabit(source.graph_id, source.node_id, "return");
-  };
   document.getElementById("path-previous").onclick = () => cycleChoice(-1);
   document.getElementById("path-next").onclick = () => cycleChoice(1);
   elPathEnter.onclick = () => selectFocus();
@@ -5496,7 +5484,8 @@
       const resume = fromHash && lastStand
         ? { ...lastStand, graphId: fromHash.graphId, nodeId: fromHash.nodeId }
         : lastStand;
-      if (!(workspace.harnesses || []).length || !(boot.sessions || []).length) {
+      agentSpark.setWorkspace(workspace);
+      if ((!(workspace.harnesses || []).length && !workspace.guide) || !(boot.sessions || []).length) {
         showOnboarding(boot, resume, workspace);
       } else {
         showStartup(boot, resume);
@@ -5644,7 +5633,7 @@
   }
 
   canvas.addEventListener("pointerdown", (e) => {
-    if (e.button !== 0) return;
+    if (agentSpark.opened || e.button !== 0) return;
     dragging = true;
     canvas.dataset.dragging = "true";
     dragMoved = false;
@@ -5698,6 +5687,7 @@
   }
 
   canvas.addEventListener("click", (e) => {
+    if (!dragMoved && agentSpark.pick(e)) return;
     if (composing || dragMoved) return;
     const rect = canvas.getBoundingClientRect();
     const picking = atlasMapMode && atlasMapViewport
@@ -6957,6 +6947,7 @@
       renderer.setScissor(rect.x, bottom, rect.width, rect.height);
       renderer.setScissorTest(true);
     }
+    agentSpark.tick(t);
     renderer.render(scene, camera);
     renderer.setScissorTest(false);
     requestAnimationFrame(tick);

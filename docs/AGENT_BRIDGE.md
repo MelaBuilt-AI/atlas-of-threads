@@ -393,3 +393,69 @@ candidates and acknowledgements pass local verification. The full Agent Bridge
 is not live-accepted until a physically configured client preserves a candidate
 in its own second brain, acknowledges it, reconnects, and recovers the stable
 receipt and Threadwalk IDs.
+
+## Agent Spark — local guide discussion
+
+Agent roles are independent. Workspace shows five collaborator slots with the
+agent name and model, followed by **Agent as Guide**. Assign either role or both
+for an already registered adapter; guide assignment requires its advertised
+`discuss` capability. OpenCode is the first supported prose adapter. Registration
+and provider authentication keep using the existing setup; selecting a guide
+does not grant new files, tools, memory-write permissions, or MCP scopes.
+
+A guide appears as a glowing 3D orb in the upper-right shoulder or C-overhead view.
+Its gently pulsing cyan point light illuminates nearby surfaces and casts scene
+shadows. The core casts shadows too, with a soft floor shadow keeping it grounded
+where its own light fills them. In overhead view it stays near the floor while
+preserving its apparent size. Click the
+orb or press **G** to open **Agent Spark**, a separate 2D radial HUD linked by an
+animated neural tether. Its gentle positional lag and hover continue under the pointer.
+Curved four-sided ring segments preserve a circular silhouette; categories reveal
+a concentric outer row. A category stays highlighted while open; clicking it
+again closes it, with no Back buttons in submenus. Labels follow the arcs.
+The inner aperture holds the agent name/model, selected thought, larger message
+box, Send, and spaced status text. Left/right selects; Enter/up activates;
+down returns to the main ring; Escape backs out or closes. G closes outside text
+entry. Tab moves among the ring, transcript, and composer; Ctrl+Enter sends from
+the composer. These keys do not traverse the underlying chamber while open.
+Quiet synthesized sparkle/click cues share the existing master sound controls,
+and Spark has a separate mute. Reduced motion suppresses drift and bezel motion.
+
+The private persisted prose conversation appears outside the circle: the question
+materializes in a sparking, gently hovering bubble to its right, followed by the
+reply below. Trails connect the question to Send and the orb, and the reply to
+the orb. History selects earlier/later/latest exchanges without another model
+call. Long content scrolls within its own bubble rather than in the center. Each submitted question
+pins exact session, graph, and thought IDs; source buttons let the user reselect
+an earlier response's thought. Moving later does not retarget an in-flight call.
+Handoffs prepare an editable collaborator question or an agent-assisted Field
+Note/memory draft; copying includes the exact source link. Nothing is promoted,
+queued to another collaborator, or written to native memory without a further
+explicit user action. Draft Field Notes must still use the existing reviewed
+Field Note flow; drafts are not independently human-authored evidence.
+
+OpenCode `discuss` uses the tested return route, approved fresh memory projection,
+and the same persistent conversation as its collaborator role, but asks for
+ordinary prose instead of a thought-graph. A process lock prevents simultaneous
+calls from altering the same runtime session. It retains the tool-denied and
+MCP-disabled outbound configuration. Other adapters can adopt `discuss` without
+changing the inbound MCP contribution contract.
+
+The local JSON API adds `GET /api/guide`, `POST /api/agent/roles`,
+`POST /api/guide/discuss`, and `POST /api/guide/clear`. Writes require the existing
+same-origin local JSON checks. Role assignment takes `harness`, `collaborator`
+and `guide` booleans. Discussion takes a client `request_id`, `prompt` (1–8,000
+characters), `graph_id`, and `node_id`; returns a pending record immediately and
+is polled through GET. Same-ID/same-content requests reuse the record; conflicting
+reuse fails. Completed records include the actual reported model, visible prose,
+and pinned source. Failures and interrupted responses remain visible. Restart
+never silently reruns a model call.
+
+Only visible questions, replies, statuses, attribution and exact references are
+saved under private `guide-discussions/<harness>.json` in the Personal Atlas,
+separate from canonical graphs, turns, and agent-bridge receipts. Recent visible
+turns supply bounded conversational context; raw projected notes, credentials,
+and reasoning events are not saved there. Clear has an explicit UI review and
+clears only this local discussion; copied artifacts, native memory, and the
+provider-owned persistent conversation remain separate. No public release or
+native Windows return acceptance is implied by this local implementation.

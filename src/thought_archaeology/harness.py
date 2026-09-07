@@ -9,6 +9,7 @@ import sys
 import tempfile
 import time
 from dataclasses import dataclass, replace
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Iterator, Self
@@ -26,7 +27,7 @@ from thought_archaeology.ids import new_ulid, now_iso
 from thought_archaeology.inhabit import inhabit
 from thought_archaeology.models import ModelInfo, SCHEMA_VERSION, ThoughtGraph, Turn
 from thought_archaeology.schema import ValidationError, validate_graph
-from thought_archaeology.store import Store
+from thought_archaeology.store import Store, _try_lock, _unlock
 
 HARNESS_CONFIG_VERSION = 1
 HARNESS_PROTOCOL_VERSION = "1"
@@ -287,8 +288,14 @@ class HarnessRegistry:
         if name in harnesses:
             raise HarnessError(f"harness {name!r} is already registered")
         harnesses[name] = spec.to_dict()
+        raw.setdefault("collaborators", list(self.collaborator_names()))
         raw["harnesses"] = harnesses
-        if make_default or raw.get("default") is None:
+        if "collaborators" in raw:
+            if len(raw["collaborators"]) < 5:
+                raw["collaborators"].append(name)
+            elif make_default:
+                raise HarnessError("All five collaborator slots are occupied.")
+        if (make_default or raw.get("default") is None) and name in raw.get("collaborators", harnesses):
             raw["default"] = name
         self._save(raw)
         return spec
@@ -300,17 +307,58 @@ class HarnessRegistry:
             raise HarnessError(f"harness {name!r} is not registered")
         del harnesses[name]
         raw["harnesses"] = harnesses
+        if "collaborators" in raw:
+            raw["collaborators"] = [item for item in raw["collaborators"] if item != name]
+        if raw.get("guide") == name:
+            raw["guide"] = None
         if raw.get("default") == name:
-            raw["default"] = sorted(harnesses)[0] if harnesses else None
+            remaining = raw.get("collaborators", sorted(harnesses))
+            raw["default"] = remaining[0] if remaining else None
         self._save(raw)
 
     def use(self, name: str) -> HarnessSpec:
         raw = self._load()
         if name not in raw["harnesses"]:
             raise HarnessError(f"harness {name!r} is not registered")
+        if "collaborators" in raw and name not in raw["collaborators"]:
+            raise HarnessError("Assign this agent a collaborator slot first.")
         raw["default"] = name
         self._save(raw)
         return HarnessSpec.from_dict(name, raw["harnesses"][name])
+
+    def collaborator_names(self) -> tuple[str, ...]:
+        raw = self._load()
+        names = raw.get("collaborators")
+        if names is None:
+            names = list(raw["harnesses"])
+            if raw.get("default") in names:
+                names.remove(raw["default"])
+                names.insert(0, raw["default"])
+        return tuple(name for name in names if name in raw["harnesses"])[:5]
+
+    def guide_name(self) -> str | None:
+        raw = self._load()
+        name = raw.get("guide")
+        return name if name in raw["harnesses"] else None
+
+    def set_agent_roles(self, name: str, *, collaborator: bool, guide: bool) -> None:
+        self.get(name)
+        raw = self._load()
+        names = list(self.collaborator_names())
+        if collaborator and name not in names:
+            if len(names) >= 5:
+                raise HarnessError("All five collaborator slots are occupied. Remove one assignment first.")
+            names.append(name)
+        if not collaborator and name in names:
+            names.remove(name)
+        raw["collaborators"] = names
+        if raw.get("default") not in names:
+            raw["default"] = names[0] if names else None
+        if guide:
+            raw["guide"] = name
+        elif raw.get("guide") == name:
+            raw["guide"] = None
+        self._save(raw)
 
     def record_model(
         self, name: str, model: str, *, cli_version: str | None = None
@@ -353,6 +401,25 @@ class HarnessRegistry:
         return HarnessSpec.from_dict(selected, data)
 
 
+@contextmanager
+def _agent_call_lock(spec: HarnessSpec):
+    path = Path(spec.session_state + ".call.lock")
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o600)
+    locked = False
+    try:
+        try:
+            _try_lock(fd)
+            locked = True
+        except BlockingIOError as exc:
+            raise HarnessError("This agent is already responding. Try again when it finishes.") from exc
+        yield
+    finally:
+        if locked:
+            _unlock(fd)
+        os.close(fd)
+
+
 def _adapter_call(
     spec: HarnessSpec,
     operation: str,
@@ -376,17 +443,18 @@ def _adapter_call(
             )
         if spec.model is not None:
             environment["TA_HARNESS_MODEL"] = spec.model
-        proc = subprocess.run(
-            [*spec.argv, operation],
-            input=(json.dumps(payload, ensure_ascii=True) + "\n") if payload else None,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            shell=False,
-            env=environment,
-            timeout=timeout,
-            check=False,
-        )
+        with _agent_call_lock(spec) if spec.session_state and operation != "describe" else nullcontext():
+            proc = subprocess.run(
+                [*spec.argv, operation],
+                input=(json.dumps(payload, ensure_ascii=True) + "\n") if payload else None,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                shell=False,
+                env=environment,
+                timeout=timeout,
+                check=False,
+            )
     except subprocess.TimeoutExpired as exc:
         raise HarnessError(
             f"harness {spec.name!r} timed out during {operation} after {timeout:g}s"

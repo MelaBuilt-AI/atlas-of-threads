@@ -35,17 +35,18 @@ duplicate-safe attributed contribution flow. Discovery and discussion do not
 create graphs, queue a model call, move a browser, publish, or read an external
 brain. The six-read-tool contract and separate contribution action are in
 `docs/AGENT_BRIDGE.md`. Search is lexical rather than evidence or semantic
-similarity. This is a foundation for a later in-app companion; the private
-discussion UI and native Windows memory acceptance are still pending.
+similarity. The in-app prose companion is now implemented as Agent Spark below.
+Native Windows acceptance of the OpenCode return route remains pending.
 
 ## Navigation clarity amendment — 2026-09-05 (Codex / Astra)
 
 This amendment supersedes older descriptions below of Up as an unconditional
 north shortcut, click-to-traverse, and the generation-only Atlas Map.
 
-The chamber remains a local, recentered 3D view. A persistent wayfinder identifies
-the Threadwalk, answer attribution, and exact thought's stable ordinal; this
-ordinal is not a prescribed reading order or the number of steps walked.
+The chamber remains a local, recentered 3D view. The persistent top-left
+location/question strip was removed after user feedback that it obstructed
+the view. Attribution remains on the standing thought; the map provides
+position and Threadwalk structure.
 The standing thought stays visible while a separate destination card previews
 the next move. Left/right or a spatial click selects; Enter/Up or the explicit
 destination button enters that selection. Without a selection, both keys use
@@ -53,12 +54,14 @@ the first forward thought. At an endpoint they do not choose a side road for you
 Layer-specific Field Note and Knowledge Capsule controls remain distinct.
 
 Retrace (B/Down) follows actual visits. Answer start (O) goes to this graph's
-entry thought. A separately named source return goes to the exact question
-that produced a collaborator's answer. Returning to an earlier trail destination
-trims the retrace stack instead of creating an origin/back loop. Recent trail
-buttons, visited destination text, and visited map rings support recognition.
+entry thought. Returning to an earlier trail destination trims the retrace stack
+instead of creating an origin/back loop. Visited destination text and visited
+map rings support recognition. The Retrace,
+Answer start, Source, and Recent trail button row was removed after lived-use
+feedback that it cluttered the chamber without helping orientation. Navigation
+failures still show a visible status message.
 This is bounded tab-local navigation memory (80 trail entries, 200 visited
-thoughts, eight visible recent destinations), not a canonical research artifact.
+thoughts), not a canonical research artifact.
 Refresh recovers the trail when resuming the same exact stand; storage failure
 does not prevent navigation. Loading is guarded against duplicate traversal;
 a failed request leaves the previous stand and trail intact with a visible error.
@@ -2094,3 +2097,18 @@ Each PR is independently reviewable and mergeable. Tests must pass without netwo
 - Vault ingest automation (belongs to the obsidian-wiki skill, not this CLI).
 - Real Depth 2 regeneration loop.
 - Real Depth 3 Neuronpedia / circuit-tracer adapter.
+
+### Agent Spark
+
+A named agent may occupy one of five collaborator slots, be the personal guide,
+or hold both roles. The guide appears as a hovering, sparking 3D orb near the
+upper-right shoulder or overhead view, illuminating nearby surfaces with a
+gently pulsing cyan light and casting scene shadows plus a soft floor shadow.
+G/click opens a tethered, lightly trailing 2D circular
+HUD with curved four-sided ring segments and concentric outer category rows. The center holds the agent identity, selected thought, and a spacious composer.
+Private prose discussion appears as separate floating question/reply bubbles
+to the right, tethered to Send and the orb. Category buttons toggle persistent
+highlighting and their outer rows; hovering does not stop the HUD motion. Keyboard focus stays within the
+HUD; discussion alone creates no canonical graph. Reviewed handoffs, soft sound
+with separate mute, and the runtime/persistence boundaries are specified in
+`docs/AGENT_BRIDGE.md`, “Agent Spark — local guide discussion.”

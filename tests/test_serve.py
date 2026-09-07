@@ -1150,7 +1150,7 @@ def test_live_companion_uses_finalized_store_heads_as_optional_doorways(tmp_path
     assert "clearContinuationCircuit();" in js
     assert "updateContinuationCircuit(t)" in js
     assert '<canvas id="c" tabindex="-1"></canvas>' in html
-    assert 'tabindex="0"' not in html
+    assert '<canvas id="c" tabindex="0"' not in html
     assert 'window.addEventListener("pointercancel", stopDragging)' in js
     assert 'window.addEventListener("blur", stopDragging)' in js
     assert "revealWaitingArrivals" in js

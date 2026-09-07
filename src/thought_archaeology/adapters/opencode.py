@@ -153,6 +153,13 @@ def _selected_model(executable: str) -> tuple[str, str | None]:
     if configured is not None:
         if not configured.strip():
             raise OpenCodeAdapterError("TA_OPENCODE_MODEL must not be empty")
+        # Workspace refresh stores describe's display label. Recover the CLI
+        # model and variant before passing that selection back to OpenCode.
+        model, separator, saved_variant = configured.strip().rpartition(" (variant: ")
+        if separator and saved_variant.endswith(")"):
+            configured = model
+            if variant is None:
+                variant = saved_variant[:-1]
         return _model_ref(configured), variant
 
     fixed = _resolved_config(executable).get("model")
@@ -178,8 +185,8 @@ def _validate_envelope(raw: Any) -> dict[str, Any]:
         raise OpenCodeAdapterError("continue expects one JSON object on stdin")
     if raw.get("protocol_version") != HARNESS_PROTOCOL_VERSION:
         raise OpenCodeAdapterError("unsupported Thought Archaeology harness protocol")
-    if raw.get("operation") != "continue":
-        raise OpenCodeAdapterError("adapter input operation must be 'continue'")
+    if raw.get("operation") not in {"continue", "discuss"}:
+        raise OpenCodeAdapterError("adapter input operation must be 'continue' or 'discuss'")
     request = raw.get("request")
     graph = raw.get("graph")
     standing = raw.get("standing")
@@ -195,16 +202,23 @@ def _validate_envelope(raw: Any) -> dict[str, Any]:
 def _prompt(envelope: dict[str, Any], memory_context: str = "") -> str:
     request = envelope["request"]
     optional_prompt = str(request.get("prompt") or "").strip()
+    discussion = envelope.get("operation") == "discuss"
     task = (
+        "Discuss the selected thought with the inhabitant as their guide. Reply in ordinary prose. "
+        "Do not produce a thought-graph, JSON schema, or hidden reasoning. "
+        "Discussion alone does not create a graph or change memory files."
+        if discussion else (
         "Answer the inhabitant's exact continuation prompt from this chamber."
         if optional_prompt
         else "Continue the thought from this terminal chamber with the next useful idea."
+        )
     )
     public_context = {
         "request": {key: value for key, value in request.items() if key != "prompt"},
         "session": envelope.get("session"),
         "graph": envelope["graph"],
         "standing": envelope["standing"],
+        "discussion": envelope.get("discussion", []),
     }
     agent_name = os.environ.get("TA_HARNESS_AGENT_NAME", "").strip()
     identity = (
@@ -235,7 +249,7 @@ def _prompt(envelope: dict[str, Any], memory_context: str = "") -> str:
         + sources
         + "This return call cannot update your memory "
         "files; memory writes remain with your interactive client.\n\n"
-        f"{read_prompt('structured')}\n\n"
+        + ("\n" if discussion else f"{read_prompt('structured')}\n\n")
         + memory_context
         + "PUBLIC THOUGHT ARCHAEOLOGY CONTEXT (JSON):\n"
         + json.dumps(public_context, ensure_ascii=False, indent=2)
@@ -509,8 +523,8 @@ def _emit(data: dict[str, Any]) -> None:
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     try:
-        if len(args) != 1 or args[0] not in {"describe", "continue"}:
-            raise OpenCodeAdapterError("usage: ta-harness-opencode describe|continue")
+        if len(args) != 1 or args[0] not in {"describe", "continue", "discuss"}:
+            raise OpenCodeAdapterError("usage: ta-harness-opencode describe|continue|discuss")
         executable = _opencode_bin()
         version = _version(executable)
         model, variant = _selected_model(executable)
@@ -528,7 +542,7 @@ def main(argv: list[str] | None = None) -> int:
                 {
                     "protocol_version": HARNESS_PROTOCOL_VERSION,
                     "name": "opencode",
-                    "capabilities": ["continue", *(["resumable_session"] if memory else [])],
+                    "capabilities": ["continue", "discuss", *(["resumable_session"] if memory else [])],
                     "cli_version": version,
                     "default_model": _model_label(model, variant),
                     **connected,

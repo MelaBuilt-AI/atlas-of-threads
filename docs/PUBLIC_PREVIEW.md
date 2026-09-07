@@ -25,6 +25,13 @@ These changes do not advance the published `v0.2.0` channel. A future package
 release must include the console host and pass `packaging/smoke_mcp.py` against
 the installed Windows executable and standalone Linux executable.
 
+The development branch also includes Agent Spark private prose discussion and
+independent collaborator/guide roles. OpenCode is the first supported guide
+adapter. Linux source tests and isolated role/restart checks pass; native Windows
+OpenCode return and guide acceptance remain pending. See
+[Agent Spark](AGENT_BRIDGE.md#agent-spark--local-guide-discussion) for the runtime
+and memory boundaries.
+
 - The project is MIT-licensed and owned under `MelaBuilt-AI`.
 - Runtime data, environments, caches, and package metadata are ignored. No live
   Personal Atlas data is tracked.
