@@ -540,7 +540,16 @@
   window.addEventListener("keydown", awaken, { once: true, capture: true });
   renderControl();
 
+  function spark(kind) {
+    if (document.hidden) return;
+    const idle = kind === "idle";
+    noiseBurst({duration: idle ? 0.07 : 0.16, gain: idle ? 0.009 : 0.033, from: 2600, to: 4100, q: 2, pan: 0.45});
+    if (!idle) tone({from: kind === "close" ? 1250 : 730, to: kind === "close" ? 520 : 1480,
+      duration: kind === "click" ? 0.065 : 0.24, gain: 0.026, pan: 0.4});
+  }
+
   window.TASound = {
+    spark,
     awaken,
     toggleMuted,
     cycle,

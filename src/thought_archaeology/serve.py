@@ -13,6 +13,7 @@ from pathlib import Path
 from types import MappingProxyType
 from urllib.parse import parse_qs, urlparse
 
+from thought_archaeology.agent_spark import (guide_payload, assign_roles, discussion_payload, begin_discussion, clear_discussion)
 from thought_archaeology.adapters.provider_command import (
     command_argv,
     command_location,
@@ -379,6 +380,12 @@ def workspace_payload(store: Store) -> dict:
             "selected": spec.name == default,
             "model": spec.model,
             "model_refreshed_at": spec.model_refreshed_at,
+            "collaborator_id": spec.collaborator_id,
+            "agent_name": spec.agent_name,
+            "memory_mode": spec.memory_mode,
+            "memory_ready": bool(
+                spec.session_state and Path(spec.session_state).is_file()
+            ),
         }
         for spec in registry.specs()
     ]
@@ -441,7 +448,7 @@ def workspace_payload(store: Store) -> dict:
         )
     completions = (
         {
-            completion.graph_id: completion.harness
+            completion.graph_id: completion
             for completion in store.iter_continuation_completions()
         }
         if store.exists()
@@ -463,7 +470,8 @@ def workspace_payload(store: Store) -> dict:
             if graph is not None:
                 node = entry_node(graph)
                 model = graph.model.to_dict()
-                harness = completions.get(graph.id)
+                completion = completions.get(graph.id)
+                harness = completion.harness if completion else None
                 turn = next(
                     (
                         item
@@ -473,7 +481,10 @@ def workspace_payload(store: Store) -> dict:
                     None,
                 )
                 if harness:
-                    author_label = f"{harness.capitalize()} · {graph.model.name}"
+                    author_label = (
+                        f"{completion.agent_name or harness.capitalize()} · "
+                        f"{graph.model.name}"
+                    )
                 elif turn and turn.role == "human_edit":
                     author_label = "Human edit"
                 elif graph.metadata.get("workspace_origin"):
@@ -506,7 +517,9 @@ def workspace_payload(store: Store) -> dict:
     return {
         "platform": "windows" if sys.platform == "win32" else sys.platform,
         "active_harness": default,
-        "harnesses": harnesses,
+        "harnesses": [item for item in harnesses if item["name"] in registry.collaborator_names()],
+        "agent_candidates": harnesses,
+        "guide": guide_payload(registry),
         "available_harnesses": available_harnesses,
         "service": {
             key: service.get(key)
@@ -635,7 +648,7 @@ def create_parallel_continuations(
         raise ServeError("select at least two unique collaborators")
     registry = HarnessRegistry()
     specs = registry.specs()
-    registered = {spec.name for spec in specs}
+    registered = set(HarnessRegistry().collaborator_names())
     if any(name not in registered for name in harnesses):
         raise ServeError("every selected collaborator must be registered")
     default = registry.default_name()
@@ -745,17 +758,38 @@ def thread_payload(
         spawn = entry_node(graph)
         turn = turns.get(graph.turn_id)
         continuation = continuations.get(graph.id)
+        inbound = graph.metadata.get("agent_bridge")
+        prompt = ""
+        source_graph_id = None
+        source_node_id = None
         if continuation:
             completion, request = continuation
             kind = "continuation"
             label = " · ".join(
                 part
                 for part in (
-                    completion.harness.capitalize(),
+                    completion.agent_name or completion.harness.capitalize(),
                     graph.model.name if graph.model.name != "unknown" else "",
                 )
                 if part
             )
+            prompt = request.prompt
+            source_graph_id = request.graph_id
+            source_node_id = request.node_id
+        elif isinstance(inbound, dict) and graph.parent_graph_id:
+            kind = "continuation"
+            label = " · ".join(
+                part
+                for part in (
+                    str(inbound.get("client_family", "")).capitalize(),
+                    graph.model.name if graph.model.name != "unknown" else "",
+                )
+                if part
+            ) or "inbound agent path"
+            request = None
+            source_graph_id = inbound.get("source_graph_id")
+            source_node_id = inbound.get("source_node_id")
+            prompt = str(inbound.get("question", ""))
         elif turn and turn.role == "human_edit":
             vetoed = any(
                 node.source == "human" and node.status == "vetoed"
@@ -767,6 +801,12 @@ def thread_payload(
         elif graph.parent_graph_id:
             kind = "fork" if graph.fork else "revision"
             label = "regenerated fork" if graph.fork else "graph revision"
+            request = None
+        elif isinstance(inbound, dict):
+            kind = "origin"
+            label = str(inbound.get("seed_origin", "agent bridge seed")).replace(
+                "_", " "
+            )
             request = None
         elif graph.metadata.get("workspace_origin"):
             kind = "origin"
@@ -793,9 +833,9 @@ def thread_payload(
                 "model": graph.model.to_dict(),
                 "turn_role": turn.role if turn else None,
                 "reason": graph.fork.reason if graph.fork else "",
-                "prompt": request.prompt if request else "",
-                "source_graph_id": request.graph_id if request else None,
-                "source_node_id": request.node_id if request else None,
+                "prompt": prompt,
+                "source_graph_id": source_graph_id,
+                "source_node_id": source_node_id,
             }
         )
         for child in children.get(graph.id, []):
@@ -834,11 +874,34 @@ def thread_payload(
             store,
             comparison_request_id=group["representative_request_id"],
         )
+    selected_graph = graphs.get(graph_id or session.head_graph_id)
+    if graph_id and selected_graph is None:
+        raise StoreError("graph is not part of this Threadwalk")
+    chamber_map = None
+    if selected_graph is not None:
+        selected_entry = entry_node(selected_graph)
+        chamber_map = {
+            "graph_id": selected_graph.id,
+            "entry_node_id": selected_entry.id if selected_entry else None,
+            "nodes": [
+                {
+                    **_node_brief(node),
+                    "ordinal": index,
+                    "evidence": evidence_by_stand.get((selected_graph.id, node.id), []),
+                }
+                for index, node in enumerate(selected_graph.nodes, 1)
+            ],
+            "edges": [
+                {"source_id": edge.source_id, "target_id": edge.target_id, "kind": edge.kind}
+                for edge in selected_graph.edges
+            ],
+        }
     return {
         "session_id": session.id,
         "title": session.title,
         "head_graph_id": session.head_graph_id,
         "latest_ai_graph_id": latest_ai,
+        "chamber_map": chamber_map,
         "entries": entries,
         "parallel_groups": parallel_groups,
         "standing_field_notes": (
@@ -892,6 +955,9 @@ class InhabitHandler(BaseHTTPRequestHandler):
                 return
             if path == "/api/sessions":
                 self._json(200, bootstrap_payload(self.store))
+                return
+            if path == "/api/guide":
+                self._json(200, discussion_payload(self.store))
                 return
             if path == "/api/workspace":
                 self._json(200, workspace_payload(self.store))
@@ -1108,6 +1174,25 @@ class InhabitHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         try:
+            if path in {"/api/agent/roles", "/api/guide/discuss", "/api/guide/clear"}:
+                self._require_local_json_request()
+                body = self._read_json()
+                if path == "/api/agent/roles":
+                    previous = HarnessRegistry().default_name()
+                    assign_roles(self.store, body)
+                    registry = HarnessRegistry()
+                    if registry.default_name() != previous:
+                        if registry.default_name():
+                            ensure_application_worker(self.store, registry.get())
+                        else:
+                            stop_application_worker()
+                    self._json(200, {"workspace": workspace_payload(self.store)})
+                elif path == "/api/guide/discuss":
+                    self._json(202, begin_discussion(self.store, body))
+                else:
+                    clear_discussion(self.store)
+                    self._json(200, discussion_payload(self.store))
+                return
             if path == "/api/fork":
                 self._edit_fork()
                 return
@@ -1569,6 +1654,8 @@ class InhabitHandler(BaseHTTPRequestHandler):
             return
         registry = HarnessRegistry()
         spec = registry.get(name)
+        if name not in registry.collaborator_names():
+            raise HarnessError("Assign this agent a collaborator slot first.")
         previous = registry.default_name()
         registry.use(name)
         unit_path = resolve_harness_service_path()

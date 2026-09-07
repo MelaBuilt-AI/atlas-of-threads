@@ -12,6 +12,76 @@
 
 ---
 
+## MCP onboarding and packaging amendment — 2026-09-06 (Codex)
+
+Manual inbound setup now covers the five existing collaborator clients plus
+OpenClaw and Hermes. `mcp config` prints a client-specific fragment with absolute
+paths and explicit collaborator scope; it never edits client settings.
+`mcp check` performs read-only stdio startup, discovery, status, and shutdown.
+Windows packages include a separate console MCP executable; Linux reuses the
+application executable. Contribution discovery exposes the canonical schema's
+permitted inbound node/edge fields and a valid example with pinned source IDs.
+Canonical validation, immutable records, and inbound/outbound separation remain.
+OpenClaw/Hermes are inbound clients, not new outbound adapters. See
+`docs/AGENT_ONBOARDING.md` and `docs/MCP_COMPATIBILITY.md`; local package testing
+does not publish a release or complete the in-app companion.
+
+## Local personal-agent guide amendment — 2026-09-05 (Codex / Astra)
+
+The separate Agent Bridge development branch now adds read-only local thought
+search and compact cited context for guidance in an agent's existing client.
+An explicit inbound question can pin any existing chamber for the same
+duplicate-safe attributed contribution flow. Discovery and discussion do not
+create graphs, queue a model call, move a browser, publish, or read an external
+brain. The six-read-tool contract and separate contribution action are in
+`docs/AGENT_BRIDGE.md`. Search is lexical rather than evidence or semantic
+similarity. The in-app prose companion is now implemented as Agent Spark below.
+Native Windows acceptance of the OpenCode return route remains pending.
+
+## Navigation clarity amendment — 2026-09-05 (Codex / Astra)
+
+This amendment supersedes older descriptions below of Up as an unconditional
+north shortcut, click-to-traverse, and the generation-only Atlas Map.
+
+The chamber remains a local, recentered 3D view. The persistent top-left
+location/question strip was removed after user feedback that it obstructed
+the view. Attribution remains on the standing thought; the map provides
+position and Threadwalk structure.
+The standing thought stays visible while a separate destination card previews
+the next move. Left/right or a spatial click selects; Enter/Up or the explicit
+destination button enters that selection. Without a selection, both keys use
+the first forward thought. At an endpoint they do not choose a side road for you.
+Layer-specific Field Note and Knowledge Capsule controls remain distinct.
+
+Retrace (B/Down) follows actual visits. Answer start (O) goes to this graph's
+entry thought. Returning to an earlier trail destination trims the retrace stack
+instead of creating an origin/back loop. Visited destination text and visited
+map rings support recognition. The Retrace,
+Answer start, Source, and Recent trail button row was removed after lived-use
+feedback that it cluttered the chamber without helping orientation. Navigation
+failures still show a visible status message.
+This is bounded tab-local navigation memory (80 trail entries, 200 visited
+thoughts), not a canonical research artifact.
+Refresh recovers the trail when resuming the same exact stand; storage failure
+does not prevent navigation. Loading is guarded against duplicate traversal;
+a failed request leaves the previous stand and trail intact with a visible error.
+
+A opens the thoughts of the current answer, including premises, rejected roads,
+and uncertainties. All answers switches to the whole-Threadwalk generation
+map; selecting an answer and choosing Thoughts in this answer previews its
+internal map without moving the inhabitant. Every destination has a numbered
+relic and full-text keyboard/touch list. Selection and visiting are separate.
+Current and visited markers use graph plus node identity; recorded relationship
+lines are not inferred causal evidence. Large maps retain pan/zoom, and the
+scene gets its own viewport so it does not disappear behind the map controls.
+T remains the answer-level compass; choosing the current answer preserves the
+exact current thought instead of resetting to its entry node.
+
+Python provides `position` in the standing payload and `chamber_map` in the
+thread payload, scoped to the requested graph in that session. No graph-store
+format, provider action, hidden reasoning, or publication behavior changes.
+This source change is not automatically a deployed-site or installer update.
+
 ## Living terminology amendment — 2026-08-28
 
 The user adopted **judgment call** as the canonical term because it states the concept directly: a consequential choice not forced by the premises. New graphs use `judgment_call`; the shaping edge is `shapes`; fingerprints expose `model_judgments`. Readers and loaders still accept the original `taste_call`, `taste_of`, and `model_taste` spellings so append-only artifacts remain readable.
@@ -2027,3 +2097,18 @@ Each PR is independently reviewable and mergeable. Tests must pass without netwo
 - Vault ingest automation (belongs to the obsidian-wiki skill, not this CLI).
 - Real Depth 2 regeneration loop.
 - Real Depth 3 Neuronpedia / circuit-tracer adapter.
+
+### Agent Spark
+
+A named agent may occupy one of five collaborator slots, be the personal guide,
+or hold both roles. The guide appears as a hovering, sparking 3D orb near the
+upper-right shoulder or overhead view, illuminating nearby surfaces with a
+gently pulsing cyan light and casting scene shadows plus a soft floor shadow.
+G/click opens a tethered, lightly trailing 2D circular
+HUD with curved four-sided ring segments and concentric outer category rows. The center holds the agent identity, selected thought, and a spacious composer.
+Private prose discussion appears as separate floating question/reply bubbles
+to the right, tethered to Send and the orb. Category buttons toggle persistent
+highlighting and their outer rows; hovering does not stop the HUD motion. Keyboard focus stays within the
+HUD; discussion alone creates no canonical graph. Reviewed handoffs, soft sound
+with separate mute, and the runtime/persistence boundaries are specified in
+`docs/AGENT_BRIDGE.md`, “Agent Spark — local guide discussion.”

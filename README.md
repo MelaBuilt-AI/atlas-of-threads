@@ -126,13 +126,20 @@ From a chamber:
 | Cycle among paths | `←` / `→` or `[` / `]` |
 | Enter the selected path | `Enter` or `↑` |
 | Retrace | `↓` or `B` |
-| Return to graph origin | `O` |
+| Return to this answer's start | `O` |
 | Continue this ending | `Q` or **Ask from here…** |
 | Request parallel paths | `P` |
 | Open Thread Compass | `T` |
 | Open Atlas Map | `A` |
 | Open Workspace | `M` |
 | Open legend and all controls | `L` |
+
+The standing thought and selected destination have separate cards. Click a path
+to preview it before entering. The top wayfinder names your retrace destination
+and offers a recent trail; collaborator answers also name their source thought.
+The Atlas Map opens exact thoughts and can switch to **All answers**. Select an
+answer, then **Thoughts in this answer** to inspect its internal paths without
+losing your place. Current and previously visited locations are marked.
 
 The [field guide](https://app.atlasofthreads.com) covers every control, visual
 signal, lifecycle, and troubleshooting path.
@@ -161,6 +168,33 @@ rewrites stored attribution.
 
 For the protocol and provider-specific boundaries, read
 [Harness adapters](docs/HARNESS_ADAPTERS.md).
+
+### Agent Bridge development preview
+
+The source preview runs a local MCP server over stdio. With no collaborator ID,
+it remains the byte-preserving Slice A reader:
+
+```bash
+ta --store /path/to/personal-atlas mcp serve
+```
+
+Slice B can explicitly register one inbound collaborator and grant only the
+local scopes needed to create a private Threadwalk and append one attributed
+agent path. Slice C returns compact memory candidates and accepts only an
+opaque client-owned acknowledgement. The same stable collaborator can now be
+bound to a resumable Codex or OpenCode harness with approved read-only memory files,
+so questions asked inside Atlas can reach that named agent rather than a fresh
+stateless model call. None of these actions publishes or exposes hidden
+reasoning. The released `v0.2.0` installers predate these source changes. Read
+the exact setup, tools, idempotency, persistence, and privacy boundaries in
+[Agent Bridge](docs/AGENT_BRIDGE.md).
+
+[Connect your agent](docs/AGENT_ONBOARDING.md) covers Windows and Linux setup
+for Codex, Claude Code, Grok, OpenCode, Prime Agent, OpenClaw, and Hermes.
+`ta mcp config --client CLIENT` prints a client-specific configuration fragment;
+`ta mcp check` verifies the local stdio connection without creating a graph.
+Windows development installers include `AtlasOfThreadsMCP.exe` for these commands.
+See [compatibility evidence](docs/MCP_COMPATIBILITY.md) for tested versions and limits.
 
 ## Local-first ownership
 

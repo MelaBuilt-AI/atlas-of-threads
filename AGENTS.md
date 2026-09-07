@@ -26,6 +26,7 @@ release:
 pytest -q
 node --check viz/dist/space.js
 node --check viz/dist/sound.js
+node --check viz/dist/spark.js
 ```
 
 Packaging and release changes must also exercise the standalone application and

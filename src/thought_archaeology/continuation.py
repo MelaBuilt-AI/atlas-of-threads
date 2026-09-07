@@ -178,6 +178,9 @@ class ContinuationCompletion:
     graph_id: str
     created_at: str
     harness: str
+    collaborator_id: str | None = None
+    agent_name: str | None = None
+    memory_mode: str | None = None
 
     @classmethod
     def from_dict(cls, data: dict) -> Self:
@@ -188,6 +191,9 @@ class ContinuationCompletion:
             graph_id=data["graph_id"],
             created_at=data["created_at"],
             harness=data["harness"],
+            collaborator_id=data.get("collaborator_id"),
+            agent_name=data.get("agent_name"),
+            memory_mode=data.get("memory_mode"),
         )
 
     def to_dict(self) -> dict:
@@ -198,6 +204,17 @@ class ContinuationCompletion:
             "graph_id": self.graph_id,
             "created_at": self.created_at,
             "harness": self.harness,
+            **(
+                {"collaborator_id": self.collaborator_id}
+                if self.collaborator_id is not None
+                else {}
+            ),
+            **({"agent_name": self.agent_name} if self.agent_name is not None else {}),
+            **(
+                {"memory_mode": self.memory_mode}
+                if self.memory_mode is not None
+                else {}
+            ),
         }
 
 
@@ -329,6 +346,10 @@ def continuation_completion(
     request_id: str,
     graph_id: str,
     harness: str,
+    *,
+    collaborator_id: str | None = None,
+    agent_name: str | None = None,
+    memory_mode: str | None = None,
 ) -> ContinuationCompletion:
     return ContinuationCompletion(
         schema_version=SCHEMA_VERSION,
@@ -337,6 +358,9 @@ def continuation_completion(
         graph_id=graph_id,
         created_at=now_iso(),
         harness=harness.strip(),
+        collaborator_id=collaborator_id,
+        agent_name=agent_name,
+        memory_mode=memory_mode,
     )
 
 

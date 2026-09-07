@@ -1,0 +1,115 @@
+# MCP compatibility evidence
+
+Recorded September 6, 2026. These are development-build checks, not a new public
+release. Follow [Agent onboarding](AGENT_ONBOARDING.md) for generated configuration.
+
+## What has been exercised
+
+| Client | Version | Evidence | Limits |
+|---|---|---|---|
+| Codex | CLI 0.153.0 | Previously accepted native Windows source reads, attributed contributions, client-owned memory, restart and exact replays | New 0.153.4 Linux app-server probe cannot start in the development session's read-only Codex state directory; no new client acceptance claimed from that attempt |
+| Claude Code | 2.1.259 | Linux client `mcp get` reports connected to the frozen Atlas executable using an isolated user configuration | This check establishes startup/discovery, not an agent memory workflow |
+| Grok Build | 1.0.13 | Linux `mcp doctor`: executable found, process started, protocol `2025-11-25`, six tools, healthy | No new model-generated contribution or memory acceptance |
+| OpenCode | 1.18.29 | Linux inbound contribution, native Markdown save/readback/acknowledgement and fresh-session recall; connected return adapter answers from approved memory and recalls a conversation-only marker across Threadwalks using its saved runtime session | Return calls use a dedicated conversation and read-only memory projection. Native Windows and v2 return calls are not live-accepted |
+| Prime Agent | 0.9.1 | CLI loads the generated user configuration. Its installed kernel MCP transport discovers tools, reads status, contributes, reads back, acknowledges a synthetic client-file memory candidate, replays, and reloads/reconnects | Probe supplies the generated config through the kernel's host-config callback; no model turn or native Prime memory-store claim |
+| OpenClaw | 2026.9.2 | Isolated Linux CLI `mcp probe` discovers six Atlas tools and resources without diagnostics | Agent runtime tool visibility/profile and memory behavior require a real agent session |
+| Hermes Agent | 0.21.0, source `5106e939e0b32d3cd70a6acf33943fd2d9ab58d7` | Its actual MCP transport with SDK 2.0.0 loads generated YAML, discovers ten scoped tools, reads status, contributes, reads back, acknowledges a synthetic client-file memory candidate and replays | Tested through its transport class, not a model turn or a full Hermes persona/native-memory session |
+
+Transport checks used synthetic or absent stores and separate client configuration
+directories. Client health commands and direct client transports make no model
+call. A synthetic client-file write proves the receipt protocol; it does not
+prove any client's native memory feature or the identity of an existing persona.
+
+The subsequent OpenCode lived-use test used the existing client's authentication
+and selected model, a fork of its saved conversation, a runtime MCP configuration
+overlay, and a separate synthetic Atlas store. The agent itself read its own
+Markdown second brain, created one private Threadwalk and one three-node path,
+saved the exact compact completion candidate in a new memory note, read it back,
+and acknowledged it. A new session with no conversation continuation recovered
+the exact IDs from that note before calling the Atlas read tools. Exact
+begin/path/ack arguments saved by the agent also replayed through fresh MCP
+processes without changing store file bytes, modification times, or counts
+(one Threadwalk, two graphs). The original conversation and project bookmark
+were preserved; the new memory note and its index/log entries were intentional
+native-memory changes. Global client configuration was not edited. This proves
+the observed inbound file-memory loop, not automatic future recall.
+
+The subsequent connected OpenCode return-adapter test used the same collaborator
+identity and selected provider/model/variant. It answered from seven approved
+memory files, then recovered a conversation-only marker in a separate Atlas
+Threadwalk after an adapter-process restart. The marker was absent from the
+second request's envelope and approved files. The exact saved OpenCode session
+was reused, no runtime tools were called, and all source memory paths/hashes
+remained unchanged by the return calls. The packaged desktop exposes the
+configured external adapter as selected and memory-ready; its server starts
+and quits cleanly. This uses a source-backed external adapter, not a new bundled
+release.
+
+Live testing found that OpenCode needs its original session directory on resume,
+so connected calls retain a private workspace beside the state file. Serving
+model verification uses bounded CLI database metadata instead of a whole-session
+export, which can truncate on stdout as the conversation grows. The prompt
+explicitly permits prior public conversation turns and gives refreshed approved
+files precedence over stale recollections. Failed development attempts remain
+in the private test ledger; they are not successful acceptance evidence.
+
+## Packaged host verification
+
+The standalone Linux executable and native Windows console executable are
+exercised by `packaging/smoke_mcp.py`, which imports no Atlas source. It drives
+only the executable passed to it and removes its temporary synthetic store:
+
+- read-only initialization, status, tools, and shutdown without creating a store;
+- collaborator registration, including a Unicode display name;
+- `2025-11-25`, `2025-06-18`, `2025-03-26`, and `2024-11-05` negotiation;
+- exact Unicode questions, node text, and read-back with `PYTHONUTF8=0` and
+  `PYTHONIOENCODING=cp1252:strict`, without `-X utf8`;
+- one private root and attributed child, client-file memory acknowledgement,
+  and exact begin/append/ack retries from fresh processes;
+- unchanged file bytes and modification times after read/replay checks,
+  unchanged counts (one Threadwalk, two graphs), and no outbound harness/publication;
+- process exit on closed input, including the frozen host's child processes.
+
+Windows validation uses native Python 3.11.9 and real Windows executables through
+WSL SSH, not Linux Python emulating Windows. The Inno Setup installer installs
+both executables; the installed console host is exercised with the same smoke,
+and its hash is compared with the built host. GUI startup is checked separately.
+The package workflow repeats console and installed-host checks on Windows and
+the standalone check on Linux. Local Linux builds target the local distribution;
+the existing Ubuntu 22.04 workflow remains the portable release-build route.
+
+MCP is served over local stdio using the listed handshake-era versions. Newer
+clients must permit that negotiation; this build does not claim the modern-only
+`2026-07-28` protocol, HTTP transport, or remote/cloud access. Hermes SDK 2.0.0
+successfully negotiates the existing handshake with this server.
+
+## Capability boundaries
+
+| Capability | Scope of support |
+|---|---|
+| Inbound local MCP | Seven client recipes; platform/client evidence above |
+| Outbound Atlas calls | Existing Claude, Codex, Grok, OpenCode, Prime Agent adapters; not inferred from inbound MCP discovery |
+| Runtime resume | Existing adapter/client-specific behavior; stable Atlas IDs survive MCP reconnect |
+| Approved memory projection | Tested Codex and Linux OpenCode return routes with dedicated saved sessions and explicitly approved files; not automatic for the other clients |
+| Client-owned memory acknowledgement | Available with explicit scope; tested synthetic protocol, earlier real Codex loop, and OpenCode native Markdown save/readback plus fresh-session recall |
+| OpenClaw/Hermes personas | No credential extraction, persona migration, or automatic connection to an existing named runtime |
+| In-app companion | Agent Spark private prose discussion; OpenCode is the first supported guide adapter |
+
+Linux OpenCode 1.18.29 live role acceptance (2026-09-07) exercised a GPT-5.6
+Terra collaborator and a separate GPT-6 Astra guide, both with the `high`
+variant. The collaborator created a synthetic path; the guide inspected its
+exact thought, identified the other model's authorship, and supplied its own
+critique without changing canonical Atlas files. After an application restart,
+both roles, model settings, distinct runtime sessions and guide history persisted.
+In a new Threadwalk, the collaborator recalled its earlier conversation marker
+without receiving it in the new inquiry or approved memory file, and reported
+the separate guide-only marker unavailable. The guide recovered its own marker
+from private discussion context. Native guide-memory files remained unchanged.
+This verifies this Linux arrangement; native Windows and OpenCode v2 return/guide
+acceptance remain separate. Guide recall here includes the supplied persisted
+discussion history, so it is not evidence of runtime-only recall.
+
+Before claiming a new client/platform's complete lived-use acceptance, use its
+actual agent session to read an existing thought, append an explicitly requested
+path, reconnect and retrieve exact IDs. Test native memory separately if offered.
+The published `v0.2.0` installers still lack this development bridge.

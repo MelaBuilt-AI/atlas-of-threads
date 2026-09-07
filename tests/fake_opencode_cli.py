@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 
 
-SESSION_ID = "ses_ta_opencode_test"
+SESSION_ID = os.environ.get("TA_TEST_OPENCODE_SESSION_ID", "ses_ta_opencode_test")
 
 
 def _capture(update: dict[str, object]) -> None:
@@ -35,12 +35,22 @@ def main() -> int:
         return 0
     if args == ["debug", "config", "--pure"]:
         config: dict[str, object] = {"plugin": []}
+        if os.environ.get("TA_TEST_OPENCODE_MCP"):
+            config["mcp"] = {"atlas-of-threads": {"type": "local", "command": ["atlas"], "enabled": True}}
         model = os.environ.get("TA_TEST_OPENCODE_CONFIG_MODEL")
         if model:
             config["model"] = model
         print(json.dumps(config))
         return 0
     if len(args) >= 4 and args[:3] == ["db", "--format", "json"]:
+        if "from message" in args[3]:
+            provider, model, variant = _selection()
+            print(json.dumps([{"data": json.dumps({
+                "role": "assistant", "providerID": provider,
+                "modelID": model, "variant": variant,
+            })}]))
+            _capture({"metadata_query": args[3]})
+            return 0
         saved = os.environ.get("TA_TEST_OPENCODE_LATEST_MODEL")
         print(json.dumps([] if not saved else [{"model": saved}]))
         return 0

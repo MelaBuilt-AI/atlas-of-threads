@@ -8,8 +8,10 @@ import subprocess
 import sys
 import tempfile
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Iterator, Self
 
 from thought_archaeology.compile_common import CompileError
@@ -25,11 +27,12 @@ from thought_archaeology.ids import new_ulid, now_iso
 from thought_archaeology.inhabit import inhabit
 from thought_archaeology.models import ModelInfo, SCHEMA_VERSION, ThoughtGraph, Turn
 from thought_archaeology.schema import ValidationError, validate_graph
-from thought_archaeology.store import Store
+from thought_archaeology.store import Store, _try_lock, _unlock
 
 HARNESS_CONFIG_VERSION = 1
 HARNESS_PROTOCOL_VERSION = "1"
 HARNESS_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+MAX_MEMORY_FILES = 8
 
 
 class HarnessError(Exception):
@@ -61,6 +64,11 @@ class HarnessSpec:
     model: str | None = None
     model_refreshed_at: str | None = None
     cli_version: str | None = None
+    collaborator_id: str | None = None
+    agent_name: str | None = None
+    memory_root: str | None = None
+    session_state: str | None = None
+    memory_files: tuple[str, ...] = ()
 
     @classmethod
     def from_dict(cls, name: str, data: dict[str, Any]) -> Self:
@@ -74,29 +82,68 @@ class HarnessSpec:
             raise HarnessError(f"harness {name!r} has invalid registered_at")
         optional = {
             key: data.get(key)
-            for key in ("model", "model_refreshed_at", "cli_version")
+            for key in (
+                "model",
+                "model_refreshed_at",
+                "cli_version",
+                "collaborator_id",
+                "agent_name",
+                "memory_root",
+                "session_state",
+            )
         }
         if any(
             value is not None and not isinstance(value, str)
             for value in optional.values()
         ):
-            raise HarnessError(f"harness {name!r} has invalid model metadata")
+            raise HarnessError(f"harness {name!r} has invalid metadata")
+        memory_files = data.get("memory_files", [])
+        if (
+            not isinstance(memory_files, list)
+            or len(memory_files) > MAX_MEMORY_FILES
+            or not all(isinstance(item, str) and item for item in memory_files)
+            or len(set(memory_files)) != len(memory_files)
+        ):
+            raise HarnessError(f"harness {name!r} has invalid memory files")
+        agent_values = tuple(
+            optional[key]
+            for key in ("collaborator_id", "agent_name", "memory_root", "session_state")
+        )
+        if any(agent_values) and not all(agent_values):
+            raise HarnessError(
+                f"harness {name!r} has an incomplete connected-agent configuration"
+            )
+        if memory_files and optional["memory_root"] is None:
+            raise HarnessError(f"harness {name!r} has memory files without a root")
         return cls(
             name=name,
             argv=tuple(argv),
             registered_at=registered_at,
+            memory_files=tuple(memory_files),
             **optional,
         )
 
     def to_dict(self) -> dict[str, Any]:
         data = {"argv": list(self.argv), "registered_at": self.registered_at}
-        if self.model is not None:
-            data["model"] = self.model
-        if self.model_refreshed_at is not None:
-            data["model_refreshed_at"] = self.model_refreshed_at
-        if self.cli_version is not None:
-            data["cli_version"] = self.cli_version
+        for key in (
+            "model",
+            "model_refreshed_at",
+            "cli_version",
+            "collaborator_id",
+            "agent_name",
+            "memory_root",
+            "session_state",
+        ):
+            value = getattr(self, key)
+            if value is not None:
+                data[key] = value
+        if self.memory_files:
+            data["memory_files"] = list(self.memory_files)
         return data
+
+    @property
+    def memory_mode(self) -> str | None:
+        return "resumable_session" if self.session_state is not None else None
 
 
 class HarnessRegistry:
@@ -158,6 +205,11 @@ class HarnessRegistry:
         *,
         args: tuple[str, ...] = (),
         make_default: bool = False,
+        collaborator_id: str | None = None,
+        agent_name: str | None = None,
+        memory_root: Path | str | None = None,
+        memory_files: tuple[str, ...] = (),
+        model: str | None = None,
     ) -> HarnessSpec:
         if not HARNESS_NAME.fullmatch(name):
             raise HarnessError(
@@ -171,6 +223,52 @@ class HarnessRegistry:
                 executable = str(candidate.resolve())
         if executable is None:
             raise HarnessError(f"adapter executable not found or not executable: {adapter}")
+        connected_values = (collaborator_id, agent_name, memory_root)
+        if any(value is not None for value in connected_values) and not all(
+            value is not None for value in connected_values
+        ):
+            raise HarnessError(
+                "connected-agent registration requires collaborator ID, name, and memory root"
+            )
+        resolved_memory_root = None
+        resolved_memory_files: tuple[str, ...] = ()
+        session_state = None
+        if memory_files and memory_root is None:
+            raise HarnessError("memory files require a connected-agent memory root")
+        if memory_root is not None and not memory_files:
+            raise HarnessError(
+                "connected-agent registration requires at least one approved memory file"
+            )
+        if memory_root is not None:
+            root = Path(memory_root).expanduser().resolve()
+            if not root.is_dir():
+                raise HarnessError(f"memory root is not a directory: {root}")
+            resolved_memory_root = str(root)
+            if len(memory_files) > MAX_MEMORY_FILES:
+                raise HarnessError(
+                    f"at most {MAX_MEMORY_FILES} memory files may be approved"
+                )
+            normalized: list[str] = []
+            for value in memory_files:
+                relative = Path(value)
+                if not value or relative.is_absolute() or ".." in relative.parts:
+                    raise HarnessError(
+                        f"memory file must be a relative path inside the memory root: {value!r}"
+                    )
+                target = (root / relative).resolve()
+                if root != target and root not in target.parents:
+                    raise HarnessError(
+                        f"memory file leaves the approved memory root: {value!r}"
+                    )
+                if not target.is_file():
+                    raise HarnessError(f"memory file is unavailable: {value!r}")
+                normalized.append(target.relative_to(root).as_posix())
+            if len(set(normalized)) != len(normalized):
+                raise HarnessError("memory files must be unique")
+            resolved_memory_files = tuple(normalized)
+            session_state = str(
+                (self.path.parent / "agent-sessions" / f"{name}.json").resolve()
+            )
         spec = HarnessSpec(
             name=name,
             # Keep an absolute executable path without dereferencing symlinks.
@@ -178,14 +276,26 @@ class HarnessRegistry:
             # that environment when the adapter is launched.
             argv=(str(Path(executable).absolute()), *args),
             registered_at=now_iso(),
+            model=model.strip() if model and model.strip() else None,
+            collaborator_id=collaborator_id,
+            agent_name=agent_name,
+            memory_root=resolved_memory_root,
+            session_state=session_state,
+            memory_files=resolved_memory_files,
         )
         raw = self._load()
         harnesses = dict(raw["harnesses"])
         if name in harnesses:
             raise HarnessError(f"harness {name!r} is already registered")
         harnesses[name] = spec.to_dict()
+        raw.setdefault("collaborators", list(self.collaborator_names()))
         raw["harnesses"] = harnesses
-        if make_default or raw.get("default") is None:
+        if "collaborators" in raw:
+            if len(raw["collaborators"]) < 5:
+                raw["collaborators"].append(name)
+            elif make_default:
+                raise HarnessError("All five collaborator slots are occupied.")
+        if (make_default or raw.get("default") is None) and name in raw.get("collaborators", harnesses):
             raw["default"] = name
         self._save(raw)
         return spec
@@ -197,17 +307,58 @@ class HarnessRegistry:
             raise HarnessError(f"harness {name!r} is not registered")
         del harnesses[name]
         raw["harnesses"] = harnesses
+        if "collaborators" in raw:
+            raw["collaborators"] = [item for item in raw["collaborators"] if item != name]
+        if raw.get("guide") == name:
+            raw["guide"] = None
         if raw.get("default") == name:
-            raw["default"] = sorted(harnesses)[0] if harnesses else None
+            remaining = raw.get("collaborators", sorted(harnesses))
+            raw["default"] = remaining[0] if remaining else None
         self._save(raw)
 
     def use(self, name: str) -> HarnessSpec:
         raw = self._load()
         if name not in raw["harnesses"]:
             raise HarnessError(f"harness {name!r} is not registered")
+        if "collaborators" in raw and name not in raw["collaborators"]:
+            raise HarnessError("Assign this agent a collaborator slot first.")
         raw["default"] = name
         self._save(raw)
         return HarnessSpec.from_dict(name, raw["harnesses"][name])
+
+    def collaborator_names(self) -> tuple[str, ...]:
+        raw = self._load()
+        names = raw.get("collaborators")
+        if names is None:
+            names = list(raw["harnesses"])
+            if raw.get("default") in names:
+                names.remove(raw["default"])
+                names.insert(0, raw["default"])
+        return tuple(name for name in names if name in raw["harnesses"])[:5]
+
+    def guide_name(self) -> str | None:
+        raw = self._load()
+        name = raw.get("guide")
+        return name if name in raw["harnesses"] else None
+
+    def set_agent_roles(self, name: str, *, collaborator: bool, guide: bool) -> None:
+        self.get(name)
+        raw = self._load()
+        names = list(self.collaborator_names())
+        if collaborator and name not in names:
+            if len(names) >= 5:
+                raise HarnessError("All five collaborator slots are occupied. Remove one assignment first.")
+            names.append(name)
+        if not collaborator and name in names:
+            names.remove(name)
+        raw["collaborators"] = names
+        if raw.get("default") not in names:
+            raw["default"] = names[0] if names else None
+        if guide:
+            raw["guide"] = name
+        elif raw.get("guide") == name:
+            raw["guide"] = None
+        self._save(raw)
 
     def record_model(
         self, name: str, model: str, *, cli_version: str | None = None
@@ -250,6 +401,25 @@ class HarnessRegistry:
         return HarnessSpec.from_dict(selected, data)
 
 
+@contextmanager
+def _agent_call_lock(spec: HarnessSpec):
+    path = Path(spec.session_state + ".call.lock")
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o600)
+    locked = False
+    try:
+        try:
+            _try_lock(fd)
+            locked = True
+        except BlockingIOError as exc:
+            raise HarnessError("This agent is already responding. Try again when it finishes.") from exc
+        yield
+    finally:
+        if locked:
+            _unlock(fd)
+        os.close(fd)
+
+
 def _adapter_call(
     spec: HarnessSpec,
     operation: str,
@@ -260,16 +430,31 @@ def _adapter_call(
     if timeout <= 0:
         raise HarnessError("adapter timeout must be greater than zero")
     try:
-        proc = subprocess.run(
-            [*spec.argv, operation],
-            input=(json.dumps(payload, ensure_ascii=True) + "\n") if payload else None,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            shell=False,
-            timeout=timeout,
-            check=False,
-        )
+        environment = dict(os.environ)
+        if spec.agent_name is not None:
+            environment.update(
+                {
+                    "TA_HARNESS_COLLABORATOR_ID": spec.collaborator_id or "",
+                    "TA_HARNESS_AGENT_NAME": spec.agent_name,
+                    "TA_HARNESS_MEMORY_ROOT": spec.memory_root or "",
+                    "TA_HARNESS_SESSION_STATE": spec.session_state or "",
+                    "TA_HARNESS_MEMORY_FILES": json.dumps(spec.memory_files),
+                }
+            )
+        if spec.model is not None:
+            environment["TA_HARNESS_MODEL"] = spec.model
+        with _agent_call_lock(spec) if spec.session_state and operation != "describe" else nullcontext():
+            proc = subprocess.run(
+                [*spec.argv, operation],
+                input=(json.dumps(payload, ensure_ascii=True) + "\n") if payload else None,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                shell=False,
+                env=environment,
+                timeout=timeout,
+                check=False,
+            )
     except subprocess.TimeoutExpired as exc:
         raise HarnessError(
             f"harness {spec.name!r} timed out during {operation} after {timeout:g}s"
@@ -305,6 +490,10 @@ def describe_harness(spec: HarnessSpec, *, timeout: float = 10) -> dict[str, Any
     if not isinstance(capabilities, list) or "continue" not in capabilities:
         raise HarnessError(
             f"harness {spec.name!r} does not advertise the 'continue' capability"
+        )
+    if spec.memory_mode and "resumable_session" not in capabilities:
+        raise HarnessError(
+            f"harness {spec.name!r} does not advertise resumable-session memory"
         )
     return result
 
@@ -546,6 +735,12 @@ def process_continuation(
                     "failure_id": failure.id,
                     "reason_code": failure.reason_code,
                 }
+        if target_spec.collaborator_id is not None:
+            collaborator = store.load_agent_collaborator(target_spec.collaborator_id)
+            if collaborator.display_name != target_spec.agent_name:
+                raise HarnessError(
+                    f"harness {target_spec.name!r} collaborator identity no longer matches"
+                )
         attempt = continuation_attempt(request.id, target_spec.name)
         store.write_continuation_attempt(attempt)
     store.log(
@@ -605,6 +800,21 @@ def process_continuation(
             now=created_at,
             parent_graph_id=request.graph_id,
         )
+        if target_spec.collaborator_id is not None:
+            graph = replace(
+                graph,
+                metadata=MappingProxyType(
+                    {
+                        **dict(graph.metadata),
+                        "connected_agent": {
+                            "collaborator_id": target_spec.collaborator_id,
+                            "display_name": target_spec.agent_name,
+                            "harness": target_spec.name,
+                            "memory_mode": target_spec.memory_mode,
+                        },
+                    }
+                ),
+            )
         validate_graph(graph)
     except (CompileError, HarnessError, ValidationError, ValueError):
         return _record_failure(
@@ -632,7 +842,14 @@ def process_continuation(
         store.write_graph(graph)
         for turn in turns:
             store.append_turn(turn)
-        completion = continuation_completion(request.id, graph.id, target_spec.name)
+        completion = continuation_completion(
+            request.id,
+            graph.id,
+            target_spec.name,
+            collaborator_id=target_spec.collaborator_id,
+            agent_name=target_spec.agent_name,
+            memory_mode=target_spec.memory_mode,
+        )
         completion_path = store.write_continuation_completion(completion)
         store.update_session_head(
             request.session_id, graph_id=graph.id, turn_id=graph.turn_id
@@ -654,6 +871,15 @@ def process_continuation(
         "graph_id": graph.id,
         "completion_id": completion.id,
         "warnings": warnings,
+        **(
+            {
+                "collaborator_id": target_spec.collaborator_id,
+                "agent_name": target_spec.agent_name,
+                "memory_mode": target_spec.memory_mode,
+            }
+            if target_spec.collaborator_id is not None
+            else {}
+        ),
     }
 
 

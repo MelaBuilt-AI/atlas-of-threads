@@ -45,6 +45,9 @@ SCHEMA_NAMES = (
     "knowledge-capsule-manifest.schema.json",
     "knowledge-capsule-launch.schema.json",
     "knowledge-capsule-launcher.schema.json",
+    "agent-collaborator.schema.json",
+    "agent-interaction.schema.json",
+    "agent-path-completion.schema.json",
 )
 
 DAG_EDGE_KINDS = frozenset({"supports", "depends_on", "shapes", "taste_of"})

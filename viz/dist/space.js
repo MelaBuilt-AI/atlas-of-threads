@@ -69,6 +69,13 @@
   const elHere = document.getElementById("here");
   const elMeta = document.getElementById("meta");
   const elPlate = document.getElementById("plate");
+  const elWayfinder = document.getElementById("wayfinder");
+  const elWalkStatus = document.getElementById("walk-status");
+  const elPathPreview = document.getElementById("path-preview");
+  const elPathPreviewLabel = document.getElementById("path-preview-label");
+  const elPathPreviewText = document.getElementById("path-preview-text");
+  const elPathPreviewDetail = document.getElementById("path-preview-detail");
+  const elPathEnter = document.getElementById("path-enter");
   const elEmpty = document.getElementById("empty");
   const elLegendTrigger = document.getElementById("legend-trigger");
   const elLegendScrim = document.getElementById("legend-scrim");
@@ -81,6 +88,11 @@
   const elAtlasMapStatus = document.getElementById("atlas-map-status");
   const elAtlasMapClose = document.getElementById("atlas-map-close");
   const elAtlasMapEntryButtons = document.getElementById("atlas-map-entry-buttons");
+  const elMapGenerations = document.getElementById("map-generations");
+  const elMapThoughts = document.getElementById("map-thoughts");
+  const elMapSelection = document.getElementById("map-selection");
+  const elMapVisit = document.getElementById("map-visit");
+  const elMapListTitle = document.getElementById("map-list-title");
   const elWorkspaceScrim = document.getElementById("workspace-scrim");
   const elWorkspaceMenu = document.getElementById("workspace-menu");
   const elWorkspaceClose = document.getElementById("workspace-close");
@@ -233,6 +245,10 @@
   let risers = [];
   let neuralSky = null;
   let trail = [];
+  let visitedStands = [];
+  let walkSession = null;
+  let navigating = false;
+  const WALK_MEMORY_KEY = "thought-archaeology.walk.v1";
   let overhead = false;
   let manualRelicKey = null;
   let mappedRelicKey = "narrated-claim";
@@ -258,6 +274,10 @@
   let atlasMapReturnFocus = null;
   let atlasMapRequestToken = 0;
   let atlasMapNavigationPending = false;
+  let atlasMapLevel = "thoughts";
+  let atlasMapLineage = null;
+  let atlasMapSelected = null;
+  let atlasMapViewport = null;
   let eligibilityKey = null;
   let capsuleEligibilityKey = null;
   const COMPANION_MEMORY_KEY = "thought-archaeology.companions.v1";
@@ -279,6 +299,22 @@
   let parallelProgress = null;
   const parallelJobStates = new Map();
   let workspaceState = null;
+  const agentSpark = window.TAAgentSpark({
+    scene, camera, sound, getView: () => view, isOverhead: () => overhead,
+    canShow: () => Boolean(view && !atlasMapMode && !cinematicMode &&
+      elStartMenu.hidden && elOnboardingMenu.hidden && elWorkspaceMenu.hidden &&
+      elLegendMenu.hidden && elThreadCompass.hidden && !composing && !activeCapsule && !activeFieldNote),
+    navigate: (graph, node) => inhabit(graph, node, "return"),
+    askCollaborator: async (source, response) => {
+      await inhabit(source.graph_id, source.node_id, "return");
+      if (view?.graph_id !== source.graph_id || view?.node.id !== source.node_id) return;
+      openComposer("continuation");
+      elThresholdAskInput.value = `Assess this agent guide suggestion: ${response}`.slice(0, 400);
+      elThresholdAskInput.focus();
+    },
+    onWorkspace: (payload) => renderWorkspace(payload),
+  });
+
   const enteredFieldNotes = loadEnteredFieldNotes();
   const announcedCapsuleMilestones = loadAnnouncedCapsuleMilestones();
 
@@ -473,12 +509,12 @@
       nodeId: source.node_id,
       anchorGraphId: payload.graph_id,
       kind: "return",
-      text: "Return to conversation origin",
-      title: "Return to conversation origin",
+      text: source.node?.text || "Source thought",
+      title: "Return to source thought",
       seen: true,
       via: "conversation origin",
       labelKind: "conversation origin",
-      description: "Return to conversation origin",
+      description: `Return to source thought: ${source.node?.text || "previous question"}`,
       returnOrigin: true,
     };
     if (source.model && source.model.name !== "unknown") {
@@ -540,6 +576,12 @@
   scene.add(neuralFill);
   const overSun = new THREE.DirectionalLight(0xe8f2ff, 0);
   overSun.position.set(8, 42, 10);
+  overSun.castShadow = true;
+  overSun.shadow.mapSize.set(1024, 1024);
+  Object.assign(overSun.shadow.camera, {left: -25, right: 25, top: 25, bottom: -25, near: 0.5, far: 80});
+  overSun.shadow.camera.updateProjectionMatrix();
+  overSun.shadow.bias = -0.0004;
+  overSun.shadow.normalBias = 0.025;
   scene.add(overSun);
   const overHemi = new THREE.HemisphereLight(0xb8d4ff, 0x1a2438, 0);
   scene.add(overHemi);
@@ -568,11 +610,24 @@
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
     renderer.setSize(w, h, false);
-    camera.aspect = w / Math.max(h, 1);
+    atlasMapViewport = null;
+    if (atlasMapMode) {
+      const header = elAtlasMapHud.firstElementChild.getBoundingClientRect();
+      const list = document.getElementById("atlas-map-keyboard").getBoundingClientRect();
+      const top = Math.ceil(header.bottom + 12);
+      const right = w > 768 ? list.left - 16 : w - 12;
+      const bottom = w > 768 ? h - 16 : list.top - 12;
+      atlasMapViewport = { x: 16, y: top, width: Math.max(1, right - 16), height: Math.max(60, bottom - top) };
+    }
+    camera.aspect = atlasMapViewport ? atlasMapViewport.width / atlasMapViewport.height : w / Math.max(h, 1);
     camera.updateProjectionMatrix();
     document.documentElement.style.setProperty(
       "--plate-height", `${Math.ceil(elPlate.getBoundingClientRect().height)}px`
     );
+    document.documentElement.style.setProperty(
+      "--preview-height", `${Math.ceil(elPathPreview.getBoundingClientRect().height)}px`
+    );
+    if (atlasMapMode && atlasMapBounds) fitAtlasMap();
   }
   window.addEventListener("resize", resize);
   resize();
@@ -643,6 +698,7 @@
 
   function renderOnboarding(payload) {
     workspaceState = payload;
+    agentSpark.setWorkspace(payload);
     const watcherActive = onboardingWatcherActive(payload);
     const pending = payload.pending || [];
     const firstRun = !(payload.history || []).length;
@@ -720,9 +776,10 @@
     if (pending.length) {
       elOnboardingStatus.textContent = "A collaborator is already responding. Finish or cancel that path before starting another Threadwalk.";
     } else if (firstCollaboratorReady) {
+      const selectedName = workspaceHarnessName(selectedRegistry);
       elOnboardingStatus.textContent = watcherActive
-        ? `${workspaceName(payload.active_harness)} is ready. Write the inquiry that should open your first chamber.`
-        : `${workspaceName(payload.active_harness)} will open the first path. Starting the Threadwalk will activate its local worker.`;
+        ? `${selectedName} is ready. Write the inquiry that should open your first chamber.`
+        : `${selectedName} will open the first path. Starting the Threadwalk will activate its local worker.`;
     } else if ((payload.available_harnesses || []).some(
       (harness) => harness.registered && harness.provider_state !== "ready"
     )) {
@@ -983,6 +1040,10 @@
     return names[name] || (name ? name.charAt(0).toUpperCase() + name.slice(1) : "Unknown");
   }
 
+  function workspaceHarnessName(harness) {
+    return (harness && harness.agent_name) || workspaceName(harness && harness.name);
+  }
+
   function renderParallelProgress(progress) {
     elWorkspaceParallelProgress.replaceChildren();
     if (!progress) {
@@ -1033,7 +1094,7 @@
       input.disabled = Boolean(harness.selected || live || workspaceBusy);
       input.addEventListener("change", updateParallelSubmitCopy);
       const name = document.createElement("span");
-      name.textContent = workspaceName(harness.name);
+      name.textContent = workspaceHarnessName(harness);
       const model = document.createElement("small");
       model.textContent = harness.model || "model not refreshed";
       label.append(input, name, model);
@@ -1045,23 +1106,31 @@
 
   function renderWorkspace(payload) {
     workspaceState = payload;
+    agentSpark.setWorkspace(payload);
     const service = payload.service || {};
     const watcherActive = service.active === "active" || service.active === "activating";
     const pending = payload.pending || [];
     const active = payload.active_harness;
+    const activeHarness = (payload.harnesses || []).find(
+      (harness) => harness.name === active
+    );
+    const activeName = workspaceHarnessName(activeHarness || { name: active });
     if (!active) {
       elWorkspaceHarnessStatus.textContent = "No collaborator is registered.";
     } else if (pending.length) {
       const responding = pending.find((item) => item.harness);
+      const respondingHarness = responding && (payload.harnesses || []).find(
+        (harness) => harness.name === responding.harness
+      );
       elWorkspaceHarnessStatus.textContent = responding
-        ? `${workspaceName(responding.harness)} is responding now · switching waits until it finishes`
-        : `A continuation is queued for ${workspaceName(active)} · switching waits until it finishes`;
+        ? `${workspaceHarnessName(respondingHarness || { name: responding.harness })} is responding now · switching waits until it finishes`
+        : `A continuation is queued for ${activeName} · switching waits until it finishes`;
     } else if (watcherActive) {
       elWorkspaceHarnessStatus.textContent =
-        `${workspaceName(active)} will author future continuations. Existing graphs keep their recorded authorship.`;
+        `${activeName} will author future continuations. Existing graphs keep their recorded authorship.`;
     } else {
       elWorkspaceHarnessStatus.textContent =
-        `${workspaceName(active)} is selected, but the background watcher is ${service.active || "not active"}.`;
+        `${activeName} is selected, but the background watcher is ${service.active || "not active"}.`;
     }
     if (service.error) {
       elWorkspaceHarnessStatus.textContent += ` ${service.error}`;
@@ -1078,12 +1147,16 @@
       if (isActive) button.classList.add("active");
       const action = document.createElement("strong");
       action.textContent = isActive
-        ? `${workspaceName(harness.name)} · active`
-        : `Activate ${workspaceName(harness.name)}`;
+        ? `${workspaceHarnessName(harness)} · active`
+        : `Activate ${workspaceHarnessName(harness)}`;
       const model = document.createElement("small");
-      model.textContent = harness.model
+      const modelLabel = harness.model
         ? `model · ${harness.model}`
         : "model · refresh to read";
+      const memoryLabel = harness.memory_mode
+        ? ` · memory ${harness.memory_ready ? "ready" : "starts with first answer"}`
+        : "";
+      model.textContent = modelLabel + memoryLabel;
       button.append(action, model);
       button.disabled = workspaceBusy || isActive || pending.length > 0;
       button.addEventListener("click", () => activateWorkspaceHarness(harness.name));
@@ -1091,14 +1164,20 @@
       refresh.type = "button";
       refresh.className = "workspace-model-refresh";
       refresh.textContent = "↻ Refresh";
-      refresh.setAttribute("aria-label", `Refresh ${workspaceName(harness.name)} model`);
-      refresh.title = `Refresh ${workspaceName(harness.name)} model`;
+      refresh.setAttribute("aria-label", `Refresh ${workspaceHarnessName(harness)} model`);
+      refresh.title = `Refresh ${workspaceHarnessName(harness)} model`;
       refresh.disabled = workspaceBusy;
       refresh.addEventListener("click", () => refreshWorkspaceHarnessModel(harness.name));
       row.append(button, refresh);
       elWorkspaceHarnesses.append(row);
     }
 
+    for (let slot = (payload.harnesses || []).length; slot < 5; slot++) {
+      const empty = document.createElement("div");
+      empty.className = "workspace-empty-slot";
+      empty.textContent = `Slot ${slot + 1} · available`;
+      elWorkspaceHarnesses.append(empty);
+    }
     elWorkspaceNewToggle.disabled = workspaceBusy || pending.length > 0 || !active;
     elWorkspaceHistory.replaceChildren();
     for (const session of payload.history || []) {
@@ -1329,7 +1408,7 @@
 
   function visitThreadEntry(entry) {
     closeThreadCompass(false);
-    inhabit(entry.graph_id, entry.node_id);
+    inhabit(entry.graph_id, entry.graph_id === view.graph_id ? view.node.id : entry.node_id);
   }
 
   function renderThreadEntry(entry, insideGroup = false) {
@@ -1350,11 +1429,11 @@
     label.textContent = entry.label;
     const summary = document.createElement("span");
     summary.className = "thread-entry-summary";
-    summary.textContent = entry.summary;
+    summary.textContent = entry.graph_id === view.graph_id ? view.node.text : entry.summary;
     const meta = document.createElement("span");
     meta.className = "thread-entry-meta";
     const details = [];
-    if (entry.graph_id === view.graph_id) details.push("you are here");
+    if (entry.graph_id === view.graph_id) details.push("you are here · returns to this exact thought");
     if (entry.prompt) details.push(`question: ${entry.prompt}`);
     else if (entry.kind === "continuation") details.push("continued without a new question");
     if (entry.reason) details.push(`reason: ${entry.reason}`);
@@ -1441,7 +1520,7 @@
     elThreadSubtitle.textContent =
       `${lineage.title} · ${entries.length} graph ${entries.length === 1 ? "generation" : "generations"}`;
     elThreadStatus.textContent =
-      "Select any generation to re-enter its first chamber. The graph store remains unchanged.";
+      "Your current answer returns to your exact thought. Other answers open at their first chamber. A maps the thoughts inside each answer.";
     elThreadList.replaceChildren();
 
     appendFieldNoteCards(
@@ -2314,16 +2393,80 @@
       });
   }
 
+  function selectMapEntry(entry) {
+    atlasMapSelected = entry;
+    const here = entry.graph_id === view.graph_id && entry.node_id === view.node.id;
+    elMapSelection.textContent = `${here ? "Standing here" : "Selected destination"}: ${entry.summary}`;
+    elMapVisit.textContent = here ? "You are at this thought" : "Enter this thought · Enter";
+    elMapVisit.disabled = here || atlasMapBusy;
+    elMapThoughts.textContent = atlasMapLevel === "generations" ? "Thoughts in selected answer" : "Thoughts in this answer";
+    for (const button of elAtlasMapEntryButtons.children) {
+      button.setAttribute("aria-pressed", String(button.dataset.graph === entry.graph_id && button.dataset.node === entry.node_id));
+    }
+    for (const mesh of atlasMapTargets) {
+      const selected = mesh.userData.mapEntry === entry;
+      mesh.scale.setScalar(selected ? 1.15 : 1);
+    }
+  }
+
+  function mapNumberLabel(number, text, point) {
+    const surface = document.createElement("canvas");
+    surface.width = 640;
+    surface.height = 112;
+    const context = surface.getContext("2d");
+    context.fillStyle = "rgba(3,5,12,0.93)";
+    context.fillRect(0, 0, 640, 112);
+    context.fillStyle = "#ece6d8";
+    context.font = "24px sans-serif";
+    context.textAlign = "center";
+    context.fillText(`${number} · ${shortText(text, 39)}`, 320, 65);
+    const texture = new THREE.CanvasTexture(surface);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, depthTest: false }));
+    label.position.set(point.x, 2.2, point.z + 1.5);
+    label.scale.set(5.7, 1, 1);
+    atlasMapRoot.add(label);
+  }
+
+  function fitAtlasMap() {
+    if (!atlasMapBounds) return;
+    const bounds = atlasMapBounds;
+    const halfFov = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+    atlasMapLook = { x: (bounds.minX + bounds.maxX) / 2, z: (bounds.minZ + bounds.maxZ) / 2 };
+    const fitHeight = Math.max(
+      (bounds.maxZ - bounds.minZ + 9) / (2 * halfFov),
+      (bounds.maxX - bounds.minX + 9) / (2 * halfFov * camera.aspect)
+    ) + 3;
+    atlasMapHeight = Math.max(16, Math.min(54, fitHeight));
+    if (fitHeight > 54) {
+      const selected = atlasMapTargets.find((mesh) => mesh.userData.mapEntry === atlasMapSelected);
+      if (selected) atlasMapLook = { x: selected.position.x, z: selected.position.z };
+    }
+  }
+
   function renderAtlasMap(lineage) {
+    atlasMapLineage = lineage;
+    const oldSelection = atlasMapSelected;
+    atlasMapSelected = null;
     clearAtlasMapRoot();
-    const entries = [...(lineage.entries || [])]
-      .filter((entry) => entry.node && entry.node_id)
-      .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.graph_id.localeCompare(b.graph_id));
-    const columns = 7;
-    const stride = CELL * 3.45;
+    const thoughts = atlasMapLevel === "thoughts" && lineage.chamber_map;
+    if (!thoughts) atlasMapLevel = "generations";
+    const entries = thoughts
+      ? thoughts.nodes.map((node) => ({
+          graph_id: thoughts.graph_id, node_id: node.id, node,
+          evidence: node.evidence, kind: node.kind, summary: node.text,
+        }))
+      : [...(lineage.entries || [])].filter((entry) => entry.node && entry.node_id)
+        .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.graph_id.localeCompare(b.graph_id))
+        .map((entry) => entry.graph_id === view.graph_id
+          ? { ...entry, node_id: view.node.id, node: view.node, summary: view.node.text }
+          : entry);
+    const key = (entry) => thoughts ? entry.node_id : entry.graph_id;
+    const columns = 4;
+    const stride = CELL * 4.6;
     const positions = new Map();
     entries.forEach((entry, index) => {
-      positions.set(entry.graph_id, {
+      positions.set(key(entry), {
         x: (index % columns) * stride,
         z: Math.floor(index / columns) * stride,
       });
@@ -2338,15 +2481,18 @@
     atlasMapBounds = bounds;
     atlasMapRoot.add(atlasMapFloor(bounds));
 
-    for (const entry of entries) {
-      const child = positions.get(entry.graph_id);
-      const parent = positions.get(entry.parent_graph_id);
-      if (parent) atlasMapRoot.add(atlasMapConnection(parent, child, entry.kind));
+    const links = thoughts ? thoughts.edges : entries.map((entry) => ({
+      source_id: entry.parent_graph_id, target_id: entry.graph_id, kind: entry.kind,
+    }));
+    for (const link of links) {
+      const child = positions.get(link.target_id);
+      const parent = positions.get(link.source_id);
+      if (parent && child) atlasMapRoot.add(atlasMapConnection(parent, child, link.kind));
     }
 
     let hereMesh = null;
     entries.forEach((entry, index) => {
-      const point = positions.get(entry.graph_id);
+      const point = positions.get(key(entry));
       const evidence = entry.evidence || [];
       let relicKey = relicForNode(entry.node, evidence);
       if (
@@ -2367,52 +2513,84 @@
       mesh.userData.focusScale = 1;
       atlasMapRoot.add(mesh);
       atlasMapTargets.push(mesh);
-      if (entry.graph_id === view.graph_id) {
+      mapNumberLabel(index + 1, entry.summary, point);
+      const here = entry.graph_id === view.graph_id && (!thoughts || entry.node_id === view.node.id);
+      const visited = wasVisited(entry.graph_id, thoughts ? entry.node_id : null);
+      if (here || visited) {
         hereMesh = mesh;
         const marker = new THREE.Mesh(
           new THREE.TorusGeometry(1.15, 0.09, 12, 48),
           new THREE.MeshStandardMaterial({
-            color: 0xc8f26a,
-            emissive: 0x71952b,
-            emissiveIntensity: 1.4,
+            color: here ? 0xc8f26a : 0xb08d57,
+            emissive: here ? 0x71952b : 0x553b21,
+            emissiveIntensity: here ? 1.4 : 0.55,
             metalness: 0.2,
             roughness: 0.3,
           })
         );
         marker.rotation.x = Math.PI / 2;
         marker.position.set(point.x, 0.5, point.z);
-        marker.userData.atlasHere = true;
+        marker.userData.atlasHere = here;
         atlasMapRoot.add(marker);
       }
       const button = document.createElement("button");
       button.type = "button";
-      button.textContent = `${entry.graph_id === view.graph_id ? "Current · " : ""}${index + 1} of ${entries.length} · ${entry.kind.replace("_", " ")} · ${entry.summary}`;
-      button.addEventListener("click", () => atlasMapNavigate(entry));
+      button.textContent = `${here ? (thoughts ? "You are here · " : "Current answer · ") : visited ? "Visited · " : ""}${index + 1} · ${entry.kind.replaceAll("_", " ")} · ${entry.summary}`;
+      button.dataset.graph = entry.graph_id;
+      button.dataset.node = entry.node_id;
+      if (here) button.setAttribute("aria-current", "location");
+      button.addEventListener("click", () => selectMapEntry(entry));
       elAtlasMapEntryButtons.append(button);
     });
 
-    const center = {
-      x: (bounds.minX + bounds.maxX) / 2,
-      z: (bounds.minZ + bounds.maxZ) / 2,
-    };
-    const width = bounds.maxX - bounds.minX + 8;
-    const depth = bounds.maxZ - bounds.minZ + 8;
-    const verticalFov = THREE.MathUtils.degToRad(camera.fov);
-    const fitHeight = Math.max(
-      depth / (2 * Math.tan(verticalFov / 2)),
-      width / (2 * Math.tan(verticalFov / 2) * Math.max(camera.aspect, 0.4))
-    ) + 3;
-    if (fitHeight <= 54) {
-      atlasMapLook = center;
-      atlasMapHeight = Math.max(16, fitHeight);
-    } else {
-      const point = hereMesh ? positions.get(view.graph_id) : center;
-      atlasMapLook = { x: point.x, z: point.z };
-      atlasMapHeight = 54;
-    }
     elAtlasMapTitle.textContent = lineage.title || "Atlas Map";
-    elAtlasMapStatus.textContent = `${entries.length} mapped ${entries.length === 1 ? "generation" : "generations"} · luminous ring marks you here`;
+    const answer = (lineage.entries || []).find((entry) => entry.graph_id === thoughts?.graph_id);
+    elAtlasMapStatus.textContent = `${thoughts ? `${answer?.label || "This answer"} · ${entries.length} thoughts` : `${entries.length} answers / generations`} · green: here · bronze: visited in this tab`;
+    elMapListTitle.textContent = thoughts
+      ? "Thoughts · stable order, not a required reading sequence"
+      : "Answers · select one, then explore its thoughts";
+    elMapGenerations.setAttribute("aria-pressed", String(!thoughts));
+    elMapThoughts.setAttribute("aria-pressed", String(Boolean(thoughts)));
+    const selected = entries.find((entry) => entry.graph_id === oldSelection?.graph_id && entry.node_id === oldSelection?.node_id)
+      || entries.find((entry) => entry.graph_id === view.graph_id && (!thoughts || entry.node_id === view.node.id)) || entries[0];
+    if (selected) selectMapEntry(selected);
+    else {
+      elMapSelection.textContent = "No thoughts in this answer.";
+      elMapVisit.disabled = true;
+    }
+    requestAnimationFrame(resize);
   }
+
+  elMapGenerations.onclick = () => {
+    if (!atlasMapLineage || atlasMapBusy) return;
+    atlasMapLevel = "generations";
+    renderAtlasMap(atlasMapLineage);
+  };
+  elMapThoughts.onclick = async () => {
+    if (!atlasMapLineage || atlasMapBusy) return;
+    const graphId = atlasMapSelected?.graph_id || view.graph_id;
+    const requestToken = ++atlasMapRequestToken;
+    atlasMapBusy = true;
+    elMapVisit.disabled = true;
+    try {
+      const lineage = await api(`/api/thread/${view.session_id}?graph=${graphId}`);
+      if (!atlasMapMode || requestToken !== atlasMapRequestToken) return;
+      if (!lineage.chamber_map) {
+        elMapSelection.textContent = "Thought-level mapping needs the updated Atlas server. Restart Atlas to load it.";
+        return;
+      }
+      atlasMapLevel = "thoughts";
+      renderAtlasMap(lineage);
+    } catch (error) {
+      if (atlasMapMode && requestToken === atlasMapRequestToken) elMapSelection.textContent = `Could not load these thoughts: ${error.message}`;
+    } finally {
+      if (requestToken === atlasMapRequestToken) {
+        atlasMapBusy = false;
+        if (atlasMapSelected) elMapVisit.disabled = atlasMapSelected.graph_id === view.graph_id && atlasMapSelected.node_id === view.node.id;
+      }
+    }
+  };
+  elMapVisit.onclick = () => { if (atlasMapSelected) atlasMapNavigate(atlasMapSelected); };
 
   async function openAtlasMap() {
     if (!view || atlasMapMode || atlasMapBusy || atlasMapNavigationPending || composing || busy || cinematicCapture || capsuleFlight || activeFieldNote || activeCapsule || fieldNoteConstruction || capsuleConstruction) return;
@@ -2420,6 +2598,11 @@
     if (!elLegendMenu.hidden) closeLegendMenu();
     if (!elWorkspaceMenu.hidden) closeWorkspaceMenu();
     atlasMapBusy = true;
+    atlasMapLevel = "thoughts";
+    atlasMapLineage = null;
+    atlasMapSelected = null;
+    elMapSelection.textContent = "";
+    elMapVisit.disabled = true;
     const requestToken = ++atlasMapRequestToken;
     const requestedStand = {
       sessionId: view.session_id,
@@ -2467,7 +2650,10 @@
         elAtlasMapStatus.textContent = "Atlas Map is unavailable from the running server · restart Atlas, then press A again";
       }
     } finally {
-      if (requestToken === atlasMapRequestToken) atlasMapBusy = false;
+      if (requestToken === atlasMapRequestToken) {
+        atlasMapBusy = false;
+        if (atlasMapSelected) elMapVisit.disabled = atlasMapSelected.graph_id === view.graph_id && atlasMapSelected.node_id === view.node.id;
+      }
     }
   }
 
@@ -2482,6 +2668,7 @@
     document.body.removeAttribute("data-atlas-map");
     elAtlasMapTrigger.setAttribute("aria-pressed", "false");
     elAtlasMapHud.hidden = true;
+    resize();
     if (atlasMapCameraState) {
       overhead = atlasMapCameraState.overhead;
       yaw = atlasMapCameraState.yaw;
@@ -3969,7 +4156,7 @@
       autoFocus,
       audioRole,
       arrivalKey: arrivalKey(arrival),
-      walk: () => inhabit(arrival.graphId, arrival.nodeId),
+      walk: () => inhabit(arrival.graphId, arrival.nodeId, arrival.returnOrigin ? "return" : "walk"),
     });
     if (rise) markRise(ring, 0.24 + i * 0.08);
     return { autoFocus, choiceIndex: choices.length - 1 };
@@ -4174,6 +4361,11 @@
     }
 
     const autoFocusIndex = choices.findIndex((item) => item.choice.autoFocus);
+    for (const item of choices) {
+      const portal = item.mesh.userData.portal;
+      const nodeId = portal?.nodeId || item.mesh.userData.id;
+      item.mesh.userData.visited = nodeId && wasVisited(portal?.graphId || payload.graph_id, nodeId);
+    }
     if (autoFocusIndex >= 0) {
       focusIndex = autoFocusIndex;
       arrivingFocus = null;
@@ -4254,11 +4446,6 @@
     elText.textContent = n.text;
     const hereBits = [
       attribution ? `inside the ${attribution} graph` : null,
-      payload.continuation_source
-        ? payload.continuation_source.prompt
-          ? `continued from question: ${payload.continuation_source.prompt}`
-          : "continued from a source chamber without a new question"
-        : null,
       read.here_line,
       traversal.terminal ? traversal.state_line : null,
       read.climate_line,
@@ -4270,12 +4457,7 @@
     if (focusIndex >= 0 && choices[focusIndex]) {
       const c = choices[focusIndex].choice;
       const kind = (c.kind || "").replace(/_/g, " ");
-      elHere.textContent = c.description || (
-        c.via === "new companion thought" || c.via === "conversation return"
-          ? `${c.via} · ${kind} — ${c.text}`
-          : `path ${focusIndex + 1}/${choices.length} · ${c.via} · ${kind} — ${c.text}`
-      );
-      bits.push("spotlit preview");
+      bits.push("Previewing a destination · your standing thought has not changed");
     } else {
       const shownRelic = RELIC_BY_KEY[manualRelicKey || mappedRelicKey];
       if (shownRelic) {
@@ -4328,6 +4510,8 @@
     }
     if (overhead) bits.push("overhead view");
     elMeta.textContent = bits.join("  ·  ");
+    updateWayfinder();
+    updatePathPreview();
     requestAnimationFrame(resize);
     applyClimate(payload.climate);
   }
@@ -4480,6 +4664,8 @@
   }
 
   function plateFieldNote(note) {
+    updateWayfinder();
+    updatePathPreview();
     elKind.textContent = `human field note — ${note.kind_label}`;
     elText.textContent = note.text;
     const revisionCount = note.revision_count || 1;
@@ -4913,6 +5099,8 @@
   }
 
   function plateCapsule(capsule) {
+    updateWayfinder();
+    updatePathPreview();
     elKind.textContent = "outbound knowledge — launched Knowledge Capsule";
     elText.textContent = `Private, human-reviewed inquiry milestone ${capsule.id}`;
     elHere.textContent = [
@@ -5104,58 +5292,156 @@
     return a && b && a.graphId === b.graphId && a.nodeId === b.nodeId;
   }
 
+  function standReference(payload) {
+    return {
+      graphId: payload.graph_id, nodeId: payload.node.id,
+      text: payload.node.text, label: graphAttribution(payload) || "This answer",
+    };
+  }
+
+  function wasVisited(graphId, nodeId) {
+    return visitedStands.some((item) => item.graphId === graphId && (!nodeId || item.nodeId === nodeId));
+  }
+
+  function rememberWalk(payload, previous, origin) {
+    const next = standReference(payload);
+    if (walkSession !== payload.session_id) {
+      walkSession = payload.session_id;
+      trail = [];
+      visitedStands = [];
+      try {
+        const saved = JSON.parse(sessionStorage.getItem(WALK_MEMORY_KEY) || "null");
+        if (saved?.sessionId === walkSession) {
+          const valid = (items) => Array.isArray(items)
+            ? items.filter((item) => item && typeof item.graphId === "string" &&
+              typeof item.nodeId === "string" && typeof item.text === "string") : [];
+          visitedStands = valid(saved.visited).slice(-200);
+          if (sameStand(saved.current, next)) trail = valid(saved.trail).slice(-80);
+        }
+      } catch (_) { /* A walk remains usable when browser storage is unavailable. */ }
+    } else if (previous && !sameStand(previous, next)) {
+      const previousIndex = trail.map((item) => `${item.graphId}/${item.nodeId}`)
+        .lastIndexOf(`${next.graphId}/${next.nodeId}`);
+      if (origin === "back" || (origin === "return" && previousIndex >= 0)) {
+        if (previousIndex >= 0) trail = trail.slice(0, previousIndex);
+      } else {
+        trail.push(previous);
+        trail = trail.slice(-80);
+      }
+    }
+    visitedStands = [...visitedStands.filter((item) => !sameStand(item, next)), next].slice(-200);
+    try {
+      sessionStorage.setItem(WALK_MEMORY_KEY, JSON.stringify({
+        sessionId: walkSession, current: next, trail, visited: visitedStands,
+      }));
+    } catch (_) { /* Navigation does not depend on persistence. */ }
+  }
+
+  function backDestination() {
+    if (trail.length) return trail[trail.length - 1];
+    if (view?.parent?.graph_id && view.parent.node_id) {
+      return { graphId: view.parent.graph_id, nodeId: view.parent.node_id, text: "the source of this branch" };
+    }
+    return null;
+  }
+
+  function updateWayfinder() {
+    elWayfinder.hidden = !view || Boolean(activeFieldNote || activeCapsule);
+    if (!view) return;
+
+  }
+
+  function shortText(text, limit = 85) {
+    return text && text.length > limit ? `${text.slice(0, limit - 1)}…` : text || "";
+  }
+
+  function forwardChoice() {
+    return choices.find((item) => item.choice.via === "story ahead") ||
+      choices.find((item) => item.choice.kind === "fork" && item.choice.via === "continuation");
+  }
+
+  function updatePathPreview() {
+    elPathPreview.hidden = !view || Boolean(activeFieldNote || activeCapsule);
+    if (!view) return;
+    const selected = focusIndex >= 0 ? choices[focusIndex] : forwardChoice();
+    const choice = selected?.choice;
+    elPathPreviewLabel.textContent = choice
+      ? `${focusIndex >= 0 ? "Selected destination" : "Forward destination"} · ${(choice.via || "path").replace(/_/g, " ")}`
+      : "Choose your next destination";
+    elPathPreviewText.textContent = choice?.text || (choices.length
+      ? "Preview a nearby path with ← or →, or open the map."
+      : "No outgoing path here. Retrace your trail or open the map.");
+    elPathEnter.disabled = !choice || navigating || busy || Boolean(composing);
+    elPathEnter.textContent = choice?.audioRole === "back" || choice?.via === "conversation origin"
+      ? "Return to this thought · ↑ / Enter" : "Enter destination · ↑ / Enter";
+    elPathPreviewDetail.textContent = selected?.mesh.userData.visited
+      ? "Already visited in this tab · you can revisit it"
+      : choice ? "Preview only · enter when you are ready" : "A · map all thoughts";
+    document.getElementById("path-previous").disabled = !choices.length || navigating;
+    document.getElementById("path-next").disabled = !choices.length || navigating;
+  }
+
+  document.getElementById("path-previous").onclick = () => cycleChoice(-1);
+  document.getElementById("path-next").onclick = () => cycleChoice(1);
+  elPathEnter.onclick = () => selectFocus();
+
   async function inhabit(graphId, nodeId, origin = "walk") {
-    const q = new URLSearchParams();
-    if (graphId) q.set("graph", graphId);
-    const payload = await api(`/api/inhabit/${nodeId}?${q.toString()}`);
-    const next = { graphId: payload.graph_id, nodeId: payload.node.id };
-    const enteredCircuit = [...continuationCircuits.values()].find(
-      (item) => item.phase === "arrival" && item.targetGraphId === next.graphId &&
-        item.targetNodeId === next.nodeId
-    );
-    if (enteredCircuit) clearContinuationCircuit(enteredCircuit.requestId);
-    const prev = view
-      ? { graphId: view.graph_id, nodeId: view.node.id }
-      : null;
-    const enteredCompanion = view && visibleArrivals(view).some(
-      (arrival) =>
-        arrival.graphId === next.graphId && arrival.nodeId === next.nodeId
-    );
-    if (enteredCompanion) {
-      liveArrivals = liveArrivals.map((arrival) =>
-        arrival.graphId === next.graphId &&
-        arrival.nodeId === next.nodeId &&
-        arrival.anchorGraphId === view.graph_id
-          ? { ...arrival, seen: true }
-          : arrival
+    if (navigating) return;
+    navigating = true;
+    elWalkStatus.textContent = "";
+    updateWayfinder();
+    updatePathPreview();
+    try {
+      const q = new URLSearchParams();
+      if (graphId) q.set("graph", graphId);
+      const payload = await api(`/api/inhabit/${nodeId}?${q.toString()}`);
+      const next = { graphId: payload.graph_id, nodeId: payload.node.id };
+      const enteredCircuit = [...continuationCircuits.values()].find(
+        (item) => item.phase === "arrival" && item.targetGraphId === next.graphId &&
+          item.targetNodeId === next.nodeId
       );
-      saveCompanionThoughts();
-      if (origin === "walk" && view && prev) {
-        rememberCompanion({
-          sessionId: view.session_id,
-          graphId: prev.graphId,
-          nodeId: prev.nodeId,
-          kind: view.node.kind,
-          text: view.node.text,
-          title: sessionTitles.get(view.session_id) || "earlier thought",
-          seen: true,
-          anchorGraphId: next.graphId,
-        });
+      if (enteredCircuit) clearContinuationCircuit(enteredCircuit.requestId);
+      const prev = view ? standReference(view) : null;
+      const enteredCompanion = view && visibleArrivals(view).some(
+        (arrival) =>
+          arrival.graphId === next.graphId && arrival.nodeId === next.nodeId
+      );
+      if (enteredCompanion) {
+        liveArrivals = liveArrivals.map((arrival) =>
+          arrival.graphId === next.graphId &&
+          arrival.nodeId === next.nodeId &&
+          arrival.anchorGraphId === view.graph_id
+            ? { ...arrival, seen: true }
+            : arrival
+        );
+        saveCompanionThoughts();
+        if (origin === "walk" && view && prev) {
+          rememberCompanion({
+            sessionId: view.session_id,
+            graphId: prev.graphId,
+            nodeId: prev.nodeId,
+            kind: view.node.kind,
+            text: view.node.text,
+            title: sessionTitles.get(view.session_id) || "earlier thought",
+            seen: true,
+            anchorGraphId: next.graphId,
+          });
+        }
       }
+      rememberWalk(payload, prev, origin);
+      view = payload;
+      rememberLastStand(payload);
+      if (origin !== "hash") hashTo(payload.graph_id, payload.node.id);
+      layout(payload);
+      canvas.focus({ preventScroll: true });
+    } catch (error) {
+      if (!view) throw error;
+      elWalkStatus.textContent = `Could not enter that thought. You are still here. ${error.message || error}`;
+    } finally {
+      navigating = false;
+      updateWayfinder();
+      updatePathPreview();
     }
-    if (origin === "walk" && prev && !sameStand(prev, next)) {
-      trail.push(prev);
-      if (trail.length > 80) trail.shift();
-    }
-    if (origin === "hash" || origin === "back") {
-      while (trail.length && sameStand(trail[trail.length - 1], next)) {
-        trail.pop();
-      }
-    }
-    view = payload;
-    rememberLastStand(payload);
-    if (origin !== "hash") hashTo(payload.graph_id, payload.node.id);
-    layout(payload);
   }
 
   async function boot() {
@@ -5169,6 +5455,7 @@
         sessionTitles.set(session.id, session.title || "untitled thought");
       }
       companionReady = true;
+      agentSpark.setWorkspace(workspace);
       const fromHash = parseHash();
       const lastStand = loadLastStand();
       const explicitDeepLink = Boolean(
@@ -5198,7 +5485,7 @@
       const resume = fromHash && lastStand
         ? { ...lastStand, graphId: fromHash.graphId, nodeId: fromHash.nodeId }
         : lastStand;
-      if (!(workspace.harnesses || []).length || !(boot.sessions || []).length) {
+      if ((!(workspace.harnesses || []).length && !workspace.guide) || !(boot.sessions || []).length) {
         showOnboarding(boot, resume, workspace);
       } else {
         showStartup(boot, resume);
@@ -5346,7 +5633,7 @@
   }
 
   canvas.addEventListener("pointerdown", (e) => {
-    if (e.button !== 0) return;
+    if (agentSpark.opened || e.button !== 0) return;
     dragging = true;
     canvas.dataset.dragging = "true";
     dragMoved = false;
@@ -5400,10 +5687,14 @@
   }
 
   canvas.addEventListener("click", (e) => {
+    if (!dragMoved && agentSpark.pick(e)) return;
     if (composing || dragMoved) return;
     const rect = canvas.getBoundingClientRect();
-    pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    const picking = atlasMapMode && atlasMapViewport
+      ? { left: rect.left + atlasMapViewport.x, top: rect.top + atlasMapViewport.y,
+          width: atlasMapViewport.width, height: atlasMapViewport.height } : rect;
+    pointer.x = ((e.clientX - picking.left) / picking.width) * 2 - 1;
+    pointer.y = -((e.clientY - picking.top) / picking.height) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
     if (atlasMapMode) {
       const mapHit = pickUserData(
@@ -5411,7 +5702,8 @@
         (data) => data.mapEntry && data.mapEntry.graph_id && data.mapEntry.node_id
       );
       if (mapHit) {
-        atlasMapNavigate(mapHit.mapEntry);
+        selectMapEntry(mapHit.mapEntry);
+        canvas.focus({ preventScroll: true });
       }
       return;
     }
@@ -5446,11 +5738,11 @@
       (d) => d.portal && d.portal.graphId && d.portal.nodeId
     );
     if (portalHit) {
-      sound.traverse(
-        portalHit.audioRole === "back" ? "back" : "forward",
-        portalHit.audioRole || "story"
-      );
-      inhabit(portalHit.portal.graphId, portalHit.portal.nodeId);
+      const index = choices.findIndex((item) => {
+        const portal = item.mesh.userData.portal;
+        return portal?.graphId === portalHit.portal.graphId && portal.nodeId === portalHit.portal.nodeId;
+      });
+      if (index >= 0) previewChoice(index);
       return;
     }
     const nodeHit = pickUserData(
@@ -5458,8 +5750,8 @@
       (d) => d.id
     );
     if (nodeHit && view) {
-      sound.traverse("forward", "story");
-      inhabit(view.graph_id, nodeHit.id);
+      const index = choices.findIndex((item) => item.mesh.userData.id === nodeHit.id);
+      if (index >= 0) previewChoice(index);
     }
   });
 
@@ -5619,15 +5911,10 @@
   }
 
   function walkBack() {
-    if (trail.length) {
-      const prev = trail.pop();
+    const prev = backDestination();
+    if (prev) {
       sound.traverse("back", "story");
       inhabit(prev.graphId, prev.nodeId, "back");
-      return;
-    }
-    if (view && view.parent && view.parent.graph_id && view.parent.node_id) {
-      sound.traverse("back", "back");
-      inhabit(view.parent.graph_id, view.parent.node_id, "back");
     }
   }
 
@@ -5651,7 +5938,7 @@
     if (!view || !view.origin || view.origin.id === view.node.id) return;
     if (composing) closeComposer();
     sound.traverse("back", "return");
-    inhabit(view.graph_id, view.origin.id);
+    inhabit(view.graph_id, view.origin.id, "return");
   }
 
   function applyFocusVisual(mesh, on) {
@@ -5695,6 +5982,14 @@
     focusCameraOn(choices[focusIndex].mesh);
     showFocus();
     sound.cycle(choices[focusIndex].choice.audioRole || "story", dir);
+  }
+
+  function previewChoice(index) {
+    if (navigating) return;
+    focusIndex = index;
+    focusCameraOn(choices[index].mesh);
+    showFocus();
+    canvas.focus({ preventScroll: true });
   }
 
   function selectFocus() {
@@ -6024,6 +6319,17 @@
         e.preventDefault();
         closeAtlasMap(false);
         openWorkspaceMenu();
+      } else if ((e.key === "Enter" || e.key === "ArrowUp") &&
+        (e.target === canvas || e.target === document.body || e.target?.dataset?.node)) {
+        e.preventDefault();
+        if (!elMapVisit.disabled && atlasMapSelected) atlasMapNavigate(atlasMapSelected);
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        e.preventDefault();
+        const entries = atlasMapTargets.map((mesh) => mesh.userData.mapEntry);
+        if (entries.length) {
+          const at = entries.indexOf(atlasMapSelected);
+          selectMapEntry(entries[(at + (e.key === "ArrowRight" ? 1 : -1) + entries.length) % entries.length]);
+        }
       }
       return;
     }
@@ -6167,6 +6473,8 @@
       }
       if (!["c", "C", "s", "S"].includes(e.key)) return;
     }
+    // Let focused HTML controls activate once through their native click handler.
+    if (e.key === "Enter" && e.target?.closest?.("button, summary")) return;
     if (e.key === "Enter" && readyCapsuleTarget() && !capsuleConstruction) {
       e.preventDefault();
       launchReadyCapsule();
@@ -6279,7 +6587,7 @@
     }
     if (e.key === "ArrowUp") {
       e.preventDefault();
-      walkDeeper();
+      selectFocus();
     }
   });
 
@@ -6629,7 +6937,19 @@
     updateFieldNoteAtmosphere(t);
     updateCapsuleAtmosphere(t);
     updateNavigationLights(t);
+    renderer.setScissorTest(false);
+    renderer.setViewport(0, 0, canvas.clientWidth, canvas.clientHeight);
+    if (atlasMapMode && atlasMapViewport) {
+      const rect = atlasMapViewport;
+      renderer.clear();
+      const bottom = canvas.clientHeight - rect.y - rect.height;
+      renderer.setViewport(rect.x, bottom, rect.width, rect.height);
+      renderer.setScissor(rect.x, bottom, rect.width, rect.height);
+      renderer.setScissorTest(true);
+    }
+    agentSpark.tick(t);
     renderer.render(scene, camera);
+    renderer.setScissorTest(false);
     requestAnimationFrame(tick);
   }
 

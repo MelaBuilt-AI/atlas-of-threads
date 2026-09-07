@@ -11,6 +11,7 @@ import webbrowser
 from datetime import datetime, timezone
 from pathlib import Path
 
+from thought_archaeology.agent_bridge import AgentBridgeError, register_collaborator
 from thought_archaeology.compile_common import CompileError
 from thought_archaeology.compile_posthoc import compile_posthoc
 from thought_archaeology.compile_structured import compile_structured
@@ -57,6 +58,7 @@ from thought_archaeology.knowledge_capsules import (
     launch_knowledge_capsule,
 )
 from thought_archaeology.models import SCHEMA_VERSION, ModelInfo, Span, ThoughtGraph, Turn
+from thought_archaeology.mcp_server import serve_stdio as serve_mcp_stdio
 from thought_archaeology.render_md import render_md
 from thought_archaeology.serve import DEFAULT_BIND, DEFAULT_PORT, ServeError, serve_forever
 from thought_archaeology.providers import ProviderError, build_provider
@@ -363,6 +365,34 @@ def _parser() -> argparse.ArgumentParser:
         metavar="VALUE",
         help="fixed adapter argument; repeat as needed (use --arg=VALUE for leading dashes)",
     )
+    p_harness_register.add_argument(
+        "--collaborator",
+        default=None,
+        metavar="ID",
+        help="bind this harness to one registered Agent Bridge collaborator",
+    )
+    p_harness_register.add_argument(
+        "--memory-root",
+        default=None,
+        metavar="PATH",
+        help="approved read-only memory workspace for the bound collaborator",
+    )
+    p_harness_register.add_argument(
+        "--memory-file",
+        action="append",
+        default=[],
+        metavar="RELATIVE_PATH",
+        help=(
+            "project one explicitly approved file from the memory root; "
+            "repeat for additional files"
+        ),
+    )
+    p_harness_register.add_argument(
+        "--model",
+        default=None,
+        metavar="NAME",
+        help="pin this harness to one provider model",
+    )
     p_harness_register.add_argument("--default", action="store_true")
     p_harness_use = harness_sub.add_parser(
         "use", parents=[sub_globals], help="select the default adapter"
@@ -613,6 +643,59 @@ def _parser() -> argparse.ArgumentParser:
     )
     p_serve.add_argument("--port", type=int, default=DEFAULT_PORT)
     p_serve.add_argument("--bind", default=DEFAULT_BIND)
+
+    p_mcp = sub.add_parser(
+        "mcp",
+        parents=[sub_globals],
+        help="connect an external agent to this local Personal Atlas",
+    )
+    mcp_sub = p_mcp.add_subparsers(dest="mcp_cmd", required=True)
+    p_mcp_serve = mcp_sub.add_parser(
+        "serve",
+        parents=[sub_globals],
+        help="serve the read-only Atlas Agent Bridge or an authorized bridge over stdio",
+        description="serve the read-only Atlas Agent Bridge or an authorized bridge over stdio",
+    )
+    p_mcp_serve.add_argument("--collaborator", default=None, metavar="ID")
+    from thought_archaeology.mcp_setup import CLIENTS
+    p_mcp_config = mcp_sub.add_parser(
+        "config", parents=[sub_globals], help="print client configuration without changing client settings"
+    )
+    p_mcp_config.add_argument("--client", choices=CLIENTS, required=True)
+    p_mcp_config.add_argument("--collaborator", default=None, metavar="ID")
+    p_mcp_config.add_argument("--executable", help="absolute path to the packaged console executable")
+    p_mcp_check = mcp_sub.add_parser(
+        "check", parents=[sub_globals], help="check stdio startup, tools, status, and shutdown without writing"
+    )
+    p_mcp_check.add_argument("--collaborator", default=None, metavar="ID")
+    p_mcp_check.add_argument("--executable", help="absolute path to the packaged console executable")
+    p_mcp_collaborator = mcp_sub.add_parser(
+        "collaborator",
+        parents=[sub_globals],
+        help="manage explicitly authorized inbound collaborators",
+    )
+    collaborator_sub = p_mcp_collaborator.add_subparsers(
+        dest="collaborator_cmd", required=True
+    )
+    p_mcp_register = collaborator_sub.add_parser(
+        "register", parents=[sub_globals], help="register one local collaborator"
+    )
+    p_mcp_register.add_argument("--name", required=True)
+    p_mcp_register.add_argument("--client-family", required=True)
+    p_mcp_register.add_argument(
+        "--scope",
+        action="append",
+        required=True,
+        choices=[
+            "atlas:read",
+            "atlas:write:threadwalk",
+            "atlas:write:path",
+            "atlas:memory:ack",
+        ],
+    )
+    collaborator_sub.add_parser(
+        "list", parents=[sub_globals], help="list local inbound collaborators"
+    )
 
     p_launch = sub.add_parser(
         "launch",
@@ -1912,6 +1995,44 @@ def cmd_serve(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_mcp(args: argparse.Namespace) -> int:
+    store = _store(args)
+    if args.mcp_cmd in ("config", "check"):
+        from thought_archaeology.mcp_setup import CONFIG_PATHS, check_connection, client_config, server_command
+        command = server_command(store, args.collaborator, args.executable)
+        if args.mcp_cmd == "config":
+            print(client_config(args.client, command), end="")
+            print(f"Merge this entry into {CONFIG_PATHS[args.client]}; preserve other entries. On Windows, ~ means your user profile. Restart/reconnect the client, then ask it to call atlas_status.", file=sys.stderr)
+        else:
+            print(json.dumps(check_connection(command), ensure_ascii=True, indent=2))
+        return EXIT_OK
+    if args.mcp_cmd == "serve":
+        serve_mcp_stdio(store, collaborator_id=args.collaborator)
+        return EXIT_OK
+    if args.mcp_cmd == "collaborator":
+        if args.collaborator_cmd == "register":
+            collaborator = register_collaborator(
+                store,
+                display_name=args.name,
+                client_family=args.client_family,
+                scopes=args.scope,
+            )
+            print(json.dumps(collaborator.to_dict(), ensure_ascii=True))
+            return EXIT_OK
+        if args.collaborator_cmd == "list":
+            if not store.exists():
+                print("[]")
+            else:
+                print(
+                    json.dumps(
+                        [item.to_dict() for item in store.iter_agent_collaborators()],
+                        ensure_ascii=True,
+                    )
+                )
+            return EXIT_OK
+    raise UsageError("unknown mcp command")
+
+
 def cmd_launch(args: argparse.Namespace) -> int:
     if args.bind not in ("127.0.0.1", "localhost", "::1"):
         raise UsageError("Atlas binds localhost only")
@@ -2277,6 +2398,10 @@ def _harness_rows(registry: HarnessRegistry) -> list[dict]:
             "default": spec.name == default,
             "argv": list(spec.argv),
             "registered_at": spec.registered_at,
+            "collaborator_id": spec.collaborator_id,
+            "agent_name": spec.agent_name,
+            "memory_mode": spec.memory_mode,
+            "memory_files": list(spec.memory_files),
         }
         for spec in registry.specs()
     ]
@@ -2302,11 +2427,25 @@ def cmd_harness(args: argparse.Namespace) -> int:
         print(spec.name)
         return EXIT_OK
     if args.harness_cmd == "register":
+        collaborator = None
+        if args.collaborator:
+            collaborator = _store(args).load_agent_collaborator(args.collaborator)
+        if bool(collaborator) != bool(args.memory_root):
+            raise HarnessError(
+                "--collaborator and --memory-root must be supplied together"
+            )
+        if args.memory_file and not args.memory_root:
+            raise HarnessError("--memory-file requires --memory-root")
         spec = registry.register(
             args.name,
             args.adapter,
             args=tuple(args.arg),
             make_default=args.default,
+            collaborator_id=collaborator.id if collaborator else None,
+            agent_name=collaborator.display_name if collaborator else None,
+            memory_root=args.memory_root,
+            memory_files=tuple(args.memory_file),
+            model=args.model,
         )
         print(spec.name)
         return EXIT_OK
@@ -2461,6 +2600,7 @@ def main(argv: list[str] | None = None) -> int:
         "canvas": cmd_canvas,
         "export-wiki": cmd_export_wiki,
         "serve": cmd_serve,
+        "mcp": cmd_mcp,
         "launch": cmd_launch,
     }
     try:
@@ -2480,6 +2620,9 @@ def main(argv: list[str] | None = None) -> int:
     except HarnessError as exc:
         print(exc, file=sys.stderr)
         return EXIT_IO
+    except AgentBridgeError as exc:
+        print(exc, file=sys.stderr)
+        return EXIT_USAGE
     except ServeError as exc:
         print(exc, file=sys.stderr)
         return EXIT_USAGE

@@ -24,25 +24,45 @@
       <button id="atlas-map-trigger" type="button" aria-pressed="false">Atlas Map · A</button>
     </div>
   </div>
+  <section id="wayfinder" hidden aria-label="Your place in the Threadwalk">
+    <p id="walk-status" role="status"></p>
+  </section>
   <section id="atlas-map-hud" hidden aria-label="Atlas Map">
     <div>
-      <div class="kind">whole Threadwalk · stable spatial projection</div>
+      <div class="kind">your Threadwalk · answers and thoughts</div>
       <h1 id="atlas-map-title">Atlas Map</h1>
       <p id="atlas-map-status" aria-live="polite">Reading the current Threadwalk…</p>
-      <small>click a relic to traverse · drag to pan · wheel to zoom</small>
+      <small>select to preview · enter to visit · drag to pan · wheel to zoom</small>
+      <div class="map-levels" role="group" aria-label="Map level">
+        <button id="map-generations" type="button" aria-pressed="false">All answers</button>
+        <button id="map-thoughts" type="button" aria-pressed="true">Thoughts in this answer</button>
+      </div>
+      <p id="map-selection" aria-live="polite"></p>
+      <button id="map-visit" type="button" disabled>Choose a destination</button>
     </div>
     <button id="atlas-map-close" type="button">return to chamber · A / esc</button>
     <nav id="atlas-map-keyboard" aria-label="Keyboard Atlas Map">
-      <span>Keyboard Atlas Map</span>
+      <span id="map-list-title">Thoughts · stable order, not a required reading sequence</span>
       <div id="atlas-map-entry-buttons"></div>
     </nav>
   </section>
   <div id="plate">
+    <div class="standing-label">Standing here</div>
     <div class="kind" id="kind"></div>
     <h1 id="text"></h1>
     <div class="here" id="here"></div>
     <div class="meta" id="meta"></div>
   </div>
+  <section id="path-preview" hidden aria-label="Selected destination">
+    <div class="preview-label" id="path-preview-label">Selected destination</div>
+    <p id="path-preview-text"></p>
+    <div class="preview-actions">
+      <button id="path-previous" type="button" aria-label="Preview previous destination">←</button>
+      <button id="path-enter" type="button">Enter this thought · ↑ / Enter</button>
+      <button id="path-next" type="button" aria-label="Preview next destination">→</button>
+    </div>
+    <small id="path-preview-detail"></small>
+  </section>
   <div id="threshold" hidden aria-live="polite">
     <div class="kind" id="threshold-kind">end of this graph path</div>
     <p id="threshold-text"></p>
@@ -137,10 +157,17 @@
     </header>
 
     <section class="menu-section">
-      <div class="menu-section-label">active collaborator</div>
+      <div class="menu-section-label">collaborators · five slots</div>
       <p class="menu-empty" id="workspace-harness-status">reading registered collaborators…</p>
       <div id="workspace-harnesses"></div>
       <button id="workspace-onboarding" class="workspace-action" type="button">Set up collaborators</button>
+    </section>
+
+    <section class="menu-section" id="workspace-guide-section">
+      <div class="menu-section-label">Agent as Guide</div>
+      <p id="workspace-guide-status" class="menu-empty">No guide connected.</p>
+      <p class="menu-empty">Assign either role, or both. A collaborator occupies one of five slots. A guide accompanies you through Agent Spark.</p>
+      <div id="workspace-agent-roles"></div>
     </section>
 
     <section class="menu-section" id="workspace-parallel-section" hidden>
@@ -224,7 +251,7 @@
         <div><dt>J</dt><dd>store one earned Capsule launcher for later in this Threadwalk</dd></div>
         <div><dt>L</dt><dd>open or close this legend</dd></div>
         <div><dt>← / →</dt><dd>cycle counterclockwise / clockwise</dd></div>
-        <div><dt>Enter / ↑</dt><dd>walk the selected / north path</dd></div>
+        <div><dt>Enter / ↑</dt><dd>enter the selected destination; otherwise the first forward thought</dd></div>
         <div><dt>↓ / B</dt><dd>retrace your walk</dd></div>
         <div><dt>O</dt><dd>return to this graph's origin</dd></div>
         <div><dt>Q</dt><dd>mark an ending ready or cancel it</dd></div>
@@ -303,9 +330,37 @@
       <p class="meta">Run <code>ta init</code> and compile a fixture, then refresh.</p>
     </div>
   </div>
+  <button id="spark-hint" type="button" hidden>G · Open Agent Spark</button>
+  <section id="agent-spark" hidden role="dialog" aria-modal="true" aria-label="Agent Spark">
+    <svg id="spark-tether" aria-hidden="true"><path id="spark-tether-line" /><path id="spark-question-send-trail" /><path id="spark-question-orb-trail" /><path id="spark-answer-orb-trail" /></svg>
+    <div id="spark-dial">
+      <svg id="spark-bezel" viewBox="0 0 600 600" aria-hidden="true"><circle cx="300" cy="300" r="186"/><circle cx="300" cy="300" r="244"/></svg>
+      <svg id="spark-ring" viewBox="0 0 600 600" aria-label="Agent Spark actions"></svg>
+      <div id="spark-center">
+        <header><span class="spark-kicker">AGENT SPARK</span><strong id="spark-title"></strong><small id="spark-model"></small></header>
+        <p id="spark-context"></p>
+        <form id="spark-form"><label class="spark-sr" for="spark-question">Message your guide</label><textarea id="spark-question" rows="5" maxlength="8000" placeholder="Ask your guide…" ></textarea><button id="spark-send" type="submit">Send</button></form>
+        <p id="spark-status" role="status">Private discussion · Ctrl+Enter to send</p>
+      </div>
+      <div id="spark-clear-review" hidden><h3>Clear this discussion?</h3><p>Removes this guide’s local chat history. Created graphs, copied notes, and the agent’s own conversation and memory remain separate.</p><button id="spark-clear-confirm" type="button">Clear local discussion</button><button id="spark-clear-cancel" type="button">Keep it</button></div>
+    </div>
+    <div id="spark-conversation" aria-label="Guide conversation bubbles">
+      <article id="spark-question-bubble" class="spark-bubble spark-question-bubble" hidden>
+        <header id="spark-question-heading">Your question</header>
+        <div id="spark-question-text" class="spark-bubble-content" tabindex="0"></div>
+        <small id="spark-question-meta"></small>
+      </article>
+      <article id="spark-answer-bubble" class="spark-bubble spark-answer-bubble" hidden>
+        <header id="spark-answer-heading">Your guide</header>
+        <div id="spark-answer-text" class="spark-bubble-content" tabindex="0"></div>
+        <footer><small id="spark-answer-meta"></small><button id="spark-bubble-source" class="spark-source-link" type="button">Select source thought</button></footer>
+      </article>
+    </div>
+  </section>
   <script src="./three.min.js"></script>
   <script src="./relic-loader.js"></script>
   <script src="./sound.js"></script>
+  <script src="./spark.js"></script>
   <script src="./space.js"></script>
 </body>
 </html>
