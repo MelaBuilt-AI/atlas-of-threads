@@ -129,7 +129,16 @@ add`, `claude mcp add`, `grok mcp add`, and `prime-agent mcp add` can register
 the same executable/argument list if preferred. Atlas does not silently edit
 global client settings or register real agents for you.
 
+For an existing agent on another machine, use the optional
+[SSH connection and private MCP forward](REMOTE_AGENTS.md). The canonical
+Atlas store stays on its original machine; neither agent credentials nor a
+duplicate agent installation are needed there.
+
 ## 4. Verify from your agent
+
+For inbound paths, the client-reported model/provider is preserved in the receipt
+and `agent_bridge` metadata. The graph's execution provider remains `none`
+because Atlas did not invoke a model itself; it does not mean the model is absent.
 
 Start with: **“Use Atlas's atlas_status and list_threadwalks tools. Report the
 store counts and available Threadwalks. Do not create or change anything.”**
@@ -187,3 +196,17 @@ Configuration formats checked September 6, 2026:
 - [Prime Agent generic MCP](https://github.com/PrimeIntellect-ai/prime-agent/blob/main/packages/coding-agent/docs/mcp-integrations.md)
 - [OpenClaw MCP client registry](https://docs.openclaw.ai/cli/mcp)
 - [Hermes MCP](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp)
+
+
+## Local discovery and remote setup
+
+Workspace → Set up collaborators scans the Atlas PC when opened, with a manual
+rescan available. It includes configured default Hermes and named OpenClaw agents
+alongside the five existing CLI families. Add Remote Agent checks one specified
+SSH destination, verifies its host key, lists supported native agents, and
+registers only the chosen agent after a health check. The included connection
+and firewall guidance distinguishes service/network, trust and authentication
+failures and provides scoped rules with undo instructions.
+
+See [remote setup](REMOTE_AGENTS.md#discover-and-connect-from-workspace) for local
+platform limits, host requirements, credential boundaries and firewall references.

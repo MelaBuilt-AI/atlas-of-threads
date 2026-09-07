@@ -69,6 +69,7 @@ class HarnessSpec:
     memory_root: str | None = None
     session_state: str | None = None
     memory_files: tuple[str, ...] = ()
+    session_only: bool = False
 
     @classmethod
     def from_dict(cls, name: str, data: dict[str, Any]) -> Self:
@@ -105,11 +106,17 @@ class HarnessSpec:
             or len(set(memory_files)) != len(memory_files)
         ):
             raise HarnessError(f"harness {name!r} has invalid memory files")
+        session_only = data.get("session_only", False)
+        if type(session_only) is not bool:
+            raise HarnessError(f"harness {name!r} has invalid session_only")
+        if session_only and (optional["memory_root"] is not None or memory_files):
+            raise HarnessError("session-only agents cannot project local memory")
         agent_values = tuple(
             optional[key]
-            for key in ("collaborator_id", "agent_name", "memory_root", "session_state")
+            for key in (("collaborator_id", "agent_name", "session_state") if session_only
+                        else ("collaborator_id", "agent_name", "memory_root", "session_state"))
         )
-        if any(agent_values) and not all(agent_values):
+        if (session_only or any(agent_values)) and not all(agent_values):
             raise HarnessError(
                 f"harness {name!r} has an incomplete connected-agent configuration"
             )
@@ -120,6 +127,7 @@ class HarnessSpec:
             argv=tuple(argv),
             registered_at=registered_at,
             memory_files=tuple(memory_files),
+            session_only=session_only,
             **optional,
         )
 
@@ -139,6 +147,8 @@ class HarnessSpec:
                 data[key] = value
         if self.memory_files:
             data["memory_files"] = list(self.memory_files)
+        if self.session_only:
+            data["session_only"] = True
         return data
 
     @property
@@ -210,6 +220,7 @@ class HarnessRegistry:
         memory_root: Path | str | None = None,
         memory_files: tuple[str, ...] = (),
         model: str | None = None,
+        session_only: bool = False,
     ) -> HarnessSpec:
         if not HARNESS_NAME.fullmatch(name):
             raise HarnessError(
@@ -223,7 +234,12 @@ class HarnessRegistry:
                 executable = str(candidate.resolve())
         if executable is None:
             raise HarnessError(f"adapter executable not found or not executable: {adapter}")
-        connected_values = (collaborator_id, agent_name, memory_root)
+        if session_only and (memory_root is not None or memory_files):
+            raise HarnessError("session-only agents cannot project local memory")
+        connected_values = ((collaborator_id, agent_name) if session_only
+                            else (collaborator_id, agent_name, memory_root))
+        if session_only and not all(connected_values):
+            raise HarnessError("session-only registration requires collaborator ID and name")
         if any(value is not None for value in connected_values) and not all(
             value is not None for value in connected_values
         ):
@@ -232,7 +248,7 @@ class HarnessRegistry:
             )
         resolved_memory_root = None
         resolved_memory_files: tuple[str, ...] = ()
-        session_state = None
+        session_state = str((self.path.parent / "agent-sessions" / f"{name}.json").resolve()) if session_only else None
         if memory_files and memory_root is None:
             raise HarnessError("memory files require a connected-agent memory root")
         if memory_root is not None and not memory_files:
@@ -282,6 +298,7 @@ class HarnessRegistry:
             memory_root=resolved_memory_root,
             session_state=session_state,
             memory_files=resolved_memory_files,
+            session_only=session_only,
         )
         raw = self._load()
         harnesses = dict(raw["harnesses"])

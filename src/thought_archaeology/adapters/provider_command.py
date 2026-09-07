@@ -128,6 +128,13 @@ def _native_command(name: str, override: str | None) -> str | None:
     found = _safe_which(name)
     if found:
         return str(Path(found).absolute())
+    if sys.platform != "win32":
+        for folder in (Path.home()/".local/bin", Path.home()/".opencode/bin",
+                       Path.home()/".npm-global/bin", Path.home()/".bun/bin",
+                       Path("/opt/homebrew/bin"), Path("/usr/local/bin")):
+            candidate = folder/name
+            if _safe_is_file(candidate) and os.access(candidate, os.X_OK):
+                return str(candidate.absolute())
     if name == "grok":
         root = Path(os.environ.get("GROK_HOME") or Path.home() / ".grok") / "bin"
         for candidate in (root / "grok", root / "grok.exe", root / "grok.cmd"):

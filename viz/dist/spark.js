@@ -216,11 +216,22 @@ window.TAAgentSpark = function ({ scene, camera, sound, getView, canShow, isOver
       const label=document.createElement('strong');label.textContent=`${agent.agent_name||agent.name} · ${agent.model||'model not reported'}`;row.append(label);
       const makeCheck=(text,checked)=>{const l=document.createElement('label'),c=document.createElement('input');c.type='checkbox';c.checked=checked;l.append(c,document.createTextNode(text));row.append(l);return c;};
       const collaborator=makeCheck('Agent as collaborator',assigned.has(agent.name)),asGuide=makeCheck('Agent as guide',guide?.name===agent.name);
-      const apply=document.createElement('button');apply.type='button';apply.textContent='Apply roles';apply.onclick=async()=>{
-        apply.disabled=true;el('workspace-action-status').textContent='Connecting agent roles…';
+      asGuide.className='agent-guide-check';
+      const apply=document.createElement('button');apply.type='button';apply.textContent='Apply roles';
+      const hint=document.createElement('p');hint.className='agent-role-pending-note';hint.id=`guide-role-pending-${agent.name}`;hint.hidden=true;hint.setAttribute('role','status');
+      asGuide.setAttribute('aria-describedby',hint.id);apply.setAttribute('aria-describedby',hint.id);
+      const showPending=()=>{
+        const switching=asGuide.checked&&guide?.name!==agent.name;
+        row.classList.toggle('guide-change-pending',switching);
+        hint.hidden=!switching;
+        hint.textContent=switching?(guide?`Replace ${guide.display_name} with ${agent.agent_name||agent.name}? Click Apply roles to confirm. ${guide.display_name} remains your guide until then.`:'Click Apply roles to confirm this guide.'):'';
+      };
+      asGuide.onchange=showPending;
+      apply.onclick=async()=>{
+        apply.disabled=true;collaborator.disabled=true;asGuide.disabled=true;apply.textContent='Applying…';el('workspace-action-status').textContent='Connecting agent roles…';
         try{const result=await post('/api/agent/roles',{harness:agent.name,collaborator:collaborator.checked,guide:asGuide.checked});onWorkspace(result.workspace);el('workspace-action-status').textContent='Agent roles saved.';}
-        catch(error){el('workspace-action-status').textContent=error.message;}finally{apply.disabled=false;}
-      };row.append(apply);list.append(row);
+        catch(error){el('workspace-action-status').textContent=error.message;}finally{apply.disabled=false;collaborator.disabled=false;asGuide.disabled=false;apply.textContent='Apply roles';}
+      };row.append(apply,hint);list.append(row);
     }
   }
   function tick(t) {

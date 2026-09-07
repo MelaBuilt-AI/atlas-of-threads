@@ -26,6 +26,7 @@ from thought_archaeology.adapters.memory import (
     _load_session_state,
     _save_session_state,
 )
+from thought_archaeology.adapters.guide_prompt import guide_prompt
 from thought_archaeology.harness import HARNESS_PROTOCOL_VERSION
 from thought_archaeology.schema import read_prompt
 
@@ -120,13 +121,15 @@ def _default_model(executable: ProviderCommand) -> str:
         ) from exc
 
 
-def _validate_envelope(raw: Any) -> dict[str, Any]:
+def _validate_envelope(raw: Any, operation: str | None = None) -> dict[str, Any]:
     if not isinstance(raw, dict):
-        raise CodexAdapterError("continue expects one JSON object on stdin")
+        raise CodexAdapterError("adapter expects one JSON object on stdin")
     if raw.get("protocol_version") != HARNESS_PROTOCOL_VERSION:
         raise CodexAdapterError("unsupported Thought Archaeology harness protocol")
-    if raw.get("operation") != "continue":
-        raise CodexAdapterError("adapter input operation must be 'continue'")
+    if raw.get("operation") not in {"continue", "discuss"}:
+        raise CodexAdapterError("adapter input operation must be 'continue' or 'discuss'")
+    if operation is not None and raw["operation"] != operation:
+        raise CodexAdapterError("adapter input operation does not match command")
     request = raw.get("request")
     graph = raw.get("graph")
     standing = raw.get("standing")
@@ -140,6 +143,8 @@ def _validate_envelope(raw: Any) -> dict[str, Any]:
 
 
 def _prompt(envelope: dict[str, Any], memory_context: str = "") -> str:
+    if envelope.get("operation") == "discuss":
+        return guide_prompt(envelope, "Codex", memory_context)
     request = envelope["request"]
     agent_name = os.environ.get("TA_HARNESS_AGENT_NAME", "").strip()
     optional_prompt = str(request.get("prompt") or "").strip()
@@ -335,8 +340,8 @@ def _emit(data: dict[str, Any]) -> None:
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     try:
-        if len(args) != 1 or args[0] not in {"describe", "continue"}:
-            raise CodexAdapterError("usage: ta-harness-codex describe|continue")
+        if len(args) != 1 or args[0] not in {"describe", "continue", "discuss"}:
+            raise CodexAdapterError("usage: ta-harness-codex describe|continue|discuss")
         executable = _codex_bin()
         version = _version(executable)
         model = _default_model(executable)
@@ -347,6 +352,7 @@ def main(argv: list[str] | None = None) -> int:
                 "name": "codex",
                 "capabilities": [
                     "continue",
+                    "discuss",
                     *(["resumable_session"] if memory is not None else []),
                 ],
                 "cli_version": version,
@@ -362,7 +368,7 @@ def main(argv: list[str] | None = None) -> int:
                 }
             _emit(description)
             return 0
-        envelope = _validate_envelope(json.load(sys.stdin))
+        envelope = _validate_envelope(json.load(sys.stdin), args[0])
         response = _continue(executable, envelope, model)
         result = {
             "protocol_version": HARNESS_PROTOCOL_VERSION,

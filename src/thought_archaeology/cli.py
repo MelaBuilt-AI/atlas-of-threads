@@ -378,6 +378,10 @@ def _parser() -> argparse.ArgumentParser:
         help="approved read-only memory workspace for the bound collaborator",
     )
     p_harness_register.add_argument(
+        "--session-only", action="store_true",
+        help="resume a connected agent's native session without projecting local memory",
+    )
+    p_harness_register.add_argument(
         "--memory-file",
         action="append",
         default=[],
@@ -2430,9 +2434,9 @@ def cmd_harness(args: argparse.Namespace) -> int:
         collaborator = None
         if args.collaborator:
             collaborator = _store(args).load_agent_collaborator(args.collaborator)
-        if bool(collaborator) != bool(args.memory_root):
+        if bool(collaborator) != bool(args.memory_root or args.session_only):
             raise HarnessError(
-                "--collaborator and --memory-root must be supplied together"
+                "--collaborator requires --memory-root or --session-only (and vice versa)"
             )
         if args.memory_file and not args.memory_root:
             raise HarnessError("--memory-file requires --memory-root")
@@ -2446,6 +2450,7 @@ def cmd_harness(args: argparse.Namespace) -> int:
             memory_root=args.memory_root,
             memory_files=tuple(args.memory_file),
             model=args.model,
+            session_only=args.session_only,
         )
         print(spec.name)
         return EXIT_OK

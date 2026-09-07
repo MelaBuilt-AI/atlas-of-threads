@@ -702,6 +702,10 @@
     const watcherActive = onboardingWatcherActive(payload);
     const pending = payload.pending || [];
     const firstRun = !(payload.history || []).length;
+    document.getElementById("onboarding-title").textContent = firstRun ? "Begin in your own Atlas." : "Connect your agents.";
+    document.getElementById("onboarding-kicker").textContent = firstRun ? "Atlas of Threads · first Threadwalk" : "Atlas of Threads · agent connections";
+    document.getElementById("onboarding-inquiry-label").textContent = firstRun ? "02 · open your first Threadwalk" : "02 · start another Threadwalk";
+    elOnboardingClose.textContent = firstRun ? "setup later" : "back to Workspace";
     const selectedRegistry = (payload.harnesses || []).find(
       (harness) => harness.selected
     );
@@ -778,8 +782,12 @@
     } else if (firstCollaboratorReady) {
       const selectedName = workspaceHarnessName(selectedRegistry);
       elOnboardingStatus.textContent = watcherActive
-        ? `${selectedName} is ready. Write the inquiry that should open your first chamber.`
+        ? `${selectedName} is ready. ${firstRun ? "Write the inquiry that should open your first chamber." : "Connect another agent here, or return to Workspace to choose its roles."}`
         : `${selectedName} will open the first path. Starting the Threadwalk will activate its local worker.`;
+    } else if ((payload.available_harnesses || []).some(
+      (harness) => !harness.registered && harness.provider_state === "ready"
+    )) {
+      elOnboardingStatus.textContent = "Choose a detected agent to connect, or add an agent on another machine.";
     } else if ((payload.available_harnesses || []).some(
       (harness) => harness.registered && harness.provider_state !== "ready"
     )) {
@@ -807,6 +815,7 @@
     elStartMenu.hidden = true;
     elOnboardingMenu.hidden = false;
     renderOnboarding(workspace);
+    window.AtlasAgentConnect.open(refreshOnboarding);
     const firstAction = elOnboardingHarnesses.querySelector("button:not(:disabled)");
     (onboardingCanStart ? elOnboardingInquiry : firstAction || elOnboardingClose).focus();
   }

@@ -42,7 +42,7 @@ def assign_roles(store: Store, body: dict) -> None:
         if body["guide"]:
             description = describe_harness(registry.get(name), timeout=30)
             if "discuss" not in description.get("capabilities", []):
-                raise HarnessError("This adapter does not support guide discussion yet. OpenCode supports it.")
+                raise HarnessError("This adapter does not support guide discussion yet.")
             registry.record_model(name, description["default_model"], cli_version=description.get("cli_version"))
         registry.set_agent_roles(name, collaborator=body["collaborator"], guide=body["guide"])
 

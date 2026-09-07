@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from thought_archaeology.adapters.guide_prompt import guide_prompt
 from thought_archaeology.harness import HARNESS_PROTOCOL_VERSION
 from thought_archaeology.schema import read_prompt
 
@@ -130,13 +131,15 @@ def _model_label(provider: str, model: str, thinking: str) -> str:
     return f"{provider}/{model} (thinking: {thinking})"
 
 
-def _validate_envelope(raw: Any) -> dict[str, Any]:
+def _validate_envelope(raw: Any, operation: str | None = None) -> dict[str, Any]:
     if not isinstance(raw, dict):
-        raise PrimeAgentAdapterError("continue expects one JSON object on stdin")
+        raise PrimeAgentAdapterError("adapter expects one JSON object on stdin")
     if raw.get("protocol_version") != HARNESS_PROTOCOL_VERSION:
         raise PrimeAgentAdapterError("unsupported Thought Archaeology harness protocol")
-    if raw.get("operation") != "continue":
-        raise PrimeAgentAdapterError("adapter input operation must be 'continue'")
+    if raw.get("operation") not in {"continue", "discuss"}:
+        raise PrimeAgentAdapterError("adapter input operation must be 'continue' or 'discuss'")
+    if operation is not None and raw["operation"] != operation:
+        raise PrimeAgentAdapterError("adapter input operation does not match command")
     request = raw.get("request")
     graph = raw.get("graph")
     standing = raw.get("standing")
@@ -150,6 +153,8 @@ def _validate_envelope(raw: Any) -> dict[str, Any]:
 
 
 def _prompt(envelope: dict[str, Any]) -> str:
+    if envelope.get("operation") == "discuss":
+        return guide_prompt(envelope, "Prime Agent")
     request = envelope["request"]
     optional_prompt = str(request.get("prompt") or "").strip()
     task = (
@@ -342,9 +347,9 @@ def _emit(data: dict[str, Any]) -> None:
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     try:
-        if len(args) != 1 or args[0] not in {"describe", "continue"}:
+        if len(args) != 1 or args[0] not in {"describe", "continue", "discuss"}:
             raise PrimeAgentAdapterError(
-                "usage: ta-harness-prime-agent describe|continue"
+                "usage: ta-harness-prime-agent describe|continue|discuss"
             )
         executable = _prime_agent_bin()
         version = _version(executable)
@@ -354,13 +359,13 @@ def main(argv: list[str] | None = None) -> int:
                 {
                     "protocol_version": HARNESS_PROTOCOL_VERSION,
                     "name": "prime-agent",
-                    "capabilities": ["continue"],
+                    "capabilities": ["continue", "discuss"],
                     "cli_version": version,
                     "default_model": _model_label(provider, model, thinking),
                 }
             )
             return 0
-        envelope = _validate_envelope(json.load(sys.stdin))
+        envelope = _validate_envelope(json.load(sys.stdin), args[0])
         response, reported_model = _continue(
             executable, envelope, provider, model, thinking
         )

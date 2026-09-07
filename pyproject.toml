@@ -29,6 +29,8 @@ ta-harness-codex = "thought_archaeology.adapters.codex:main"
 ta-harness-grok = "thought_archaeology.adapters.grok:main"
 ta-harness-opencode = "thought_archaeology.adapters.opencode:main"
 ta-harness-prime-agent = "thought_archaeology.adapters.prime_agent:main"
+ta-harness-local = "thought_archaeology.adapters.local:main"
+ta-harness-ssh = "thought_archaeology.adapters.ssh:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

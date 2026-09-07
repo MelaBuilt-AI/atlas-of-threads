@@ -26,11 +26,29 @@ release must include the console host and pass `packaging/smoke_mcp.py` against
 the installed Windows executable and standalone Linux executable.
 
 The development branch also includes Agent Spark private prose discussion and
-independent collaborator/guide roles. OpenCode is the first supported guide
-adapter. Linux source tests and isolated role/restart checks pass; native Windows
+independent collaborator/guide roles. Local OpenCode, Codex, Claude Code, Grok
+and Prime Agent support guide discussions. The four latter adapters use Atlas
+discussion history without attaching a personal memory vault by default.
+Linux source tests and isolated role/restart checks pass; native Windows
 OpenCode return and guide acceptance remain pending. See
 [Agent Spark](AGENT_BRIDGE.md#agent-spark--local-guide-discussion) for the runtime
 and memory boundaries.
+
+The optional source [remote-agent connection](REMOTE_AGENTS.md) adds verified SSH
+calls to existing Hermes/OpenClaw installations and an optional private
+Unix-socket forward for inbound MCP. Linux-to-WSL path/guide/session-reconnect
+acceptance passes. It is not a new packaged release or a shared Atlas service;
+native Windows remote execution remains unimplemented. Subsequent isolated native
+Hermes/OpenClaw inbound contribution, file-memory readback and fresh-session
+replay checks pass. The development package now includes manual `adapter ssh`
+dispatch, exercised by `packaging/smoke_ssh.py` alongside the existing MCP smoke.
+Development Workspace setup also discovers local CLIs and offers Add Remote Agent
+with SSH verification and scoped firewall guidance. `packaging/smoke_discovery.py`
+checks frozen UI/API assets, local adapter dispatch and setup-origin protection.
+`packaging/smoke_guides.py` verifies the four additional guide entry points and
+private-context rejection in standalone and installed packages without model calls.
+Remote helper hosting still requires POSIX; Windows-native Hermes/OpenClaw session
+adapters and automatic LAN host discovery are not implied.
 
 - The project is MIT-licensed and owned under `MelaBuilt-AI`.
 - Runtime data, environments, caches, and package metadata are ignored. No live
@@ -64,7 +82,8 @@ and memory boundaries.
 - Python 3.11 and 3.12 are the supported source-install versions.
 - `ta harness service` requires a systemd user session; other platforms use
   the foreground `ta harness watch` path.
-- Accounts, networking, and the shared Atlas are future work. The current
+- Accounts and the shared Atlas are future work. The explicit private SSH
+  connection above is the development exception for networking. The current
   release is a local-first Personal Atlas.
 
 Passing this checklist does not replace an explicit owner decision for future
