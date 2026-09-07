@@ -160,7 +160,11 @@ WINDOWS_PROVIDER_SETUP = MappingProxyType(
 def _packaged_harness_command(name: str) -> tuple[str, tuple[str, ...]] | None:
     """Find a bundled adapter even when its virtualenv is not on PATH."""
     if getattr(sys, "frozen", False):
-        return str(Path(sys.executable).absolute()), (
+        executable = Path(sys.executable).absolute()
+        console = executable.with_name("AtlasOfThreadsMCP.exe")
+        if sys.platform == "win32" and console.is_file():
+            executable = console
+        return str(executable), (
             "adapter",
             name.removeprefix("ta-harness-"),
         )
@@ -1241,6 +1245,29 @@ class InhabitHandler(BaseHTTPRequestHandler):
                 return
             if path == "/api/workspace/harness":
                 self._workspace_harness()
+                return
+            if path in {"/api/onboarding/discover", "/api/onboarding/remote/check",
+                        "/api/onboarding/remote/trust", "/api/onboarding/remote/help", "/api/onboarding/agent/connect"}:
+                self._require_local_json_request()
+                from thought_archaeology import agent_connect
+                body = self._read_json()
+                try:
+                    if path.endswith("/help"):
+                        selected = agent_connect.settings({"host":"localhost", "user":"atlas",
+                            "port":body.get("port",22), "platform":body.get("platform","linux")})
+                        result = agent_connect.firewall_help(selected)
+                    elif path.endswith("/discover"):
+                        result = agent_connect.local_discovery()
+                    elif path.endswith("/check"):
+                        result = agent_connect.check_remote(body)
+                    elif path.endswith("/trust"):
+                        result = agent_connect.trust_remote(body.get("token"))
+                    else:
+                        result = agent_connect.connect_agent(body, self.store, _packaged_harness_command)
+                        result["workspace"] = workspace_payload(self.store)
+                except (OSError, ValueError, subprocess.SubprocessError) as exc:
+                    raise ServeError("Connection setup could not finish. Check SSH and native agent setup, then try again.") from exc
+                self._json(200, result)
                 return
             if path == "/api/onboarding/harness":
                 self._onboarding_harness()

@@ -118,7 +118,7 @@
     <section class="onboarding-panel" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
       <header class="onboarding-head">
         <div>
-          <div class="menu-kicker">Atlas of Threads · first Threadwalk</div>
+          <div id="onboarding-kicker" class="menu-kicker">Atlas of Threads · first Threadwalk</div>
           <h1 id="onboarding-title">Begin in your own Atlas.</h1>
         </div>
         <button id="onboarding-close" type="button">setup later</button>
@@ -133,11 +133,30 @@
       <section class="onboarding-step">
         <div class="onboarding-step-label">01 · choose a collaborator</div>
         <p>Use a supported CLI already configured on this machine. On Windows, Atlas can open the official native installer and provider-owned sign-in for Codex, Claude Code, or Grok; WSL remains an optional fallback. Atlas never receives credentials or changes subscription/API billing.</p>
+        <button id="agent-scan-local" type="button">Scan this PC again</button>
         <div id="onboarding-harnesses"></div>
+        <div id="agent-local-results" aria-live="polite"></div>
+        <p id="agent-local-status" role="status"></p>
+        <details id="agent-remote-setup">
+          <summary>Add Remote Agent</summary>
+          <p>Connect an existing Hermes or OpenClaw agent over SSH. Its account, persona and conversation stay on that machine. Choose agents before Atlas installs its private connection helper.</p>
+          <form id="agent-remote-form">
+            <label>Agent machine <input name="host" required placeholder="192.168.1.20 or hostname" autocomplete="off" /></label>
+            <label>SSH login <input name="user" required autocomplete="off" /></label>
+            <label>SSH port <input name="port" type="number" value="22" min="1" max="65535" required /></label>
+            <label>Agent host type <select name="platform"><option value="linux">Linux</option><option value="wsl">Windows with WSL</option><option value="macos">macOS</option></select></label>
+            <label>Private-key file on this Atlas PC (optional) <input name="identity" placeholder="Leave blank to use your SSH agent or default keys" autocomplete="off" /></label>
+            <button type="submit">Check connection and find agents</button>
+          </form>
+          <p id="agent-remote-status" role="status"></p>
+          <div id="agent-host-trust"></div>
+          <div id="agent-remote-results"></div>
+          <details id="agent-connection-help"><summary>Connection and firewall help</summary><div id="agent-help-content"></div></details>
+        </details>
       </section>
 
       <section class="onboarding-step">
-        <div class="onboarding-step-label">02 · open your first Threadwalk</div>
+        <div id="onboarding-inquiry-label" class="onboarding-step-label">02 · open your first Threadwalk</div>
         <form id="onboarding-inquiry-form">
           <label for="onboarding-inquiry">What do you want to explore?</label>
           <input id="onboarding-inquiry" type="text" maxlength="400" autocomplete="off" spellcheck="false" placeholder="Ask the question that should open your first chamber." />
@@ -361,6 +380,7 @@
   <script src="./relic-loader.js"></script>
   <script src="./sound.js"></script>
   <script src="./spark.js"></script>
+  <script src="./agent-connect.js"></script>
   <script src="./space.js"></script>
 </body>
 </html>

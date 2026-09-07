@@ -40,6 +40,11 @@ native Windows remote execution remains unimplemented. Subsequent isolated nativ
 Hermes/OpenClaw inbound contribution, file-memory readback and fresh-session
 replay checks pass. The development package now includes manual `adapter ssh`
 dispatch, exercised by `packaging/smoke_ssh.py` alongside the existing MCP smoke.
+Development Workspace setup also discovers local CLIs and offers Add Remote Agent
+with SSH verification and scoped firewall guidance. `packaging/smoke_discovery.py`
+checks frozen UI/API assets, local adapter dispatch and setup-origin protection.
+Remote helper hosting still requires POSIX; Windows-native Hermes/OpenClaw session
+adapters and automatic LAN host discovery are not implied.
 
 - The project is MIT-licensed and owned under `MelaBuilt-AI`.
 - Runtime data, environments, caches, and package metadata are ignored. No live

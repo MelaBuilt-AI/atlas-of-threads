@@ -12,6 +12,8 @@ a = Analysis(
     pathex=[str(root / "src")],
     binaries=[],
     datas=[
+        (str(root / "src" / "thought_archaeology" / "adapters" / "host_probe.py"), "agent-host"),
+        (str(root / "src" / "thought_archaeology" / "adapters" / "remote_host.py"), "agent-host"),
         (str(root / "viz" / "dist"), "viz/dist"),
         (str(root / "src" / "thought_archaeology" / "prompts"), "thought_archaeology/prompts"),
         (str(root / "src" / "thought_archaeology" / "schemas"), "thought_archaeology/schemas"),
@@ -23,6 +25,7 @@ a = Analysis(
         "thought_archaeology.adapters.opencode",
         "thought_archaeology.adapters.prime_agent",
         "thought_archaeology.adapters.ssh",
+        "thought_archaeology.adapters.local",
     ],
     hookspath=[],
     hooksconfig={},

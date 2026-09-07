@@ -37,6 +37,7 @@ jobs:
         run: |
           python packaging/smoke_mcp.py "$PWD/dist/atlas-of-threads-linux-x86_64"
           python packaging/smoke_ssh.py "$PWD/dist/atlas-of-threads-linux-x86_64"
+          python packaging/smoke_discovery.py "$PWD/dist/atlas-of-threads-linux-x86_64"
           dist/atlas-of-threads-linux-x86_64 --help
           TA_WORKER_BACKEND=application dist/atlas-of-threads-linux-x86_64 \
             --store "$RUNNER_TEMP/atlas-smoke" launch --no-browser --port 7468 &
@@ -66,7 +67,7 @@ jobs:
         shell: pwsh
         run: |
           python -m pip install -e ".[dev,packaging]"
-          pytest -q tests/test_launcher.py tests/test_store.py
+          pytest -q tests/test_launcher.py tests/test_store.py tests/test_agent_connect.py
           pytest -q tests/test_serve.py -k "windows_provider or onboarding_opens"
           python -m PyInstaller --clean --noconfirm packaging/atlas.spec
       - name: Smoke test packaged application
@@ -76,6 +77,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Packaged MCP smoke failed" }
           python packaging/smoke_ssh.py (Resolve-Path dist\AtlasOfThreadsMCP.exe)
           if ($LASTEXITCODE -ne 0) { throw "Packaged SSH adapter smoke failed" }
+          python packaging/smoke_discovery.py (Resolve-Path dist\AtlasOfThreadsMCP.exe)
+          if ($LASTEXITCODE -ne 0) { throw "Packaged discovery smoke failed" }
           $store = Join-Path $env:RUNNER_TEMP "atlas-smoke"
           $app = Start-Process dist\AtlasOfThreads.exe -ArgumentList @("--store", $store, "launch", "--no-browser", "--port", "7468") -PassThru
           try {
@@ -114,6 +117,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Installed MCP smoke failed" }
           python packaging/smoke_ssh.py (Join-Path $installDir 'AtlasOfThreadsMCP.exe')
           if ($LASTEXITCODE -ne 0) { throw "Installed SSH adapter smoke failed" }
+          python packaging/smoke_discovery.py (Join-Path $installDir 'AtlasOfThreadsMCP.exe')
+          if ($LASTEXITCODE -ne 0) { throw "Installed discovery smoke failed" }
       - uses: actions/upload-artifact@v6
         with:
           name: atlas-of-threads-windows-x86_64

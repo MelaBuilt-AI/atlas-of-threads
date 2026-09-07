@@ -11,7 +11,71 @@ used Linux Atlas and both agents in Ubuntu WSL on another LAN PC: Hermes 0.21.0
 (`245e4800`) and OpenClaw 2026.9.2 (`3928bad`). Native Windows remote execution
 is not implemented. No duplicate agent installation is needed on the Atlas PC.
 
-## Atlas calls the remote agent
+## Discover and connect from Workspace
+
+Open **Workspace → Set up collaborators**. Atlas automatically checks installed
+local CLIs when this screen opens; **Scan this PC again** refreshes it. Codex,
+Claude Code, Grok, OpenCode and Prime Agent use their existing adapters. Discovery
+also lists the configured default Hermes installation and named OpenClaw agents.
+Common per-user executable directories are checked when the desktop PATH omits
+them. Detection is read-only and calls no model. Choose **Connect** before Atlas
+registers an agent; existing connections and selected roles are preserved.
+
+Local Hermes/OpenClaw session adapters require a POSIX host. A Windows-native
+installation can be detected but is not presented as connectable through that
+adapter. The other five retain their existing Windows support and explicit WSL
+fallback rules. Hermes is shown under its harness name; choose its display name
+when connecting. OpenClaw supplies its configured agent identity. Display names
+are labels, not a substitute for native persona context.
+
+For another machine, expand **Add Remote Agent**:
+
+1. Enter hostname/IP, SSH login, port, host type, and optionally the existing
+   private-key path on the Atlas PC. Blank uses default keys or your SSH agent.
+2. Choose **Check connection and find agents**. Atlas checks that one destination;
+   it does not scan the LAN. A new host shows an Ed25519 fingerprint. Compare it
+   with the host itself before selecting **Trust verified host**. Changed trusted
+   keys stop the flow; they are never automatically replaced.
+3. Select a discovered Hermes/OpenClaw agent, review its display and connection
+   names, and connect it. Atlas copies its bundled stdlib helper and a private
+   config to a new directory on that host, then checks the native CLI. A failed
+   health check removes the registration; private setup files remain for diagnosis.
+4. Assign a collaborator slot, guide role, or both in Workspace. The first model
+   request starts a dedicated native conversation. No ordinary session is taken
+   over, and no global native MCP configuration is edited.
+
+Local connection configs and Atlas-specific `known_hosts` are stored beside the
+harness registry under `connections/`. Remote helper/config/session receipts live
+under `~/.local/share/atlas-of-threads/connections/<connection-id>/`. Retain these
+session directories for continuity. The UI uses direct SSH settings and does not
+load SSH config aliases/ProxyCommand; advanced manual configuration remains below.
+Setup does not install native agents, copy credentials, sign in or change billing.
+
+### Connection and firewall assistance
+
+The form includes help before or after a connection check. Reachable-host checks
+supply the Atlas PC's routed source IP. Rules target only that source and the
+chosen SSH port; no rule exposes Atlas's web server or OpenClaw's Gateway.
+
+Failures distinguish a refused service, unreachable host/port, unknown/changed
+host key, authentication failure, and missing host runtime. Timeout alone does
+not establish a firewall problem. Confirm host power, address, route, SSH service
+and login first. Authentication failures explicitly direct users away from
+firewall changes.
+
+Guidance covers Ubuntu/Debian SSH service setup, existing UFW or firewalld rules,
+macOS Remote Login, Windows Private-profile rules, and WSL's Hyper-V firewall.
+WSL mirrored and NAT routing are explained separately; NAT requires an explicit
+port proxy and may need its WSL IP refreshed after restart. Commands are shown
+for review/copy on the host, with undo instructions. Atlas does not execute
+firewall or administrator commands, disable protections, or modify WSL settings.
+
+Firewall/network references: [Microsoft WSL networking](https://learn.microsoft.com/en-us/windows/wsl/networking)
+and [Hyper-V firewall](https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/hyper-v-firewall).
+Native inventory references: [OpenClaw agents](https://docs.openclaw.ai/cli/agents)
+and [Hermes configuration](https://hermes-agent.nousresearch.com/docs/user-guide/configuration/).
+
+## Manual connection configuration
 
 1. Establish normal key-based SSH and verify the host key independently.
 2. Install this source checkout with `pip install -e .` on the Atlas machine.

@@ -33,6 +33,14 @@ can reproduce the problem.
   configured remote Hermes/OpenClaw runtime. It requires verified SSH host keys;
   native credentials remain remote. Optional reverse MCP uses private Unix
   sockets and fixed store/collaborator scopes. See [remote agents](docs/REMOTE_AGENTS.md).
+- Development agent onboarding scans local installations without calling models.
+  Remote discovery contacts only a user-entered SSH host, requires explicit trust
+  for a new fingerprint and refuses changed trusted keys. Host config/commands
+  stay in server-side setup state; browser requests select an expiring discovery
+  result. These setup endpoints require same-origin local JSON requests.
+  Connecting copies only the Atlas helper and selected public native settings.
+  Firewall assistance displays scoped commands and undo guidance; it never
+  applies administrator rules or exposes the Atlas web port automatically.
 - A Knowledge Capsule launch writes a private local Markdown projection. It
   does not upload or publish the Capsule.
 

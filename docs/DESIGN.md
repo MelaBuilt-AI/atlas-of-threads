@@ -2112,3 +2112,14 @@ highlighting and their outer rows; hovering does not stop the HUD motion. Keyboa
 HUD; discussion alone creates no canonical graph. Reviewed handoffs, soft sound
 with separate mute, and the runtime/persistence boundaries are specified in
 `docs/AGENT_BRIDGE.md`, “Agent Spark — local guide discussion.”
+
+
+### Agent discovery and remote onboarding (September 7 development)
+
+The collaborator setup surface scans supported local installations when opened;
+scanning never activates an agent or calls a model. An explicit Add Remote Agent
+flow checks one host over SSH, verifies trust before probing native installations,
+and registers only the selected agent. Model, persona and session ownership remain
+with the native client. Firewall assistance provides host-specific scoped commands
+and undo guidance, with no automatic firewall changes, subnet scans or new public
+Atlas listener. The connection contract and platform limits are in REMOTE_AGENTS.md.
