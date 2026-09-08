@@ -78,7 +78,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Packaged MCP smoke failed" }
           python packaging/smoke_ssh.py (Resolve-Path dist\AtlasOfThreadsMCP.exe)
           if ($LASTEXITCODE -ne 0) { throw "Packaged SSH adapter smoke failed" }
-          python packaging/smoke_discovery.py (Resolve-Path dist\AtlasOfThreadsMCP.exe)
+          python packaging/smoke_discovery.py --application (Resolve-Path dist\AtlasOfThreads.exe) (Resolve-Path dist\AtlasOfThreadsMCP.exe)
           if ($LASTEXITCODE -ne 0) { throw "Packaged discovery smoke failed" }
           python packaging/smoke_guides.py (Resolve-Path dist\AtlasOfThreadsMCP.exe)
           if ($LASTEXITCODE -ne 0) { throw "Packaged guide smoke failed" }
@@ -120,7 +120,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Installed MCP smoke failed" }
           python packaging/smoke_ssh.py (Join-Path $installDir 'AtlasOfThreadsMCP.exe')
           if ($LASTEXITCODE -ne 0) { throw "Installed SSH adapter smoke failed" }
-          python packaging/smoke_discovery.py (Join-Path $installDir 'AtlasOfThreadsMCP.exe')
+          python packaging/smoke_discovery.py --application (Join-Path $installDir 'AtlasOfThreads.exe') (Join-Path $installDir 'AtlasOfThreadsMCP.exe')
           if ($LASTEXITCODE -ne 0) { throw "Installed discovery smoke failed" }
           python packaging/smoke_guides.py (Join-Path $installDir 'AtlasOfThreadsMCP.exe')
           if ($LASTEXITCODE -ne 0) { throw "Installed guide smoke failed" }

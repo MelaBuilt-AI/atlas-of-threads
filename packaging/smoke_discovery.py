@@ -1,4 +1,5 @@
 """Frozen onboarding/API smoke with synthetic settings and no model calls."""
+import argparse
 import json
 import os
 from pathlib import Path
@@ -11,7 +12,7 @@ from urllib.request import Request,urlopen
 from urllib.error import HTTPError, URLError
 
 
-def smoke(command):
+def smoke(command, application=None):
     with tempfile.TemporaryDirectory(prefix='atlas-discovery-') as folder:
         root=Path(folder)
         config=root/'native.json'
@@ -24,7 +25,7 @@ def smoke(command):
             available.bind(('127.0.0.1',0))
             port=available.getsockname()[1]
         env={**os.environ,'TA_HARNESS_CONFIG':str(root/'harnesses.json'),'TA_WORKER_BACKEND':'application'}
-        app=subprocess.Popen([*command,'--store',str(root/'store'),'launch','--no-browser','--port',str(port)],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL, start_new_session=(os.name != "nt"))
+        app=subprocess.Popen([*(application or command),'--store',str(root/'store'),'launch','--no-browser','--port',str(port)],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL, start_new_session=(os.name != "nt"))
         url=f'http://127.0.0.1:{port}'
         def post(path,body,origin=None):
             headers={'Content-Type':'application/json'}
@@ -57,4 +58,10 @@ def smoke(command):
     print('PASS: frozen local adapter, discovery UI/API, firewall guidance and same-origin protection; no registration or model calls.')
 
 
-if __name__=='__main__':smoke(sys.argv[1:])
+if __name__=='__main__':
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--application', help='Desktop executable when separate from the console bridge')
+    parser.add_argument('command', nargs=argparse.REMAINDER)
+    args=parser.parse_args()
+    if not args.command:parser.error('a console command is required')
+    smoke(args.command, [args.application] if args.application else None)
