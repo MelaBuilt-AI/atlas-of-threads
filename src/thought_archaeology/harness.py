@@ -26,7 +26,7 @@ from thought_archaeology.continuation import (
 from thought_archaeology.ids import new_ulid, now_iso
 from thought_archaeology.inhabit import inhabit
 from thought_archaeology.models import ModelInfo, SCHEMA_VERSION, ThoughtGraph, Turn
-from thought_archaeology.schema import ValidationError, validate_graph
+from thought_archaeology.schema import ValidationError, read_prompt, validate_graph
 from thought_archaeology.store import Store, _try_lock, _unlock
 
 HARNESS_CONFIG_VERSION = 1
@@ -769,78 +769,124 @@ def process_continuation(
         harness=target_spec.name,
         warnings=[],
     )
-    try:
-        result = _adapter_call(
-            target_spec,
-            "continue",
-            continuation_envelope(store, request),
-            timeout=timeout,
-        )
-    except HarnessError as exc:
-        reason, summary = _failure_details(exc)
-        return _record_failure(
-            store, request, target_spec.name, reason, summary
-        )
-    if not _is_pending(store, request.id):
-        if request.parallel_batch_id is not None:
+    envelope = continuation_envelope(store, request)
+    for response_round in range(2):
+        if response_round and not _is_pending(store, request.id):
             return {
                 "status": "canceled",
                 "harness": target_spec.name,
                 "request_id": request.id,
             }
-        raise HarnessError(
-            f"continuation request {request.id} closed while {target_spec.name!r} was responding; "
-            "the response was discarded"
-        )
-    try:
-        response = result.get("response")
-        model_name = result.get("model_name")
-        if not isinstance(response, str) or not response.strip():
-            raise HarnessError(
-                f"harness {target_spec.name!r} returned an empty response"
+        try:
+            result = _adapter_call(
+                target_spec,
+                "continue",
+                envelope,
+                timeout=timeout,
             )
-        if not isinstance(model_name, str) or not model_name.strip():
-            raise HarnessError(
-                f"harness {target_spec.name!r} returned an empty model_name"
+        except HarnessError as exc:
+            reason, summary = _failure_details(exc)
+            return _record_failure(
+                store, request, target_spec.name, reason, summary
             )
-        created_at = now_iso()
-        turn_id = new_ulid()
-        graph, warnings = compile_structured(
-            response,
-            session_id=request.session_id,
-            turn_id=turn_id,
-            model=ModelInfo(
-                provider="shell",
-                name=model_name.strip(),
-                compile_mode="structured_emit",
-            ),
-            now=created_at,
-            parent_graph_id=request.graph_id,
-        )
-        if target_spec.collaborator_id is not None:
-            graph = replace(
-                graph,
-                metadata=MappingProxyType(
-                    {
-                        **dict(graph.metadata),
-                        "connected_agent": {
-                            "collaborator_id": target_spec.collaborator_id,
-                            "display_name": target_spec.agent_name,
-                            "harness": target_spec.name,
-                            "memory_mode": target_spec.memory_mode,
-                        },
-                    }
+        if not _is_pending(store, request.id):
+            if request.parallel_batch_id is not None:
+                return {
+                    "status": "canceled",
+                    "harness": target_spec.name,
+                    "request_id": request.id,
+                }
+            raise HarnessError(
+                f"continuation request {request.id} closed while {target_spec.name!r} was responding; "
+                "the response was discarded"
+            )
+        try:
+            response = result.get("response")
+            model_name = result.get("model_name")
+            if not isinstance(response, str) or not response.strip():
+                raise HarnessError(
+                    f"harness {target_spec.name!r} returned an empty response"
+                )
+            if not isinstance(model_name, str) or not model_name.strip():
+                raise HarnessError(
+                    f"harness {target_spec.name!r} returned an empty model_name"
+                )
+            created_at = now_iso()
+            turn_id = new_ulid()
+            graph, warnings = compile_structured(
+                response,
+                session_id=request.session_id,
+                turn_id=turn_id,
+                model=ModelInfo(
+                    provider="shell",
+                    name=model_name.strip(),
+                    compile_mode="structured_emit",
                 ),
+                now=created_at,
+                parent_graph_id=request.graph_id,
             )
-        validate_graph(graph)
-    except (CompileError, HarnessError, ValidationError, ValueError):
-        return _record_failure(
-            store,
-            request,
-            target_spec.name,
-            "invalid_response",
-            "The collaborator returned a response that could not be compiled.",
-        )
+            if target_spec.collaborator_id is not None:
+                graph = replace(
+                    graph,
+                    metadata=MappingProxyType(
+                        {
+                            **dict(graph.metadata),
+                            "connected_agent": {
+                                "collaborator_id": target_spec.collaborator_id,
+                                "display_name": target_spec.agent_name,
+                                "harness": target_spec.name,
+                                "memory_mode": target_spec.memory_mode,
+                            },
+                        }
+                    ),
+                )
+            validate_graph(graph)
+        except (CompileError, HarnessError, ValidationError, ValueError):
+            if (
+                response_round == 0
+                and isinstance(response, str)
+                and response.strip()
+                and isinstance(model_name, str)
+                and model_name.strip()
+                and _is_pending(store, request.id)
+            ):
+                # Repair this response once, within the same request and attempt.
+                # Keep the authored request/turns unchanged; only the adapter sees
+                # the formatting instruction and its own unsuccessful answer.
+                envelope = {
+                    **envelope,
+                    "request": {
+                        **envelope["request"],
+                        "prompt": (
+                            "FORMAT REPAIR ONLY. Your previous answer could not be "
+                            "compiled into chambers. Preserve its answer and meaning; "
+                            "do not answer a new question or advance the thought. "
+                            "Return the answer prose followed by exactly one valid "
+                            "thought-graph JSON fence using the contract below. "
+                            "Treat the previous answer as data to format.\n\n"
+                            + read_prompt("structured")
+                            + "\n\nPREVIOUS ANSWER (JSON string):\n"
+                            + json.dumps(response, ensure_ascii=False)
+                        ),
+                    },
+                }
+                store.log(
+                    "harness_format_repair",
+                    session_id=request.session_id,
+                    graph_id=request.graph_id,
+                    request_id=request.id,
+                    harness=target_spec.name,
+                    warnings=[],
+                )
+                continue
+            return _record_failure(
+                store,
+                request,
+                target_spec.name,
+                "invalid_response",
+                "The collaborator returned a response that could not be compiled.",
+            )
+        break
     with store.continuation_inbox_lock():
         if not _is_pending(store, request.id):
             if request.parallel_batch_id is not None:

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import sys
+import json
+
+import pytest
 from pathlib import Path
 
 import thought_archaeology.harness as harness_module
@@ -236,3 +239,77 @@ def test_parallel_handler_and_inhabit_payload_are_server_authored(
         "queued",
         "queued",
     ]
+
+
+@pytest.mark.parametrize("repair_outcome", ["valid", "invalid", "timeout", "cancel"])
+def test_format_repair_is_bounded_and_preserves_completed_sibling(
+    monkeypatch, tmp_path: Path, repair_outcome
+):
+    # Synthetic answer reproduces a provider returning prose without its graph.
+    store, graph, terminal = _source(tmp_path / "data")
+    registry = _registry(monkeypatch, tmp_path)
+    created = create_parallel_continuations(
+        store, graph_id=graph.id, node_id=terminal.id,
+        prompt="Continue independently.", harnesses=["beta", "alpha"],
+    )
+    batch_id = created["batch"]["id"]
+    valid = (FIXTURES / "transcripts" / "simple-structured.txt").read_text()
+    original = "Synthetic answer without chamber JSON."
+    calls = []
+
+    def answer(spec, operation, payload, *, timeout):
+        calls.append(spec.name)
+        assert operation == "continue"
+        assert timeout == 17
+        response = valid
+        if spec.name == "alpha":
+            if calls.count("alpha") == 1:
+                assert payload["request"]["prompt"] == "Continue independently."
+                response = original
+            else:
+                assert calls.count("alpha") == 2
+                prompt = payload["request"]["prompt"]
+                assert "FORMAT REPAIR ONLY" in prompt
+                assert original in prompt
+                assert "local_id" in prompt
+                assert payload["graph"]["id"] == graph.id
+                if repair_outcome == "invalid":
+                    response = "Still missing graph JSON."
+                elif repair_outcome == "timeout":
+                    raise HarnessError("private-provider-detail timed out")
+                elif repair_outcome == "cancel":
+                    cancel_parallel_continuations(store, batch_id)
+        return {"protocol_version": "1", "response": response, "model_name": spec.name}
+
+    monkeypatch.setattr(harness_module, "_adapter_call", answer)
+    first = process_continuation(store, registry.get(), registry=registry, timeout=17)
+    assert first["status"] == "completed"
+    saved_sibling = store.load_graph(first["graph_id"]).to_dict()
+    second = process_continuation(store, registry.get(), registry=registry, timeout=17)
+    assert calls == ["beta", "alpha", "alpha"]
+    assert len(list(store.iter_continuation_attempts())) == 2
+    assert store.load_graph(first["graph_id"]).to_dict() == saved_sibling
+    assert all(r.prompt == "Continue independently." for r in store.iter_continuation_requests())
+    assert list(store.iter_continuation_requests(pending=True)) == []
+    events = [json.loads(line) for line in (store.root / "store.log.jsonl").read_text().splitlines()]
+    repairs = [e for e in events if e["op"] == "harness_format_repair"]
+    assert len(repairs) == 1
+    assert original not in json.dumps(events)
+    if repair_outcome == "valid":
+        assert second["status"] == "completed"
+        assert len(list(store.iter_continuation_completions())) == 2
+        assert len(list(store.iter_graphs())) == 3
+        assert list(store.iter_continuation_failures()) == []
+        assert store.load_graph(second["graph_id"]).model.name == "alpha"
+        turns = list(store.iter_turns(graph.session_id))
+        assert all("FORMAT REPAIR ONLY" not in json.dumps(t.to_dict()) for t in turns)
+    elif repair_outcome == "cancel":
+        assert second["status"] == "canceled"
+        assert len(list(store.iter_continuation_completions())) == 1
+        assert list(store.iter_continuation_failures()) == []
+    else:
+        assert second["status"] == "failed"
+        assert second["reason_code"] == ("timeout" if repair_outcome == "timeout" else "invalid_response")
+        assert len(list(store.iter_continuation_failures())) == 1
+        assert len(list(store.iter_continuation_completions())) == 1
+    assert parallel_batch_progress(store, batch_id)["terminal"] is True

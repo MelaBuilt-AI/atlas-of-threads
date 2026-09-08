@@ -125,6 +125,15 @@ one JSON object to stdout:
 validates the graph, appends turns, writes it, advances the session head, and
 records the immutable completion receipt.
 
+If a nonempty answer with a model identifier fails graph compilation, TA makes
+one formatting-repair call to the same collaborator. That call includes the
+previous answer and the graph contract in a temporary request prompt; the
+original stored prompt is unchanged. The repair uses the existing per-call
+timeout and never retries a transport/protocol error or a second invalid answer.
+It stays within the same request/attempt, so other completed parallel branches
+are untouched. Only a validated result is stored. A `harness_format_repair` log
+event records the repair without copying response text into the log.
+
 TA checks that the request is still pending after model invocation and again
 after in-memory compilation. If the inhabitant canceled it, the response is
 discarded before any graph is written.
