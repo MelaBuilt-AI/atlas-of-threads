@@ -14,7 +14,7 @@
 
 <p align="center">
   <a href="https://github.com/MelaBuilt-AI/atlas-of-threads/actions/workflows/test.yml"><img src="https://github.com/MelaBuilt-AI/atlas-of-threads/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
-  <a href="https://github.com/MelaBuilt-AI/atlas-of-threads/releases/tag/v0.3.0"><img src="https://img.shields.io/badge/release-v0.3.0-35d5e8" alt="Release v0.3.0"></a>
+  <a href="https://github.com/MelaBuilt-AI/atlas-of-threads/releases/tag/v0.3.1"><img src="https://img.shields.io/badge/release-v0.3.1-35d5e8" alt="Release v0.3.1"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-ffb455" alt="MIT license"></a>
 </p>
 
@@ -27,7 +27,7 @@
   ·
   <a href="https://downloads.atlasofthreads.com/releases/latest/AtlasOfThreadsSetup.exe"><strong>Download for Windows</strong></a>
   ·
-  <a href="https://github.com/MelaBuilt-AI/atlas-of-threads/releases/tag/v0.3.0"><strong>Release notes</strong></a>
+  <a href="https://github.com/MelaBuilt-AI/atlas-of-threads/releases/tag/v0.3.1"><strong>Release notes</strong></a>
 </p>
 
 ---
@@ -56,11 +56,15 @@ explanation is a neural trace. The graph is the inspectable story of the answer.
 When causal evidence exists, it occupies a separate evidence layer with an
 explicitly bounded claim.
 
-## v0.3.0 — Bring Your Own Agent
+## v0.3.1 — Bring Your Own Agent
 
 The current release creates a private **Personal Atlas** on your computer.
 Bring an existing agent into that Atlas, choose who builds the next path and who
 walks beside you, and explore with a new terrain and cinematic soundscape.
+
+Version 0.3.1 also fixes Linux update checks on distributions whose certificate
+bundle differs from the package builder’s default path. HTTPS verification stays
+enabled and explicit certificate settings remain respected.
 
 New in this release:
 
@@ -86,7 +90,7 @@ New in this release:
   returns invalid graph formatting, plus packaged Linux launch and Windows
   bridge improvements.
 
-Read the [detailed release post](docs/releases/v0.3.0.md).
+Read the [detailed release post](docs/releases/v0.3.1.md).
 
 The continuing foundation:
 
@@ -279,7 +283,7 @@ application parent and child plus the collaborator worker. Use
 | **Atlas of Threads** | The product and platform. |
 | **Thought Archaeology Framework** | The discovery and knowledge-extraction methodology powering Atlas. |
 | **Personal Atlas** | One person's private mapped reality on their machine. |
-| **The Atlas** | A future shared layer connecting deliberately published paths from independently owned Personal Atlases. It is not part of v0.3.0. |
+| **The Atlas** | A future shared layer connecting deliberately published paths from independently owned Personal Atlases. It is not part of v0.3.1. |
 | **Threads** | AI thoughts, memories, conversations, decisions, and reasoning. |
 | **Weaving** | Connecting Threads without erasing their origins. |
 | **Threadwalk** | Traversing connected thoughts and graph generations. |
@@ -427,7 +431,7 @@ CLI exit codes are `0` for success, `1` for validation or strict-policy failure,
 
 ## Current boundary
 
-Atlas of Threads v0.3.0 is a local Personal Atlas, not a hosted knowledge
+Atlas of Threads v0.3.1 is a local Personal Atlas, not a hosted knowledge
 network. **The Atlas**—a shared world connecting only what inhabitants
 deliberately publish—is the long-term direction. This repository does not add
 accounts, upload local graphs, infer consensus, or claim that the shared layer

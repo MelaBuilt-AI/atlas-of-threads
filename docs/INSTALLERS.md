@@ -109,3 +109,9 @@ user service (or relaunches the standalone process when systemd is unavailable).
 The packages remain unsigned until a publisher identity and signing service or
 certificate are provisioned; code signing must happen before checksums and
 publication.
+
+In v0.3.1, Linux release requests load the host's maintained CA bundle if the
+packaged OpenSSL defaults find no roots. Explicit `SSL_CERT_FILE` /
+`SSL_CERT_DIR` settings remain authoritative, and HTTPS verification stays on.
+If an older installation on an affected distribution cannot detect an update,
+rerun the Linux install command above. It preserves the Personal Atlas store.

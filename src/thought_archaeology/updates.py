@@ -5,6 +5,7 @@ import json
 import os
 import re
 import shutil
+import ssl
 import subprocess
 import sys
 import tempfile
@@ -47,6 +48,28 @@ def _platform_name() -> str | None:
     return None
 
 
+def _open_release(request: Request, *, timeout: int):
+    context = ssl.create_default_context()
+    # A Linux package carries its builder's OpenSSL defaults. Use the host's
+    # maintained trust bundle if those defaults load no roots (e.g. on Arch).
+    # Explicit administrator trust settings and certificate verification stay intact.
+    if (
+        sys.platform.startswith("linux")
+        and "SSL_CERT_FILE" not in os.environ
+        and "SSL_CERT_DIR" not in os.environ
+        and not context.get_ca_certs()
+    ):
+        for bundle in (
+            "/etc/ssl/certs/ca-certificates.crt",
+            "/etc/pki/tls/certs/ca-bundle.crt",
+            "/etc/ssl/cert.pem",
+        ):
+            if Path(bundle).is_file():
+                context.load_verify_locations(cafile=bundle)
+                break
+    return urlopen(request, timeout=timeout, context=context)
+
+
 def update_status(*, opener=None) -> dict:
     """Read the public manifest written only by a published GitHub Release."""
     platform = _platform_name()
@@ -60,7 +83,7 @@ def update_status(*, opener=None) -> dict:
     }
     if not status["supported"]:
         return status
-    open_url = opener or urlopen
+    open_url = opener or _open_release
     manifest_url = os.environ.get("TA_UPDATE_MANIFEST_URL", MANIFEST_URL)
     try:
         request = Request(
@@ -88,7 +111,7 @@ def update_status(*, opener=None) -> dict:
 
 
 def _download(url: str, destination: Path, *, opener=None) -> None:
-    open_url = opener or urlopen
+    open_url = opener or _open_release
     request = Request(url, headers={"User-Agent": f"AtlasOfThreads/{__version__}"})
     try:
         with open_url(request, timeout=30) as response, destination.open("wb") as output:
