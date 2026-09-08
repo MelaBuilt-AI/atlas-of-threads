@@ -2460,3 +2460,7 @@ body[data-reflecting="true"] #plate .kind { color: #d6b5ff; }
 #music-volume { flex: 1; width: 4rem; min-width: 3rem; accent-color: var(--phosphor-dim); }
 #music-volume-value { min-width: 2.5rem; color: var(--mute); }
 [data-open-audio] { font: 0.65rem ui-monospace, Menlo, monospace; }
+
+.start-audio-note { margin: 1rem 0 0; text-align: center; }
+.start-audio-note [data-open-audio] { padding: 0; border: 0; background: none; color: var(--mute); }
+.start-audio-note [data-open-audio]:hover { color: var(--phosphor); }
