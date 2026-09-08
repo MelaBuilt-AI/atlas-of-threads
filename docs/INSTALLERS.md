@@ -84,18 +84,18 @@ publisher reputation develops. Microsoft documents the current behavior in
 
 ## Releases and application updates
 
-The `package` GitHub Actions workflow always produces private Linux and Windows
+The `package` GitHub Actions workflow produces Linux and Windows
 acceptance artifacts for relevant `master` commits, and it can be run manually
-for private acceptance. Public publication happens only when a GitHub Release
+for acceptance. Public publication happens only when a GitHub Release
 is published. Its tag must be a stable `vMAJOR.MINOR.PATCH` and must match the
 version in `pyproject.toml`, the Python package, and the Windows installer.
-Ordinary pushes and manual workflow runs never publish an update.
+Ordinary pushes and manual runs without an explicit stable release tag never
+publish an update.
 
 Each release is stored under an immutable versioned path and copied to
 `releases/latest`. SHA-256 files are published beside both platform packages.
-The same packages and manifest are attached to the private GitHub Release.
-Because the repository is private, installed clients read the anonymous public
-R2 manifest and then download the exact immutable version authorized by that
+The same packages and manifest are attached to the public GitHub Release.
+Installed clients read the anonymous public R2 manifest and then download the exact immutable version authorized by that
 GitHub Release.
 
 Installed Linux and Windows applications check the small `releases/latest`

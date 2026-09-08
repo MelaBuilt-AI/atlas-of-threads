@@ -12,10 +12,10 @@ connected Codex harness can also bind that same collaborator identity to one
 resumable session backed by a bounded projection of explicitly approved,
 read-only memory files.
 
-The development guide slice adds local thought search, bounded cited context,
-and an explicit inbound question at an existing thought. It does not yet add an
-in-app discussion panel, control the browser, or invoke a personal agent from
-Atlas. It can support guidance in the connected agent's own client today.
+The inbound guide tools provide local thought search, bounded cited context,
+and explicit questions at existing thoughts in the connected agent's own client.
+The separate Agent Spark discussion surface described below calls a selected
+guide from Atlas; it does not turn inbound MCP into an outbound invocation.
 
 ## Direction and recursion boundary
 
@@ -49,8 +49,7 @@ A Linux package built from this source accepts the same command:
 atlas-of-threads --store /path/to/personal-atlas mcp serve
 ```
 
-The released `v0.2.0` packages predate this bridge. New Windows development
-installers include `AtlasOfThreadsMCP.exe`, a console-capable host alongside the
+The v0.3.0 Windows installers include `AtlasOfThreadsMCP.exe`, a console-capable host alongside the
 windowed desktop executable. Use the console host for registration, configuration,
 checks, and `mcp serve`. Linux uses the same executable for desktop and stdio.
 
@@ -131,7 +130,7 @@ Every tool is marked read-only, non-destructive, idempotent, and closed-world.
 Domain failures are returned as MCP tool errors; malformed protocol requests
 remain JSON-RPC errors.
 
-## Local guide workflow (development)
+## Local guide workflow
 
 1. In the agent's own client, ask it to find relevant earlier thoughts. Search
    is literal, case-insensitive AND matching across thought text and session

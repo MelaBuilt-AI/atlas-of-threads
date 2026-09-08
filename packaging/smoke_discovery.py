@@ -1,6 +1,8 @@
 """Frozen onboarding/API smoke with synthetic settings and no model calls."""
+import argparse
 import json
 import os
+import re
 from pathlib import Path
 import socket
 import subprocess
@@ -11,7 +13,7 @@ from urllib.request import Request,urlopen
 from urllib.error import HTTPError, URLError
 
 
-def smoke(command):
+def smoke(command, application=None):
     with tempfile.TemporaryDirectory(prefix='atlas-discovery-') as folder:
         root=Path(folder)
         config=root/'native.json'
@@ -24,7 +26,7 @@ def smoke(command):
             available.bind(('127.0.0.1',0))
             port=available.getsockname()[1]
         env={**os.environ,'TA_HARNESS_CONFIG':str(root/'harnesses.json'),'TA_WORKER_BACKEND':'application'}
-        app=subprocess.Popen([*command,'--store',str(root/'store'),'launch','--no-browser','--port',str(port)],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL, start_new_session=(os.name != "nt"))
+        app=subprocess.Popen([*(application or command),'--store',str(root/'store'),'launch','--no-browser','--port',str(port)],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL, start_new_session=(os.name != "nt"))
         url=f'http://127.0.0.1:{port}'
         def post(path,body,origin=None):
             headers={'Content-Type':'application/json'}
@@ -39,6 +41,18 @@ def smoke(command):
                 except (URLError,TimeoutError):time.sleep(.2)
             else:raise AssertionError('Frozen app startup failed')
             with urlopen(url+'/agent-connect.js') as r:assert b'AtlasAgentConnect' in r.read()
+            with urlopen(url+'/music.js') as r:music=r.read().decode()
+            with urlopen(url+'/sound.js') as r:sound=r.read().decode()
+            effects=re.findall(r'file: "([^"]+\.ogg)"',sound)
+            songs=re.findall(r'\["(\d{2}-[^"]+)",',music)
+            assert len(effects)==33 and len(songs)==13
+            for name in [*effects, *(f'music/{song}.ogg' for song in songs)]:
+                with urlopen(Request(url+'/assets/audio/'+name,headers={'Range':'bytes=0-63'})) as r:
+                    assert r.status==206 and r.headers['Accept-Ranges']=='bytes'
+                    data=r.read()
+                    assert len(data)==64 and data.startswith(b'OggS'),name
+            with urlopen(Request(url+'/assets/audio/music/'+songs[0]+'.ogg',headers={'Range':'bytes=-128'})) as r:
+                assert r.status==206 and len(r.read())==128
             result=post('/api/onboarding/discover',{})
             assert isinstance(result['agents'],list)
             assert all('config' not in a for a in result['agents'])
@@ -54,7 +68,13 @@ def smoke(command):
             if app.poll() is None:
                 app.terminate()
             app.wait(timeout=20)
-    print('PASS: frozen local adapter, discovery UI/API, firewall guidance and same-origin protection; no registration or model calls.')
+    print('PASS: frozen local adapter, discovery UI/API, 33 effects and 13 music tracks with byte ranges, firewall guidance and same-origin protection; no registration or model calls.')
 
 
-if __name__=='__main__':smoke(sys.argv[1:])
+if __name__=='__main__':
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--application', help='Desktop executable when separate from the console bridge')
+    parser.add_argument('command', nargs=argparse.REMAINDER)
+    args=parser.parse_args()
+    if not args.command:parser.error('a console command is required')
+    smoke(args.command, [args.application] if args.application else None)

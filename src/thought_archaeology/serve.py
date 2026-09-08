@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -1070,6 +1071,7 @@ class InhabitHandler(BaseHTTPRequestHandler):
                     self.store, nid, graph_id=graph_id, session_id=session
                 )
                 payload = view.to_dict()
+                payload["session_title"] = self.store.load_session(view.graph.session_id).title
                 payload["continuation_harness"] = _harness_by_graph(
                     self.store
                 ).get(view.graph.id)
@@ -1681,9 +1683,13 @@ class InhabitHandler(BaseHTTPRequestHandler):
             return
         registry = HarnessRegistry()
         spec = registry.get(name)
-        if name not in registry.collaborator_names():
-            raise HarnessError("Assign this agent a collaborator slot first.")
         previous = registry.default_name()
+        added_role = name not in registry.collaborator_names()
+        if added_role:
+            if body.get("assign_collaborator") is not True:
+                raise HarnessError("Assign this agent a collaborator slot first.")
+            assign_roles(self.store, {"harness": name, "collaborator": True,
+                                      "guide": registry.guide_name() == name})
         registry.use(name)
         unit_path = resolve_harness_service_path()
         options = harness_service_options(unit_path)
@@ -1697,6 +1703,9 @@ class InhabitHandler(BaseHTTPRequestHandler):
                     path=unit_path,
                 )
             except HarnessError:
+                if added_role:
+                    registry.set_agent_roles(name, collaborator=False,
+                                             guide=registry.guide_name() == name)
                 if previous and previous != name:
                     registry.use(previous)
                 raise
@@ -1855,6 +1864,9 @@ class InhabitHandler(BaseHTTPRequestHandler):
             else:
                 self._send(404, b"not found\n", "text/plain; charset=utf-8")
                 return
+        if target.suffix == ".ogg":
+            self._audio(target)
+            return
         data = target.read_bytes()
         types = {
             ".html": "text/html; charset=utf-8",
@@ -1872,6 +1884,51 @@ class InhabitHandler(BaseHTTPRequestHandler):
         }
         ctype = types.get(target.suffix, "application/octet-stream")
         self._send(200, data, ctype)
+
+    def _audio(self, target: Path) -> None:
+        """Stream OGG data; browsers read the tail to find its exact duration."""
+        size = target.stat().st_size
+        start, end = 0, size - 1
+        requested = self.headers.get("Range")
+        if requested:
+            match = re.fullmatch(r"bytes=(\d*)-(\d*)", requested.strip())
+            try:
+                if not match or not any(match.groups()):
+                    raise ValueError("invalid range")
+                first, last = match.groups()
+                if first:
+                    start = int(first)
+                    end = min(int(last), size - 1) if last else size - 1
+                else:
+                    start = max(0, size - int(last))
+                if start > end or start >= size:
+                    raise ValueError("unsatisfiable range")
+            except ValueError:
+                self.send_response(416)
+                self.send_header("Content-Range", f"bytes */{size}")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+        self.send_response(206 if requested else 200)
+        self.send_header("Content-Type", "audio/ogg")
+        self.send_header("Accept-Ranges", "bytes")
+        self.send_header("Content-Length", str(end - start + 1))
+        self.send_header("Cache-Control", "no-store")
+        if requested:
+            self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+        self.end_headers()
+        with target.open("rb") as stream:
+            stream.seek(start)
+            remaining = end - start + 1
+            try:
+                while remaining:
+                    chunk = stream.read(min(64 * 1024, remaining))
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    remaining -= len(chunk)
+            except (BrokenPipeError, ConnectionResetError):
+                pass  # The listener skipped tracks or closed the tab.
 
 
 def make_server(

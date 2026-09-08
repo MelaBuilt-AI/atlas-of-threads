@@ -541,6 +541,42 @@ def test_workspace_switches_future_harness_and_preserves_watcher_timing(
     assert registry.default_name() == "grok"
 
 
+def test_setup_can_assign_and_select_a_registered_guide_without_losing_its_role(tmp_path, monkeypatch):
+    import thought_archaeology.serve as server
+    import thought_archaeology.agent_spark as spark
+    store = Store(tmp_path / "store")
+    store.initialize()
+    monkeypatch.setenv("TA_HARNESS_CONFIG", str(tmp_path / "harnesses.json"))
+    registry = HarnessRegistry()
+    registry.register("first", sys.executable, make_default=True)
+    registry.register("guide", sys.executable)
+    registry.set_agent_roles("guide", collaborator=False, guide=True)
+    monkeypatch.setattr(spark, "describe_harness", lambda *a, **k: {"capabilities": ["discuss"], "default_model": "synthetic"})
+    monkeypatch.setattr(server, "ensure_application_worker", lambda *a, **k: {})
+    monkeypatch.setattr(server, "workspace_payload", lambda store: {"active_harness": registry.default_name()})
+    handler = object.__new__(InhabitHandler)
+    handler.store = store
+    handler._read_json = lambda: {"harness": "guide"}
+    handler._json = lambda *a: None
+    with pytest.raises(HarnessError, match="collaborator slot"):
+        handler._workspace_harness()
+    handler._read_json = lambda: {"harness": "guide", "assign_collaborator": True}
+    handler._workspace_harness()
+    assert registry.default_name() == "guide"
+    assert registry.collaborator_names() == ("first", "guide")
+    assert registry.guide_name() == "guide"
+
+    registry.set_agent_roles("guide", collaborator=False, guide=True)
+    def fail_worker(*args, **kwargs):
+        raise HarnessError("synthetic worker failure")
+    monkeypatch.setattr(server, "ensure_application_worker", fail_worker)
+    with pytest.raises(HarnessError, match="worker failure"):
+        handler._workspace_harness()
+    assert registry.default_name() == "first"
+    assert registry.collaborator_names() == ("first",)
+    assert registry.guide_name() == "guide"
+
+
 def test_onboarding_connects_only_a_known_packaged_harness(
     monkeypatch, tmp_path: Path
 ):
@@ -942,6 +978,10 @@ def test_space_sound_field_uses_cinematic_pack_and_is_event_bound():
     sound = (dist / "sound.js").read_text(encoding="utf-8")
     audio = dist / "assets" / "audio"
     expected = {
+        "cancel.ogg", "evidence-close.ogg", "evidence-open.ogg",
+        "field-note-eligible.ogg", "relic-inspect.ogg", "veto-inspect.ogg",
+        "spark-click.ogg", "spark-close.ogg", "spark-idle.ogg", "spark-open.ogg",
+        "thread-cut.ogg", "thread-fork.ogg",
         "ai-working-loop.ogg",
         "blue-new-path-activate.ogg",
         "blue-new-path-enter.ogg",
@@ -974,7 +1014,7 @@ def test_space_sound_field_uses_cinematic_pack_and_is_event_bound():
     assert "stopLoop(\"working\"" in sound
     assert "stopLoop(\"greenSparks\"" in sound
     assert "pendingCues" in sound
-    assert "createOscillator" in sound
+    assert "createOscillator" not in sound
     assert "createBuffer" in sound
     assert "new Audio(" not in sound
     assert ".mp3" not in sound
@@ -984,14 +1024,8 @@ def test_space_sound_field_uses_cinematic_pack_and_is_event_bound():
     assert 'volume.addEventListener("keydown"' in sound
     assert "arrivalSplash" in sound
     assert "cameraShift" in sound
-    assert 'gain: 0.253125, submerged: true' in sound
-    assert 'gain: 0.32625, submerged: true' in sound
-    assert 'red-return-activate.ogg", gain: 0.3375, submerged: true' in sound
-    assert sound.count("submerged: true") == 5
-    assert "function connectSubmerged" in sound
-    assert 'lowpass.frequency.value = 420' in sound
-    assert 'firstDelay.delayTime.value = 0.24' in sound
-    assert 'secondDelay.delayTime.value = 0.48' in sound
+    assert "connectSubmerged" not in sound
+    assert "noiseBurst" not in sound
     assert {path.name for path in audio.glob("*.ogg")} == expected
     for name in expected:
         assert (audio / name).read_bytes().startswith(b"OggS")
@@ -1365,3 +1399,22 @@ def test_cli_serve_bad_bind(tmp_path: Path):
     code, _, err = run(["serve", "--bind", "0.0.0.0"], store=store)
     assert code == 2
     assert "localhost" in err
+
+
+def test_album_audio_byte_ranges(httpd_url):
+    from urllib.request import Request
+    name = "01-atlas-of-threads-title.ogg"
+    original = (viz_dist_path() / "assets/audio/music" / name).read_bytes()
+    url = httpd_url + "/assets/audio/music/" + name
+    for spec, start, end in [("bytes=0-127", 0, 127), ("bytes=-128", len(original)-128, len(original)-1),
+                             ("bytes=100-", 100, len(original)-1)]:
+        with urlopen(Request(url, headers={"Range": spec})) as response:
+            assert response.status == 206
+            assert response.headers["Accept-Ranges"] == "bytes"
+            assert response.headers["Content-Range"] == f"bytes {start}-{end}/{len(original)}"
+            assert response.read() == original[start:end+1]
+    for spec in ["bytes=999999999-", "bytes=20-10", "bytes=-0", "bytes=-", "bytes=0-1,5-8"]:
+        with pytest.raises(HTTPError) as error:
+            urlopen(Request(url, headers={"Range": spec}))
+        assert error.value.code == 416
+        assert error.value.headers["Content-Range"] == f"bytes */{len(original)}"

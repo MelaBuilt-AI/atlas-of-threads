@@ -658,3 +658,37 @@ def test_harness_service_is_explicit_and_bound_to_store(
     assert status["installed"] is True
     assert status["enabled"] == "enabled"
     assert status["active"] == "active"
+
+
+@pytest.mark.parametrize("invalid", [
+    "Synthetic prose.\n```thought-graph\n{broken JSON}\n```",
+    'Synthetic prose.\n```thought-graph\n{"nodes": [{"local_id": "n1", "kind": "invalid-kind", "text": "Synthetic node."}], "edges": []}\n```',
+])
+def test_ordinary_continuation_repairs_malformed_graph(monkeypatch, tmp_path, invalid):
+    store_path = tmp_path / "data"
+    _session_id, graph_id = _compiled(store_path)
+    store = Store(store_path)
+    graph = store.load_graph(graph_id)
+    spec = HarnessRegistry(tmp_path / "harnesses.json").register(
+        "fake", sys.executable, args=(str(FAKE_ADAPTER),), make_default=True
+    )
+    code, out, err = run(
+        ["continuation", "ready", graph.nodes[0].id, "--graph", graph.id],
+        store=store_path,
+    )
+    assert code == 0, err
+    valid = (FIXTURES / "transcripts" / "simple-structured.txt").read_text()
+    calls = []
+
+    def answer(spec, operation, payload, *, timeout):
+        calls.append(payload)
+        return {"protocol_version": "1", "response": invalid if len(calls) == 1 else valid,
+                "model_name": "fake-model"}
+
+    monkeypatch.setattr(harness_module, "_adapter_call", answer)
+    outcome = process_continuation(store, spec, request_id=out.strip())
+    assert outcome["status"] == "completed"
+    assert len(calls) == 2
+    assert len(list(store.iter_continuation_attempts())) == 1
+    assert len(list(store.iter_continuation_completions())) == 1
+    assert list(store.iter_continuation_failures()) == []

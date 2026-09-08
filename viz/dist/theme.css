@@ -146,6 +146,7 @@ html, body {
 }
 
 #legend-trigger,
+#reflect-trigger,
 #thread-trigger,
 #atlas-map-trigger {
   pointer-events: auto;
@@ -161,6 +162,8 @@ html, body {
 
 #legend-trigger:hover,
 #legend-trigger:focus-visible,
+#reflect-trigger:hover,
+#reflect-trigger:focus-visible,
 #thread-trigger:hover,
 #thread-trigger:focus-visible,
 #atlas-map-trigger:hover,
@@ -2410,3 +2413,56 @@ body[data-agent-spark="true"] #plate,body[data-agent-spark="true"] #path-preview
   #agent-remote-form label:last-of-type, #agent-remote-form > button { grid-column: 1 / -1; }
   #agent-remote-results, #agent-local-results { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Reflect reuses the destination card and a single mode instrument. */
+#reflect-trigger[aria-pressed="true"] { color: #ffe3a5; border-color: #e4bf77; background: #493a27; }
+body[data-reflecting="true"] #path-preview { border-color: #cbae78; }
+body[data-reflecting="true"] #threshold { display: none; }
+
+/* Let the ground and destination carry the eye during a short terrain journey. */
+body[data-traveling="true"] #plate,
+body[data-traveling="true"] #path-preview { opacity: .2; pointer-events: none; }
+
+.arrival-blend { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.arrival-blend[hidden] { display: none; }
+#scene-loading { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; background: #080c16; color: #ded8be; font: 14px ui-monospace, monospace; }
+#scene-loading[hidden] { display: none; }
+#plate .standing-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#plate, #path-preview { transition: opacity 300ms ease; }
+body[data-reflecting="true"] #reflect-trigger {
+  color: #ecddff; background: #472879; border: 1px solid #c9a2ff;
+  box-shadow: 0 0 22px #a56bff80;
+}
+body[data-reflecting="true"] #path-preview {
+  border-color: #ba87ff; background: linear-gradient(110deg, #221337ed, #0a1426e6);
+  box-shadow: 0 0 32px #9460e826;
+}
+body[data-reflecting="true"] #path-preview-label,
+body[data-reflecting="true"] #plate .kind { color: #d6b5ff; }
+
+/* One small audio desk, also reachable above setup without leaving the form. */
+#legend-scrim { z-index: 35; }
+#legend-menu { z-index: 36; }
+#music-controls { display: grid; gap: 0.6rem; margin-bottom: 1.4rem; font: 0.65rem/1.5 ui-monospace, Menlo, monospace; }
+#music-controls p { margin: 0; }
+#music-source { color: var(--bronze-hot); }
+#music-controls small, #music-status, #music-import-status { color: var(--mute); }
+#music-controls select { width: 100%; min-width: 0; }
+#music-controls button, #music-controls select, [data-open-audio] {
+  border: 1px solid rgba(92, 138, 123, 0.48); border-radius: 3px;
+  padding: 0.45rem 0.55rem; background: #0b1015; color: var(--bronze-hot);
+  font: inherit; cursor: pointer;
+}
+#music-controls button:hover, [data-open-audio]:hover { border-color: var(--phosphor); }
+#music-controls :focus-visible, [data-open-audio]:focus-visible { outline: 1px solid var(--phosphor); outline-offset: 2px; }
+.audio-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; }
+#music-toggle { min-width: 7rem; }
+#music-volume { flex: 1; width: 4rem; min-width: 3rem; accent-color: var(--phosphor-dim); }
+#music-volume-value { min-width: 2.5rem; color: var(--mute); }
+[data-open-audio] { font: 0.65rem ui-monospace, Menlo, monospace; }
+
+.start-audio-note { margin: 1rem 0 0; text-align: center; }
+.start-audio-note [data-open-audio] { padding: 0; border: 0; background: none; color: var(--mute); }
+.start-audio-note [data-open-audio]:hover { color: var(--phosphor); }
+
+#startup-music-status:not([hidden]) { display: block; margin-top: 0.4rem; color: var(--mute); font: 0.6rem ui-monospace, Menlo, monospace; }

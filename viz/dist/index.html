@@ -20,6 +20,7 @@
   <div id="topbar">
     <button id="legend-trigger" type="button">press L for Legend and controls</button>
     <div class="topbar-instruments">
+      <button id="reflect-trigger" type="button" aria-pressed="false">R · Reflect</button>
       <button id="thread-trigger" type="button">Thread Compass · T</button>
       <button id="atlas-map-trigger" type="button" aria-pressed="false">Atlas Map · A</button>
     </div>
@@ -112,6 +113,7 @@
           <small>open collaborators, new inquiry, and session history</small>
         </button>
       </div>
+      <p class="start-audio-note"><button type="button" data-open-audio>Press L for Music and Sound</button><small id="startup-music-status" hidden></small></p>
     </section>
   </div>
   <div id="onboarding-menu" hidden>
@@ -121,6 +123,7 @@
           <div id="onboarding-kicker" class="menu-kicker">Atlas of Threads · first Threadwalk</div>
           <h1 id="onboarding-title">Begin in your own Atlas.</h1>
         </div>
+        <button type="button" data-open-audio>Music &amp; sound · L</button>
         <button id="onboarding-close" type="button">setup later</button>
       </header>
       <p id="onboarding-status">Reading this local installation…</p>
@@ -249,11 +252,34 @@
       </div>
     </section>
 
-    <section class="menu-section">
-      <div class="menu-section-label">sound field</div>
-      <div id="sound-controls" aria-label="Chamber sound controls">
-        <button id="sound-toggle" type="button" aria-pressed="false">sound asleep · interact to awaken</button>
-        <input id="sound-volume" type="range" min="0" max="100" step="1" value="58" aria-label="Chamber sound volume" />
+    <section class="menu-section" aria-label="Music and sound">
+      <div class="menu-section-label">The Unwritten Atlas</div>
+      <div id="music-controls">
+        <audio id="atlas-music" preload="metadata"></audio>
+        <p id="music-source">The Unwritten Atlas · 13 tracks</p>
+        <select id="music-track" aria-label="Music track"></select>
+        <div class="audio-row">
+          <button id="music-previous" type="button" aria-label="Previous music track">⏮︎</button>
+          <button id="music-toggle" type="button" aria-pressed="true">Pause music</button>
+          <button id="music-next" type="button" aria-label="Next music track">⏭︎</button>
+          <input id="music-volume" type="range" min="0" max="100" step="1" value="38" aria-label="Music volume" />
+          <output id="music-volume-value" for="music-volume">38%</output>
+        </div>
+        <p id="music-status" role="status"></p>
+        <div class="audio-row">
+          <button id="music-load" type="button">Load music / playlist</button>
+          <button id="music-load-folder" type="button">Load folder</button>
+          <button id="music-album" type="button">Atlas album</button>
+        </div>
+        <input id="music-files" type="file" accept="audio/*,.m3u,.m3u8,.pls" multiple hidden />
+        <input id="music-folder" type="file" webkitdirectory multiple hidden />
+        <small>Choose audio files, or an M3U / PLS playlist with its files. Local music stays in this tab; reload to return to the Atlas album.</small>
+        <p id="music-import-status" role="status"></p>
+      </div>
+      <div class="menu-section-label">sound effects</div>
+      <div id="sound-controls" aria-label="Sound effects controls">
+        <button id="sound-toggle" type="button" aria-pressed="false">effects ready · interact to awaken</button>
+        <input id="sound-volume" type="range" min="0" max="100" step="1" value="58" aria-label="Sound effects volume" />
         <output id="sound-volume-value" for="sound-volume">58%</output>
       </div>
     </section>
@@ -269,13 +295,13 @@
         <div><dt>K</dt><dd>construct an earned Capsule or deploy a stored launcher here</dd></div>
         <div><dt>J</dt><dd>store one earned Capsule launcher for later in this Threadwalk</dd></div>
         <div><dt>L</dt><dd>open or close this legend</dd></div>
-        <div><dt>← / →</dt><dd>cycle counterclockwise / clockwise</dd></div>
+        <div><dt>← / →</dt><dd>cycle counterclockwise / clockwise, including the central arrival object</dd></div>
         <div><dt>Enter / ↑</dt><dd>enter the selected destination; otherwise the first forward thought</dd></div>
-        <div><dt>↓ / B</dt><dd>retrace your walk</dd></div>
+        <div><dt>R</dt><dd>Reflect; ↑ retraces; R returns to departure</dd></div>
         <div><dt>O</dt><dd>return to this graph's origin</dd></div>
         <div><dt>Q</dt><dd>mark an ending ready or cancel it</dd></div>
         <div><dt>F / V</dt><dd>cut / inscribe a human no</dd></div>
-        <div><dt>E / R</dt><dd>evidence descent / relic index</dd></div>
+        <div><dt>E / Shift+R</dt><dd>evidence descent / relic index</dd></div>
         <div><dt>C / shift+C</dt><dd>overhead view / camera home</dd></div>
         <div><dt>S</dt><dd>mute or wake chamber sound</dd></div>
         <div><dt>Esc</dt><dd>close the active surface or selection</dd></div>
@@ -294,6 +320,7 @@
         <li><span class="legend-mark blue-beam"></span><span><strong>Blue beam</strong> · completed path waiting for entry</span></li>
         <li><span class="legend-mark field-note-mark"></span><span><strong>Amber monument</strong> · human Field Note at an exact referenced chamber</span></li>
         <li><span class="legend-mark capsule-mark"></span><span><strong>Orange launcher</strong> · one frozen knowledge milestone ready to travel outward</span></li>
+        <li><span class="legend-mark"></span><span><strong>Terrain paths</strong> · warm solid: traveled; cool dashed: generated destination; faint filaments: decorative possibilities</span></li>
         <li><span class="legend-mark ghost-relic"></span><span><strong>Ghosted relic</strong> · rejected road or path not taken</span></li>
       </ul>
     </section>
@@ -379,8 +406,11 @@
   <script src="./three.min.js"></script>
   <script src="./relic-loader.js"></script>
   <script src="./sound.js"></script>
+  <script src="./music.js"></script>
   <script src="./spark.js"></script>
   <script src="./agent-connect.js"></script>
+  <script src="./walk.js"></script>
+  <script src="./terrain.js"></script>
   <script src="./space.js"></script>
 </body>
 </html>

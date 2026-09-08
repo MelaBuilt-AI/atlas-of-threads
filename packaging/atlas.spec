@@ -59,8 +59,10 @@ exe = EXE(
 
 # Keep the desktop launcher windowed; MCP clients need real stdin/stdout pipes.
 if sys.platform == "win32":
+    # The console bridge serves MCP and adapter protocols, without the desktop UI.
+    mcp_datas = [item for item in a.datas if not item[0].replace("\\", "/").startswith("viz/dist/")]
     mcp_exe = EXE(
-        pyz, a.scripts, a.binaries, a.datas, [],
+        pyz, a.scripts, a.binaries, mcp_datas, [],
         name="AtlasOfThreadsMCP", console=True,
         debug=False, strip=False, upx=True,
         icon=str(root / "packaging" / "windows" / "atlas-of-threads.ico"),

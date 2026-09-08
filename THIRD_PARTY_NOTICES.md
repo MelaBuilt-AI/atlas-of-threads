@@ -27,3 +27,23 @@ law, third-party rights, and the services' current terms.
 
 Generated output may not be unique. Inclusion here is a provenance notice, not a
 claim of exclusivity or endorsement by OpenAI, Tripo, or Three.js.
+
+## Generated terrain textures
+
+The ten PNG color textures under `viz/dist/assets/terrain/` were supplied by the
+project owner for Atlas of Threads on 2026-09-07. They are generated artwork,
+locally Lanczos-upscaled from 1254 × 1254 to 4096 × 4096 by Codex at the owner's
+request. The supplied PNGs are included unchanged. These are color maps only;
+no measured surface geometry or additional source detail is implied.
+
+## Cinematic audio
+
+The 33 OGG sound effects and 13 OGG music tracks under `viz/dist/assets/audio/`
+were supplied by MelaBuilt AI for Atlas of Threads on 2026-09-08. The score,
+**The Unwritten Atlas**, contains a main title and twelve companion pieces.
+The supplied production handoff attributes generation to ElevenLabs Music v2
+and Sound Effects, with local mastering by Codex. The 21 redesigned existing
+effects include a restrained layer of their original application cues; twelve
+new effects replace the earlier procedural sounds. Runtime OGG files are
+included unchanged from the supplied masters. Archival originals, WAV/MP3
+copies, production requests and receipts remain outside the source repository.

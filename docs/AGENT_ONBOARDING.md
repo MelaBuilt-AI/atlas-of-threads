@@ -1,8 +1,7 @@
 # Connect your agent to your Personal Atlas
 
-This development build provides local MCP connections for **Codex, Claude Code,
-Grok Build, OpenCode, Prime Agent, OpenClaw, and Hermes Agent**. The published
-`v0.2.0` installers predate MCP; use a build containing the bridge.
+Atlas v0.3.0 provides local MCP connections for **Codex, Claude Code,
+Grok Build, OpenCode, Prime Agent, OpenClaw, and Hermes Agent**. Both Windows and Linux packages include the bridge.
 
 Your agent's client starts Atlas's stdio process. Atlas does not install a
 provider, sign you in, or open a network listener. Use the same OS environment
@@ -173,9 +172,9 @@ an opaque reference, not the external memory contents or a verified durability
 guarantee. Test recall from a fresh client before claiming memory integration.
 
 Atlas's existing outbound adapters remain Claude, Codex, Grok, OpenCode, and
-Prime Agent. This onboarding adds OpenClaw and Hermes as **inbound MCP clients**;
-it does not add an outbound adapter or import their personas, authentication,
-or private memory. Codex and OpenCode can additionally be bound to the same
+Prime Agent. OpenClaw and Hermes support **inbound MCP** and a separate explicit SSH route
+for outbound contributions and guide discussion. MCP configuration alone does
+not register that route or import personas, authentication, or private memory. Codex and OpenCode can additionally be bound to the same
 collaborator ID for return calls with approved file-memory projection and a
 dedicated resumable conversation. Register that route separately as described
 in [Agent Bridge](AGENT_BRIDGE.md#connect-one-named-codex-or-opencode-agent-in-both-directions).

@@ -30,6 +30,15 @@ def _adapter(name: str) -> Callable[[list[str] | None], int]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Native shells/providers need system libraries, not PyInstaller's copies.
+    # Our only bundled child program is this executable, whose bootloader sets
+    # up its own library path again when starting the application worker.
+    if getattr(sys, "frozen", False) and sys.platform.startswith("linux"):
+        original = os.environ.get("LD_LIBRARY_PATH_ORIG")
+        if original is None:
+            os.environ.pop("LD_LIBRARY_PATH", None)
+        else:
+            os.environ["LD_LIBRARY_PATH"] = original
     args = list(sys.argv[1:] if argv is None else argv)
     if args[:1] == ["adapter"]:
         if len(args) < 3:

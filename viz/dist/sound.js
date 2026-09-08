@@ -1,4 +1,4 @@
-/* Thought Archaeology cinematic sound field. Original, sample-free OGG pack. */
+/* Thought Archaeology cinematic sound field. Owner-supplied cinematic OGG pack. */
 (function () {
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
   const toggle = document.getElementById("sound-toggle");
@@ -7,24 +7,33 @@
   const STORAGE_KEY = "thought-archaeology.sound.v1";
   const AUDIO_ROOT = "./assets/audio/";
 
-  // Conservative values from the sound-pack handoff. Continuous layers share
-  // low-frequency energy and are routed through one master compressor. The
-  // five navigation cues are 25% below the preceding submerged mix (56.25%
-  // of their original gains) and use only that path; every other chamber
-  // sound remains unchanged.
+  // The supplied cues are already mastered; preserve their full spectrum.
+  // Continuous layers share one effects compressor, separate from music.
   const PACK = {
+    evidenceOpen: { file: "evidence-open.ogg", gain: 0.5 },
+    evidenceClose: { file: "evidence-close.ogg", gain: 0.5 },
+    relic: { file: "relic-inspect.ogg", gain: 0.5 },
+    veto: { file: "veto-inspect.ogg", gain: 0.5 },
+    fork: { file: "thread-fork.ogg", gain: 0.55 },
+    cut: { file: "thread-cut.ogg", gain: 0.55 },
+    cancel: { file: "cancel.ogg", gain: 0.5 },
+    fieldNoteEligible: { file: "field-note-eligible.ogg", gain: 0.5 },
+    sparkIdle: { file: "spark-idle.ogg", gain: 0.12 },
+    sparkOpen: { file: "spark-open.ogg", gain: 0.4 },
+    sparkClose: { file: "spark-close.ogg", gain: 0.4 },
+    sparkClick: { file: "spark-click.ogg", gain: 0.35 },
     atmosphere: { file: "neural-atmosphere-loop.ogg", gain: 0.29, loop: true },
-    cycle: { file: "object-cycle.ogg", gain: 0.253125, submerged: true },
-    forward: { file: "traversal-forward.ogg", gain: 0.32625, submerged: true },
-    back: { file: "traversal-back.ogg", gain: 0.32625, submerged: true },
-    redReturn: { file: "red-return-activate.ogg", gain: 0.3375, submerged: true },
+    cycle: { file: "object-cycle.ogg", gain: 0.253125 },
+    forward: { file: "traversal-forward.ogg", gain: 0.32625 },
+    back: { file: "traversal-back.ogg", gain: 0.32625 },
+    redReturn: { file: "red-return-activate.ogg", gain: 0.3375 },
     blueActivate: { file: "blue-new-path-activate.ogg", gain: 0.56 },
     blueEnter: { file: "blue-new-path-enter.ogg", gain: 0.62 },
     working: { file: "ai-working-loop.ogg", gain: 0.18, loop: true },
     greenActivate: { file: "green-beam-activate.ogg", gain: 0.56 },
     greenSparks: { file: "green-beam-sparks-loop.ogg", gain: 0.16, loop: true },
     blueSplash: { file: "blue-path-complete-splash.ogg", gain: 0.66 },
-    camera: { file: "camera-cycle-transition.ogg", gain: 0.253125, submerged: true },
+    camera: { file: "camera-cycle-transition.ogg", gain: 0.253125 },
     fieldNoteWriting: { file: "field-notes-writing-loop.ogg", gain: 0.15, loop: true },
     fieldNoteConstruction: { file: "field-notes-monument-construction-loop.ogg", gain: 0.2, loop: true },
     fieldNoteComplete: { file: "field-notes-monument-complete.ogg", gain: 0.62 },
@@ -52,7 +61,6 @@
   let packState = "asleep";
   let packLoad = null;
   let packError = null;
-  let burstNoise = null;
   let desiredWorking = false;
   let desiredBeam = null;
   let desiredFieldNoteWriting = false;
@@ -87,10 +95,10 @@
 
   function statusText() {
     if (!AudioContextClass) return "sound unavailable";
-    if (!context) return muted ? "sound muted · s" : "sound asleep · interact to awaken";
-    if (packState === "loading") return muted ? "sound muted · loading" : "cinematic sound waking…";
+    if (!context) return muted ? "effects paused · s" : "effects ready · interact to awaken";
+    if (packState === "loading") return muted ? "effects paused · loading" : "cinematic sound waking…";
     if (packState === "error") return "sound pack unavailable";
-    return muted ? "sound muted · s" : "cinematic sound on · s";
+    return muted ? "Resume effects · S" : "Pause effects · S";
   }
 
   function renderControl() {
@@ -135,35 +143,6 @@
     panner.pan.value = Math.max(-1, Math.min(1, pan));
     source.connect(panner).connect(destination);
     return panner;
-  }
-
-  function connectSubmerged(source, destination, pan = 0) {
-    const lowpass = context.createBiquadFilter();
-    const dry = context.createGain();
-    const firstDelay = context.createDelay(0.75);
-    const firstEchoFilter = context.createBiquadFilter();
-    const firstWet = context.createGain();
-    const secondDelay = context.createDelay(0.75);
-    const secondEchoFilter = context.createBiquadFilter();
-    const secondWet = context.createGain();
-    const output = context.createGain();
-    lowpass.type = "lowpass";
-    lowpass.frequency.value = 420;
-    lowpass.Q.value = 1.3;
-    dry.gain.value = 0.65;
-    firstDelay.delayTime.value = 0.24;
-    firstEchoFilter.type = "lowpass";
-    firstEchoFilter.frequency.value = 340;
-    firstWet.gain.value = 0.23;
-    secondDelay.delayTime.value = 0.48;
-    secondEchoFilter.type = "lowpass";
-    secondEchoFilter.frequency.value = 280;
-    secondWet.gain.value = 0.12;
-    source.connect(lowpass);
-    lowpass.connect(dry).connect(output);
-    lowpass.connect(firstDelay).connect(firstEchoFilter).connect(firstWet).connect(output);
-    lowpass.connect(secondDelay).connect(secondEchoFilter).connect(secondWet).connect(output);
-    connectPanned(output, destination, pan);
   }
 
   async function ensurePack() {
@@ -216,8 +195,7 @@
     source.buffer = buffer;
     gain.gain.value = item.gain;
     source.connect(gain);
-    if (item.submerged) connectSubmerged(gain, cueBus, pan);
-    else connectPanned(gain, cueBus, pan);
+    connectPanned(gain, cueBus, pan);
     source.start();
   }
 
@@ -312,70 +290,13 @@
     playOneShot("camera", overhead ? 0.16 : -0.16);
   }
 
-  // Evidence, relic inspection, cut/veto, and cancellation were useful extras
-  // in the first pass but have no asset in this pack. Keep their small original
-  // procedural gestures without layering the old continuous sound field.
-  function makeNoiseBuffer(seconds = 1.1) {
-    const frames = Math.floor(context.sampleRate * seconds);
-    const buffer = context.createBuffer(1, frames, context.sampleRate);
-    const data = buffer.getChannelData(0);
-    let slow = 0;
-    for (let i = 0; i < frames; i++) {
-      slow = slow * 0.986 + (Math.random() * 2 - 1) * 0.014;
-      data[i] = slow * 0.76 + (Math.random() * 2 - 1) * 0.24;
-    }
-    return buffer;
-  }
-
-  function tone({ from, to = from, duration = 0.25, gain = 0.035, type = "sine", pan = 0 }) {
-    if (!context || muted) return;
-    const now = context.currentTime;
-    const oscillator = context.createOscillator();
-    const envelope = context.createGain();
-    oscillator.type = type;
-    oscillator.frequency.setValueAtTime(Math.max(1, from), now);
-    oscillator.frequency.exponentialRampToValueAtTime(Math.max(1, to), now + duration);
-    envelope.gain.setValueAtTime(0.0001, now);
-    envelope.gain.exponentialRampToValueAtTime(gain, now + Math.min(0.025, duration * 0.2));
-    envelope.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-    oscillator.connect(envelope);
-    connectPanned(envelope, cueBus, pan);
-    oscillator.start(now);
-    oscillator.stop(now + duration + 0.03);
-  }
-
-  function noiseBurst({ duration = 0.24, gain = 0.03, from = 1200, to = from, q = 3, pan = 0 } = {}) {
-    if (!context || muted) return;
-    const now = context.currentTime;
-    const source = context.createBufferSource();
-    const filter = context.createBiquadFilter();
-    const envelope = context.createGain();
-    if (!burstNoise) burstNoise = makeNoiseBuffer();
-    source.buffer = burstNoise;
-    filter.type = "bandpass";
-    filter.Q.value = q;
-    filter.frequency.setValueAtTime(Math.max(20, from), now);
-    filter.frequency.exponentialRampToValueAtTime(Math.max(20, to), now + duration);
-    envelope.gain.setValueAtTime(0.0001, now);
-    envelope.gain.exponentialRampToValueAtTime(gain, now + Math.min(0.018, duration * 0.18));
-    envelope.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-    source.connect(filter).connect(envelope);
-    connectPanned(envelope, cueBus, pan);
-    source.start(now, Math.random() * Math.max(0.01, 1 - duration));
-    source.stop(now + duration + 0.04);
-  }
-
   function surface(kind, opening = true) {
-    if (kind === "evidence") {
-      noiseBurst({ duration: 0.34, gain: 0.028, from: opening ? 760 : 120, to: opening ? 92 : 1800, q: 3.5 });
-    } else {
-      noiseBurst({ duration: 0.2, gain: 0.027, from: 1650, to: 480, q: 6, pan: kind === "veto" ? -0.2 : 0.2 });
-    }
+    playOneShot(kind === "evidence" ? (opening ? "evidenceOpen" : "evidenceClose")
+      : kind === "veto" ? "veto" : "relic");
   }
 
   function edit(kind) {
-    noiseBurst({ duration: 0.4, gain: 0.045, from: kind === "fork" ? 2100 : 720, to: 78, q: 7, pan: kind === "fork" ? 0.3 : -0.25 });
-    tone({ from: kind === "fork" ? 112 : 97, to: 38, duration: 0.46, gain: 0.04, type: "square" });
+    playOneShot(kind === "fork" ? "fork" : "cut");
   }
 
   function setWorking(active) {
@@ -397,11 +318,7 @@
   function playFieldNoteEligible() {
     if (!context || muted) return;
     pendingFieldNoteEligible = false;
-    noiseBurst({ duration: 1.15, gain: 0.018, from: 420, to: 1260, q: 4.8 });
-    tone({ from: 196, to: 392, duration: 1.1, gain: 0.022, type: "sine", pan: -0.18 });
-    window.setTimeout(() => {
-      tone({ from: 293.66, to: 587.32, duration: 1.15, gain: 0.018, type: "sine", pan: 0.2 });
-    }, 180);
+    playOneShot("fieldNoteEligible");
   }
 
   function fieldNoteEligible() {
@@ -452,8 +369,7 @@
   }
 
   function cancel() {
-    noiseBurst({ duration: 0.4, gain: 0.038, from: 1300, to: 64, q: 2.3 });
-    tone({ from: 91, to: 27, duration: 0.45, gain: 0.032, type: "triangle" });
+    playOneShot("cancel");
   }
 
   function toggleMuted() {
@@ -542,10 +458,7 @@
 
   function spark(kind) {
     if (document.hidden) return;
-    const idle = kind === "idle";
-    noiseBurst({duration: idle ? 0.07 : 0.16, gain: idle ? 0.009 : 0.033, from: 2600, to: 4100, q: 2, pan: 0.45});
-    if (!idle) tone({from: kind === "close" ? 1250 : 730, to: kind === "close" ? 520 : 1480,
-      duration: kind === "click" ? 0.065 : 0.24, gain: 0.026, pan: 0.4});
+    playOneShot({ idle: "sparkIdle", open: "sparkOpen", close: "sparkClose", click: "sparkClick" }[kind], 0.4);
   }
 
   window.TASound = {

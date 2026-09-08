@@ -12,6 +12,88 @@
 
 ---
 
+## Reflect and curved terrain amendment — 2026-09-07 (Codex)
+
+This development increment supersedes the older recentered grid, 80-stop retrace
+stack and R relic-index shortcut below. It awaits navigation feel acceptance.
+
+R enters Reflect and turns the shoulder and overhead cameras behind the
+inhabitant. Up/Enter loads the previous exact graph/node on the experienced
+route. R returns to the departure chamber, facing forward; this anchor stays
+fixed if a newer continuation arrives. Arrivals wait without stealing focus
+while reflecting. A failed read leaves both stand and route cursor unchanged.
+The destination card states the mode, earlier stop and return action.
+
+Back/Down enters Reflect (and steps while already reflecting). Escape retains
+its local closing/selection behavior. Within Field Notes or Capsules, Back/Down
+and Escape leave that layer for the current thought. Shift+R opens the relic
+index. Choosing a map/compass destination while reflecting leaves that mode and
+continues the route from the inspected stand; R always keeps its pinned return.
+These defaults implement the previously unresolved interaction choices and
+remain subject to user acceptance.
+
+Continuous faceted terrain samples stable absolute coordinates on a gently
+curved local patch. The horizon bounds visibility; it is not a spherical-world
+simulation. Warm solid routes record travel, cool dashed paths lead to generated
+choices, and faint horizon filaments are non-interactive decoration. None is
+new causal evidence. Every chamber position is assigned once in the tab's
+Threadwalk, including generated destinations, and retained on revisits. Older
+traveled segments survive a return or a new branch. Existing map provenance,
+source-return doors, Field Notes, Capsules and Agent Spark retain their roles.
+
+Terrain refinement — 2026-09-07 (Codex): the owner's ten 4K color textures tile
+with mirrored repeat and absolute UV coordinates. A browser-local random
+assignment stays stable per Threadwalk and chooses among the least-used surfaces;
+the first ten assignments are distinct. Only the active terrain texture is kept
+in GPU memory. Graphs and server records do not acquire a visual texture field.
+
+Known nearby chamber travel animates the camera along the terrain curve after
+the canonical destination read succeeds, with a short eased departure/arrival
+and shoulder clearance around the current monument. Reflect follows the same
+curve in reverse; both camera modes are supported. Distant map/anchor jumps
+beyond the local patch and first entry retain direct placement. The stand and
+route cursor commit on arrival, and input cannot start overlapping journeys.
+Reduced-motion preference skips camera travel and freezes path pulses.
+
+Route ribbons carry flowing light: the selected outgoing or Reflect segment is
+brightest, with light running from the current thought toward its destination.
+Other nearby ribbons flow with the viewing direction. Warm traveled and cool
+generated path distinctions remain. Monuments continue to reflect actual thought
+kind/evidence rather than random visual assignments; varied synthetic previews
+should exercise those mappings instead of repeating one claim node.
+
+Arrival and Reflect refinement — 2026-09-07 (Codex): ordinary path and resident
+chambers now keep the same physical size as the standing monument. Canonical
+destination models preload before local travel; the final travel frame blends
+into the rebuilt chamber over 650 ms, covering terrain/lighting rebasing and
+keeping the reading panels dim until the handoff completes. The transient canvas
+is cleared afterward. This is a visual handoff, not a second persisted scene.
+
+Full-build repair — 2026-09-08 (Codex): initial entry and direct jumps reveal
+the chamber after the visible monument images, terrain texture, GPU uploads and
+shader compilation are ready. Nearby travel retains its final frame during this
+work. The arrival blend has a bounded completion wait for background tabs.
+The standing readout includes the actual Threadwalk title alongside graph
+authorship. Agent setup explicitly adds a registered agent to an available
+collaborator slot before selecting it, preserving its guide role and enforcing
+the five-slot limit. Frozen Linux startup restores the original system library
+path before spawning native shells, browsers or providers.
+
+Reflect adds violet lighting and saturated violet return ribbons with stronger
+pulses. Visible chambers on the experienced path before the pinned departure
+receive textured emissive glow, a floor halo, and branching cyan neuron sparks.
+Generated alternatives do not acquire remembered status. The effect uses the
+existing resident window, with no additional shadow-casting lights. Normal
+materials/colors return on leaving Reflect; reduced motion freezes the sparks.
+
+The resident route window contains at most 16 route relics in addition to the
+standing chamber and its immediate neighborhood. Geometry/materials/labels are
+disposed when removed; cached canonical GLB geometry/textures remain shared.
+Entering a streamed stop fetches the canonical chamber payload afresh. Route
+metadata remains in tab session storage and restores only at the exact saved
+stand; the graph store is unchanged. Neither visual scenery nor local history
+writes a canonical artifact, calls a provider or publishes anything.
+
 ## MCP onboarding and packaging amendment — 2026-09-06 (Codex)
 
 Manual inbound setup now covers the five existing collaborator clients plus
@@ -145,7 +227,11 @@ A terminal chamber is one with no direct story continuation and no existing fork
 
 Cut and human no are graph edits, not model edits. The Inhabit Space cut performs provider-free bookkeeping: it creates an append-only child graph that omits the selected thought plus the bounded dependents it shaped, leaves the source graph unchanged, and exposes the child as a fork doorway; it does not ask a closed model to regenerate. Human no copies the graph, preserves the challenged thought, and adds a human-authored veto node and `vetoes` edge before entering that child. A later continuation from either child may give Grok, Codex, or another closed model the altered public graph as context and therefore change its next observable answer. That is a context/behavioral counterfactual, not weight editing, training, preference feedback to the vendor, or evidence about an internal mechanism. Provider-backed regeneration remains an explicit CLI operation rather than an implicit browser gesture.
 
-Sound is an inhabitation layer, not evidence. The committed browser ships original, sample-free cinematic OGG/Opus assets made specifically for the chamber, with no stock effects or recognizable notification sounds. After the first user interaction permits audio, the neural atmosphere remains continuous. Distinct assets mark clockwise/counterclockwise selection, forward and backward traversal, the red conversation-origin fold, blue arrival activation and entry, camera elevation, Field Note writing, monument construction, construction completion, and monument entry. A pending continuation adds its own loop; the green request beam adds an activation sound and a continuous electrical-corona loop. Completion crossfades both pending loops out and emits the blue lightning splash while the silent visual return beam persists. Continuous assets use bounded fades, conservative gains, and one master compressor because they share low-frequency energy. Evidence descent, relic inspection, cut/veto inscription, cancellation, and the Field Note eligibility invitation retain bounded procedural one-shots where no dedicated asset exists. Mute, loading state, and volume are visible, keyboard-accessible, and browser-local. Audio state never enters the graph store and never implies measured neural activity.
+Sound is an inhabitation layer, not evidence. The browser ships 33 owner-supplied cinematic OGG effects, including dedicated evidence open/close, relic/veto inspection, fork/cut, cancellation, Field Note eligibility, and Spark idle/open/close/click cues. These replace the earlier sample pack and procedural tones. The supplied mastering is preserved with full-spectrum cue routing; continuous layers retain bounded fades, conservative gains, and an effects compressor.
+
+The L drawer contains a lightweight music player with independent music and effects pause/volume controls. One HTML audio element streams the main title and twelve companion tracks in album order, repeating after the last track. Previous/next and direct track selection work while playing or paused. Every fresh load starts at the title, including onboarding and collaborator/agent setup, subject to browser autoplay permission; the first click/key retries blocked autoplay. Music pause lasts for the current tab, while its volume persists. Beginning or resuming a Threadwalk chooses a different random starting track from the current album or custom playlist, then continues in playlist order. Moving between chambers or answers within that Threadwalk does not restart music; an explicit pause remains in force on Threadwalk entry. The drawer is reachable above setup without losing form state. Users may load local audio files, a folder, or M3U/M3U8/PLS playlists together with their referenced files; explicitly listed HTTP(S) streams are also playable where supported by the browser. Missing local files are reported. Custom music uses tab-local object URLs, is never uploaded or stored in the graph, and is released on replacement. Reload returns to the Atlas album. Volume and effects preferences alone are browser-local. The local server supports single byte ranges for OGG playback and reads audio in bounded chunks.
+
+Left/right selection traverses the surrounding objects in angular order and includes the central arrival object once per circuit. Returning to the center restores the standing camera and reading plate without navigating, changing the graph, or adding a Reflect step. Enter/up at the center retains the existing first-forward-thought action.
 
 Future open-weight training is an explicit pipeline, not an overloaded gesture. Reviewed vetoes may become negative preference examples; reviewed cuts may become structural counterfactual examples. Useful preference or supervised training normally also requires a human-approved replacement or accepted path. A later slice may export a versioned dataset, run an explicitly chosen local fine-tune or preference optimization, and bind base-model identity, dataset revision, training recipe, and output-checkpoint provenance back into the archaeology. Pressing cut or human no must never silently update weights, and graph evidence must remain intact whether or not an export is ever trained.
 
