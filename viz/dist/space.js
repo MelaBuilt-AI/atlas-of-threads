@@ -6319,17 +6319,14 @@
   function cycleChoice(dir) {
     if (navigating || walk.reflecting) return;
     if (!choices.length) return;
-    const clock = clockwiseChoices();
-    if (focusIndex < 0) {
-      focusIndex = dir > 0 ? clock[0].index : clock[clock.length - 1].index;
-    } else {
-      const at = clock.findIndex((choice) => choice.index === focusIndex);
-      const next = (at + dir + clock.length) % clock.length;
-      focusIndex = clock[next].index;
-    }
-    focusCameraOn(choices[focusIndex].mesh);
+    // -1 is the arrival object, between the last and first surrounding objects.
+    const clock = [-1, ...clockwiseChoices().map((choice) => choice.index)];
+    const at = clock.indexOf(focusIndex);
+    focusIndex = clock[(at + dir + clock.length) % clock.length];
+    if (focusIndex < 0) resetCameraFocus();
+    else focusCameraOn(choices[focusIndex].mesh);
     showFocus();
-    sound.cycle(choices[focusIndex].choice.audioRole || "story", dir);
+    sound.cycle(focusIndex < 0 ? "story" : choices[focusIndex].choice.audioRole || "story", dir);
   }
 
   function previewChoice(index) {
@@ -6582,6 +6579,9 @@
   elThresholdAsk.addEventListener("click", toggleContinuationComposer);
   elThresholdParallel.addEventListener("click", () => openWorkspaceMenu(true));
   elLegendTrigger.addEventListener("click", toggleLegendMenu);
+  document.querySelectorAll("[data-open-audio]").forEach((button) => {
+    button.addEventListener("click", openLegendMenu);
+  });
   elThreadTrigger.addEventListener("click", toggleThreadCompass);
   elAtlasMapTrigger.addEventListener("click", toggleAtlasMap);
   elAtlasMapClose.addEventListener("click", () => closeAtlasMap());
@@ -6645,15 +6645,46 @@
   }
 
   window.addEventListener("keydown", (e) => {
+    if (!elLegendMenu.hidden && !composing) {
+      if (textEntryOwnsKey(e.target) && e.key !== "Escape") return;
+      if (e.key === "Escape" || e.key === "l" || e.key === "L") {
+        e.preventDefault();
+        closeLegendMenu();
+      } else if (!elOnboardingMenu.hidden || !elStartMenu.hidden) {
+        return;
+      } else if (e.key === "t" || e.key === "T") {
+        e.preventDefault();
+        closeLegendMenu();
+        openThreadCompass();
+      } else if (e.key === "m" || e.key === "M") {
+        e.preventDefault();
+        closeLegendMenu();
+        openWorkspaceMenu();
+      } else if (e.key === "a" || e.key === "A") {
+        e.preventDefault();
+        closeLegendMenu();
+        openAtlasMap();
+      }
+      return;
+    }
     if (!elOnboardingMenu.hidden) {
       if (textEntryOwnsKey(e.target) && e.key !== "Escape") return;
       if (e.key === "Escape") {
         e.preventDefault();
         closeOnboarding();
+      } else if (e.key.toLowerCase() === "l") {
+        e.preventDefault();
+        openLegendMenu();
       }
       return;
     }
-    if (!elStartMenu.hidden) return;
+    if (!elStartMenu.hidden) {
+      if (!textEntryOwnsKey(e.target) && e.key.toLowerCase() === "l") {
+        e.preventDefault();
+        openLegendMenu();
+      }
+      return;
+    }
     if (atlasMapMode) {
       if (e.key === "Escape" || e.key === "a" || e.key === "A") {
         e.preventDefault();
@@ -6739,25 +6770,6 @@
       } else if (e.key === "a" || e.key === "A") {
         e.preventDefault();
         closeWorkspaceMenu();
-        openAtlasMap();
-      }
-      return;
-    }
-    if (!elLegendMenu.hidden) {
-      if (e.key === "Escape" || e.key === "l" || e.key === "L") {
-        e.preventDefault();
-        closeLegendMenu();
-      } else if (e.key === "t" || e.key === "T") {
-        e.preventDefault();
-        closeLegendMenu();
-        openThreadCompass();
-      } else if (e.key === "m" || e.key === "M") {
-        e.preventDefault();
-        closeLegendMenu();
-        openWorkspaceMenu();
-      } else if (e.key === "a" || e.key === "A") {
-        e.preventDefault();
-        closeLegendMenu();
         openAtlasMap();
       }
       return;

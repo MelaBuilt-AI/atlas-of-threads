@@ -6,7 +6,7 @@ import subprocess
 import pytest
 
 
-@pytest.mark.parametrize("script", ["walk.test.cjs", "terrain.test.cjs"])
+@pytest.mark.parametrize("script", ["walk.test.cjs", "terrain.test.cjs", "selection.test.cjs", "audio.test.cjs"])
 def test_experienced_route(script):
     node = shutil.which("node")
     if not node:

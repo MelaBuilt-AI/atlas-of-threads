@@ -89,12 +89,6 @@ sessions retain the normal camera and renderer behavior.
 
 ## Sound
 
-The twelve runtime files under `dist/assets/audio/` are the browser-ready
-48 kHz OGG/Opus derivatives from the original Thought Archaeology cinematic
-sound pack. The archival 24-bit WAV masters remain outside the repository in
-the shared project vault. `dist/sound.js` prefetches the OGGs, waits for a user
-gesture before creating its `AudioContext`, queues a first interaction cue while
-decoding, and fades the atmosphere, AI-working, and green-spark loops through a
-shared compressor. Do not layer the replaced procedural beds under these files;
-their low-frequency energy is intentionally designed to combine only at the
-documented conservative gains.
+The runtime ships 33 cinematic OGG/Vorbis effects and the 13-track **The Unwritten Atlas** score supplied by the project owner. `dist/sound.js` decodes effects after a user gesture, routes full-spectrum cues at conservative gains, and fades continuous layers through their own compressor. Each event has its supplied asset; no procedural cues remain.
+
+`dist/music.js` uses one streaming HTML audio element. The title opens each fresh load (including setup), followed by the twelve companion tracks and repeat. Browser autoplay may require a first click/key. The L menu offers independent music/effects pause and volume, previous/next, track selection, local files/folders, M3U/M3U8/PLS playlists and return to the Atlas album. Supply local playlist references together with their audio files. Files stay in the tab; only pause/volume preferences persist. The OGG server supports single byte ranges so browsers can discover exact durations without loading the whole album.

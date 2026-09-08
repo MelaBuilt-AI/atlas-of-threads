@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 import socket
 import subprocess
@@ -40,6 +41,18 @@ def smoke(command, application=None):
                 except (URLError,TimeoutError):time.sleep(.2)
             else:raise AssertionError('Frozen app startup failed')
             with urlopen(url+'/agent-connect.js') as r:assert b'AtlasAgentConnect' in r.read()
+            with urlopen(url+'/music.js') as r:music=r.read().decode()
+            with urlopen(url+'/sound.js') as r:sound=r.read().decode()
+            effects=re.findall(r'file: "([^"]+\.ogg)"',sound)
+            songs=re.findall(r'\["(\d{2}-[^"]+)",',music)
+            assert len(effects)==33 and len(songs)==13
+            for name in [*effects, *(f'music/{song}.ogg' for song in songs)]:
+                with urlopen(Request(url+'/assets/audio/'+name,headers={'Range':'bytes=0-63'})) as r:
+                    assert r.status==206 and r.headers['Accept-Ranges']=='bytes'
+                    data=r.read()
+                    assert len(data)==64 and data.startswith(b'OggS'),name
+            with urlopen(Request(url+'/assets/audio/music/'+songs[0]+'.ogg',headers={'Range':'bytes=-128'})) as r:
+                assert r.status==206 and len(r.read())==128
             result=post('/api/onboarding/discover',{})
             assert isinstance(result['agents'],list)
             assert all('config' not in a for a in result['agents'])
@@ -55,7 +68,7 @@ def smoke(command, application=None):
             if app.poll() is None:
                 app.terminate()
             app.wait(timeout=20)
-    print('PASS: frozen local adapter, discovery UI/API, firewall guidance and same-origin protection; no registration or model calls.')
+    print('PASS: frozen local adapter, discovery UI/API, 33 effects and 13 music tracks with byte ranges, firewall guidance and same-origin protection; no registration or model calls.')
 
 
 if __name__=='__main__':
