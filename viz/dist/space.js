@@ -250,6 +250,15 @@
   let visitedStands = [];
   let walkSession = null;
   let navigating = false;
+  let terrainTravel = null;
+  const arrivalVeil = document.createElement("canvas");
+  arrivalVeil.className = "arrival-blend";
+  arrivalVeil.hidden = true;
+  arrivalVeil.setAttribute("aria-hidden", "true");
+  canvas.after(arrivalVeil);
+  let reflectChambers = [];
+  const routeFacing = new THREE.Vector3();
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const WALK_MEMORY_KEY = "thought-archaeology.walk.v2";
   const elReflect = document.getElementById("reflect-trigger");
   let overhead = false;
@@ -2323,7 +2332,7 @@
     materials.forEach((material) => {
       if (!shared) {
         Object.values(material).forEach((value) => {
-          if (value && value.isTexture && value !== capsuleSmokeTexture && !textures.has(value)) {
+          if (value && value.isTexture && value !== capsuleSmokeTexture && !value.userData?.terrain && !textures.has(value)) {
             textures.add(value);
             value.dispose();
           }
@@ -2606,7 +2615,7 @@
   elMapVisit.onclick = () => { if (atlasMapSelected) atlasMapNavigate(atlasMapSelected); };
 
   async function openAtlasMap() {
-    if (!view || atlasMapMode || atlasMapBusy || atlasMapNavigationPending || composing || busy || cinematicCapture || capsuleFlight || activeFieldNote || activeCapsule || fieldNoteConstruction || capsuleConstruction) return;
+    if (!view || navigating || atlasMapMode || atlasMapBusy || atlasMapNavigationPending || composing || busy || cinematicCapture || capsuleFlight || activeFieldNote || activeCapsule || fieldNoteConstruction || capsuleConstruction) return;
     if (!elThreadCompass.hidden) closeThreadCompass(false);
     if (!elLegendMenu.hidden) closeLegendMenu();
     if (!elWorkspaceMenu.hidden) closeWorkspaceMenu();
@@ -3407,6 +3416,7 @@
         });
         placeholder.visible = false;
         group.add(object);
+        if (group.userData.reflecting) reflectMaterials(group, true);
       })
       .catch((error) => {
         placeholder.material.color.setHex(0x6b3540);
@@ -3959,7 +3969,7 @@
   }
 
   function floor() {
-    return TATerrain.surface(terrainCenter);
+    return TATerrain.surface(terrainCenter, walkSession, Math.min(8, renderer.capabilities.getMaxAnisotropy()));
   }
 
   function positionDestination(mesh, ref) {
@@ -3971,6 +3981,7 @@
     mesh.position.z = point.z - terrainCenter.z;
     mesh.position.y = TATerrain.height(mesh.position.x, mesh.position.z, terrainCenter) + .06;
     mesh.userData.restY = mesh.position.y;
+    mesh.userData.routeRef = ref;
     return point;
   }
 
@@ -4001,14 +4012,18 @@
       const a = walk.position(from), b = walk.position(to);
       if (!a || !b || (!near(a) && !near(b))) continue;
       const line = TATerrain.path(a, b, terrainCenter, traveled);
-      if (line) routeScenery.add(line);
+      if (line) {
+        line.userData.from = from;
+        line.userData.to = to;
+        routeScenery.add(line);
+      }
     }
     let count = 0;
     for (const ref of walk.residents()) {
       if (shown.has(TAWalk.key(ref)) || !near(walk.position(ref))) continue;
       const point = walk.position(ref);
       const mesh = chamberMesh({ id: ref.nodeId, text: ref.text, kind: ref.kind || "claim", status: ref.status || "active" }, {
-        x: point.x - terrainCenter.x, z: point.z - terrainCenter.z, scale: .55, ghost: false,
+        x: point.x - terrainCenter.x, z: point.z - terrainCenter.z, scale: 1, ghost: false,
         relicKey: ref.relicKey || KIND_RELIC[ref.kind] || "narrated-claim", evidence: [],
       });
       positionDestination(mesh, ref);
@@ -4024,6 +4039,166 @@
       count++;
     }
     canvas.dataset.residentRouteChambers = String(count);
+    syncReflectAtmosphere();
+  }
+
+  function reflectMaterials(mesh, on) {
+    mesh.traverse((part) => {
+      const materials = Array.isArray(part.material) ? part.material : part.material ? [part.material] : [];
+      for (const material of materials) {
+        if (!material.emissive) continue;
+        if (on && !material.userData.reflectRest) {
+          material.userData.reflectRest = {
+            color: material.emissive.clone(), intensity: material.emissiveIntensity, map: material.emissiveMap,
+          };
+          material.emissive.setHex(0x8650ff);
+          material.emissiveIntensity = .4;
+          if (material.map) material.emissiveMap = material.map;
+          material.needsUpdate = true;
+        } else if (!on && material.userData.reflectRest) {
+          material.emissive.copy(material.userData.reflectRest.color);
+          material.emissiveIntensity = material.userData.reflectRest.intensity;
+          material.emissiveMap = material.userData.reflectRest.map;
+          material.needsUpdate = true;
+          delete material.userData.reflectRest;
+        }
+      }
+    });
+  }
+
+  function syncReflectAtmosphere() {
+    const remembered = new Set(walk.path.slice(0, -1).map(TAWalk.key));
+    const chambers = [];
+    root.traverse((mesh) => { if (mesh.isGroup && mesh.userData.routeRef) chambers.push(mesh); });
+    reflectChambers = [];
+    for (const mesh of chambers) {
+      const on = walk.reflecting && remembered.has(TAWalk.key(mesh.userData.routeRef));
+      reflectMaterials(mesh, on);
+      if (on) {
+        if (!mesh.userData.reflectEcho) {
+          mesh.userData.reflectEcho = TATerrain.echo();
+          mesh.add(mesh.userData.reflectEcho);
+        }
+        reflectChambers.push(mesh);
+      } else if (mesh.userData.reflectEcho) {
+        mesh.remove(mesh.userData.reflectEcho);
+        disposeAtlasObject(mesh.userData.reflectEcho);
+        delete mesh.userData.reflectEcho;
+      }
+      mesh.userData.reflecting = on;
+    }
+    canvas.dataset.reflectChambers = String(reflectChambers.length);
+  }
+
+  function updateRouteFlow(t) {
+    if (!routeScenery || atlasMapMode) return;
+    camera.getWorldDirection(routeFacing);
+    if (overhead) routeFacing.set(0, 0, walk.reflecting ? 1 : -1);
+    const selected = focusIndex >= 0 ? choices[focusIndex] : forwardChoice();
+    const destination = terrainTravel?.destination || (walk.reflecting ? walk.previous :
+      selected && (selected.mesh.userData.portal || { graphId: view.graph_id, nodeId: selected.mesh.userData.id }));
+    const current = standReference(view);
+    const order = new Map(walk.path.map((ref, i) => [TAWalk.key(ref), i]));
+    for (const route of routeScenery.children) {
+      const flow = route.userData.flow;
+      if (!flow) continue;
+      const { from, to } = route.userData;
+      const toward = sameStand(from, current) && sameStand(to, destination);
+      const backward = sameStand(to, current) && sameStand(from, destination);
+      const recalled = walk.reflecting && order.has(TAWalk.key(from)) && order.has(TAWalk.key(to));
+      flow.uniforms.direction.value = toward ? 1 : backward ? -1 : recalled
+        ? (order.get(TAWalk.key(from)) > order.get(TAWalk.key(to)) ? 1 : -1)
+        : (flow.dx * routeFacing.x + flow.dz * routeFacing.z >= 0 ? 1 : -1);
+      flow.uniforms.color.value.setHex(recalled ? 0xc16dff : flow.traveled ? 0xffdf9d : 0x8ce8e1);
+      flow.base.color.setHex(recalled ? 0x9566ff : flow.traveled ? 0xf5d795 : 0x7cbbb6);
+      flow.base.opacity = recalled ? .95 : walk.reflecting ? .2 : .65;
+      flow.uniforms.strength.value = activeFieldNote || activeCapsule ? 0 :
+        toward || backward ? (recalled ? 3.0 : 1.8) : recalled ? 1.8 : walk.reflecting ? .1 : .35;
+      flow.uniforms.time.value = reducedMotion.matches ? 0 : t;
+    }
+    for (const mesh of reflectChambers) TATerrain.tickEcho(mesh.userData.reflectEcho, reducedMotion.matches ? 0 : t);
+    canvas.dataset.terrainTexture = TATerrain.textureName || "";
+    canvas.dataset.terrainTextureReady = String(TATerrain.textureReady);
+  }
+
+  async function travelTo(payload, origin) {
+    const destination = { graphId: payload.graph_id, nodeId: payload.node.id };
+    const point = walk.position(destination);
+    if (!view || view.session_id !== payload.session_id || !point ||
+        sameStand(standReference(view), destination) || ["boot", "startup"].includes(origin) ||
+        atlasMapMode || activeFieldNote || activeCapsule || reducedMotion.matches) return;
+    const distance = Math.hypot(point.x - terrainCenter.x, point.z - terrainCenter.z);
+    // Distant map/anchor jumps have no invented straight route through unloaded land.
+    if (distance < .1 || distance > 150) return;
+    // Warm the canonical destination asset before the scene handoff, including evidence-specific forms.
+    const destinationRelic = RELIC_BY_KEY[standingRelic(payload)];
+    try { disposeRelicClone(await RelicGLBLoader.load(destinationRelic.model)); }
+    catch (_) { /* The existing visible fallback remains available if an asset cannot load. */ }
+    const endYaw = origin === "reflect-step" ? HOME_YAW + Math.PI : HOME_YAW;
+    const groundY = TATerrain.height(point.x - terrainCenter.x, point.z - terrainCenter.z, terrainCenter) + .06;
+    const endPosition = new THREE.Vector3(
+      point.x - terrainCenter.x + Math.sin(endYaw) * 8.2,
+      groundY + 2.6 + Math.sin(pitch) * .4,
+      point.z - terrainCenter.z + Math.cos(endYaw) * 8.2,
+    );
+    const endCamera = camera.clone();
+    endCamera.position.copy(endPosition);
+    endCamera.up.set(0, overhead ? 0 : 1, overhead ? (origin === "reflect-step" ? 1 : -1) : 0);
+    if (overhead) {
+      endPosition.set(point.x - terrainCenter.x, 26, point.z - terrainCenter.z);
+      endCamera.position.copy(endPosition);
+    }
+    endCamera.lookAt(point.x - terrainCenter.x, overhead ? 0 : groundY + 1.4, point.z - terrainCenter.z);
+    return new Promise((resolve) => {
+      terrainTravel = {
+        destination, from: { ...terrainCenter }, to: point,
+        start: camera.position.clone(), end: endPosition,
+        rotation: camera.quaternion.clone(), endRotation: endCamera.quaternion.clone(),
+        startedAt: clock.getElapsedTime(), duration: Math.min(2.6, 1.0 + distance / 32), resolve,
+      };
+      canvas.dataset.travelProgress = "0.000";
+      canvas.dataset.traveling = "true";
+      document.body.dataset.traveling = "true";
+    });
+  }
+
+  function updateTerrainTravel(t) {
+    const travel = terrainTravel;
+    if (!travel) return;
+    const progress = Math.min(1, (t - travel.startedAt) / travel.duration);
+    const u = progress * progress * (3 - 2 * progress);
+    const point = TATerrain.pointAlong(travel.from, travel.to, u);
+    const linearX = travel.from.x + (travel.to.x - travel.from.x) * u;
+    const linearZ = travel.from.z + (travel.to.z - travel.from.z) * u;
+    camera.position.lerpVectors(travel.start, travel.end, u);
+    camera.position.x += point.x - linearX;
+    camera.position.z += point.z - linearZ;
+    if (!overhead) {
+      // Pass beside the departure monument instead of taking the eye through it.
+      const dx = travel.to.x - travel.from.x, dz = travel.to.z - travel.from.z;
+      const distance = Math.hypot(dx, dz);
+      const clearance = Math.sin(Math.PI * Math.pow(u, .55)) * 3.4;
+      camera.position.x += -dz / distance * clearance;
+      camera.position.z += dx / distance * clearance;
+      camera.position.y += Math.sin(u * Math.PI) * .18;
+    }
+    camera.quaternion.slerpQuaternions(travel.rotation, travel.endRotation, u);
+    canvas.dataset.travelProgress = progress.toFixed(3);
+    if (progress >= 1) {
+      // Capture this exact final frame after rendering, before layout rebuilds the scene.
+      travel.finished = true;
+    }
+  }
+
+  async function finishArrivalBlend() {
+    if (arrivalVeil.hidden) return;
+    canvas.dataset.arriving = "true";
+    await arrivalVeil.animate([{ opacity: 1 }, { opacity: 0 }], {
+      duration: 650, easing: "ease-in-out",
+    }).finished;
+    arrivalVeil.hidden = true;
+    arrivalVeil.width = arrivalVeil.height = 0;
+    canvas.dataset.arriving = "false";
   }
 
   function markRise(obj, delay) {
@@ -4067,6 +4242,7 @@
       disposeAtlasObject(ch);
     }
     routeScenery = null;
+    reflectChambers = [];
     targets = [];
     portals = [];
     fieldNoteTargets = [];
@@ -4223,6 +4399,12 @@
     return { autoFocus, choiceIndex: choices.length - 1 };
   }
 
+  function standingRelic(payload) {
+    const mapped = relicForNode(payload.node, payload.evidence || []);
+    return manualRelicKey || (payload.parent_graph_id && payload.node.kind === "claim" &&
+      !(payload.evidence || []).length && mapped === "narrated-claim" ? "forked-claim" : mapped);
+  }
+
   function layout(payload) {
     layoutGeneration += 1;
     activeFieldNote = null;
@@ -4234,15 +4416,7 @@
     clearRoot();
     terrainCenter = walk.place(standReference(payload), { x: 0, z: 0 });
     root.add(floor());
-    mappedRelicKey = relicForNode(payload.node, payload.evidence || []);
-    if (
-      payload.parent_graph_id &&
-      payload.node.kind === "claim" &&
-      !(payload.evidence || []).length &&
-      mappedRelicKey === "narrated-claim"
-    ) {
-      mappedRelicKey = "forked-claim";
-    }
+    mappedRelicKey = standingRelic(payload);
     const here = chamberMesh(payload.node, {
       x: 0,
       z: 0,
@@ -4253,6 +4427,7 @@
     });
     root.add(here);
     standingMesh = here;
+    here.userData.routeRef = standReference(payload);
     markRise(here, 0);
 
     const forward = payload.forward || payload.shaped || [];
@@ -4299,7 +4474,7 @@
       const mesh = chamberMesh(item.node, {
         x: slot.x,
         z: slot.z,
-        scale: 0.7,
+        scale: 1,
         ghost: item.ghost,
         evidence: [],
       });
@@ -4320,7 +4495,7 @@
       const mesh = chamberMesh(item.node, {
         x: slot.x,
         z: slot.z,
-        scale: 0.7,
+        scale: 1,
         ghost: item.ghost,
         evidence: [],
       });
@@ -5502,6 +5677,7 @@
   async function inhabit(graphId, nodeId, origin = "walk") {
     if (navigating) return;
     navigating = true;
+    updateReflect();
     elWalkStatus.textContent = "";
     updateWayfinder();
     updatePathPreview();
@@ -5509,6 +5685,7 @@
       const q = new URLSearchParams();
       if (graphId) q.set("graph", graphId);
       const payload = await api(`/api/inhabit/${nodeId}?${q.toString()}`);
+      const traveled = await travelTo(payload, origin);
       const next = { graphId: payload.graph_id, nodeId: payload.node.id };
       const enteredCircuit = [...continuationCircuits.values()].find(
         (item) => item.phase === "arrival" && item.targetGraphId === next.graphId &&
@@ -5549,11 +5726,15 @@
       layout(payload);
       saveWalk();
       if (!walk.reflecting && origin !== "reflect-step") yaw = HOME_YAW;
+      if (traveled) await finishArrivalBlend();
       canvas.focus({ preventScroll: true });
     } catch (error) {
       if (!view) throw error;
       elWalkStatus.textContent = `Could not enter that thought. You are still here. ${error.message || error}`;
     } finally {
+      arrivalVeil.hidden = true;
+      canvas.dataset.traveling = "false";
+      document.body.dataset.traveling = "false";
       navigating = false;
       updateReflect();
       updateWayfinder();
@@ -5754,7 +5935,7 @@
   }
 
   canvas.addEventListener("pointerdown", (e) => {
-    if (agentSpark.opened || e.button !== 0) return;
+    if (navigating || agentSpark.opened || e.button !== 0) return;
     dragging = true;
     canvas.dataset.dragging = "true";
     dragMoved = false;
@@ -5769,7 +5950,7 @@
   window.addEventListener("pointercancel", stopDragging);
   window.addEventListener("blur", stopDragging);
   window.addEventListener("pointermove", (e) => {
-    if (!dragging) return;
+    if (!dragging || navigating) return;
     const dx = e.clientX - lastX;
     const dy = e.clientY - lastY;
     if (Math.abs(dx) + Math.abs(dy) > 3) dragMoved = true;
@@ -5809,7 +5990,7 @@
 
   canvas.addEventListener("click", (e) => {
     if (!dragMoved && agentSpark.pick(e)) return;
-    if (composing || dragMoved) return;
+    if (navigating || composing || dragMoved) return;
     const rect = canvas.getBoundingClientRect();
     const picking = atlasMapMode && atlasMapViewport
       ? { left: rect.left + atlasMapViewport.x, top: rect.top + atlasMapViewport.y,
@@ -6088,7 +6269,7 @@
   }
 
   function cycleChoice(dir) {
-    if (walk.reflecting) return;
+    if (navigating || walk.reflecting) return;
     if (!choices.length) return;
     const clock = clockwiseChoices();
     if (focusIndex < 0) {
@@ -6113,6 +6294,7 @@
   }
 
   function selectFocus() {
+    if (navigating) return;
     if (walk.reflecting) { reflectStep(); return; }
     if (focusIndex < 0) {
       walkDeeper();
@@ -6554,6 +6736,7 @@
       }
       return;
     }
+    if (navigating) return;
     if (e.key === "t" || e.key === "T") {
       e.preventDefault();
       openThreadCompass();
@@ -6761,6 +6944,7 @@
       key.intensity = overhead
         ? 1250
         : 950 + Math.sin(t * 1.3) * 35;
+      key.color.setHex(walk.reflecting ? 0xb18bff : (CLIMATE[document.body.dataset.climate] || CLIMATE.calm).key);
     } else key.intensity = 0;
 
     const focused = focusIndex >= 0 && choices[focusIndex]
@@ -7007,6 +7191,8 @@
       neuralFill.intensity = 0.22;
       scene.fog.density = Math.min(climateFog, .023);
     }
+    updateTerrainTravel(t);
+    updateRouteFlow(t);
     if (cinematicCapture) {
       const elapsed = t - cinematicCapture.startedAt;
       const u = Math.min(1, Math.max(0, elapsed / cinematicCapture.duration));
@@ -7071,6 +7257,15 @@
     }
     agentSpark.tick(t);
     renderer.render(scene, camera);
+    if (terrainTravel?.finished) {
+      arrivalVeil.width = canvas.width;
+      arrivalVeil.height = canvas.height;
+      arrivalVeil.getContext("2d").drawImage(canvas, 0, 0);
+      arrivalVeil.hidden = false;
+      const travel = terrainTravel;
+      terrainTravel = null;
+      travel.resolve(true);
+    }
     renderer.setScissorTest(false);
     requestAnimationFrame(tick);
   }

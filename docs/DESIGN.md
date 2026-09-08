@@ -41,6 +41,41 @@ Threadwalk, including generated destinations, and retained on revisits. Older
 traveled segments survive a return or a new branch. Existing map provenance,
 source-return doors, Field Notes, Capsules and Agent Spark retain their roles.
 
+Terrain refinement — 2026-09-07 (Codex): the owner's ten 4K color textures tile
+with mirrored repeat and absolute UV coordinates. A browser-local random
+assignment stays stable per Threadwalk and chooses among the least-used surfaces;
+the first ten assignments are distinct. Only the active terrain texture is kept
+in GPU memory. Graphs and server records do not acquire a visual texture field.
+
+Known nearby chamber travel animates the camera along the terrain curve after
+the canonical destination read succeeds, with a short eased departure/arrival
+and shoulder clearance around the current monument. Reflect follows the same
+curve in reverse; both camera modes are supported. Distant map/anchor jumps
+beyond the local patch and first entry retain direct placement. The stand and
+route cursor commit on arrival, and input cannot start overlapping journeys.
+Reduced-motion preference skips camera travel and freezes path pulses.
+
+Route ribbons carry flowing light: the selected outgoing or Reflect segment is
+brightest, with light running from the current thought toward its destination.
+Other nearby ribbons flow with the viewing direction. Warm traveled and cool
+generated path distinctions remain. Monuments continue to reflect actual thought
+kind/evidence rather than random visual assignments; varied synthetic previews
+should exercise those mappings instead of repeating one claim node.
+
+Arrival and Reflect refinement — 2026-09-07 (Codex): ordinary path and resident
+chambers now keep the same physical size as the standing monument. Canonical
+destination models preload before local travel; the final travel frame blends
+into the rebuilt chamber over 650 ms, covering terrain/lighting rebasing and
+keeping the reading panels dim until the handoff completes. The transient canvas
+is cleared afterward. This is a visual handoff, not a second persisted scene.
+
+Reflect adds violet lighting and saturated violet return ribbons with stronger
+pulses. Visible chambers on the experienced path before the pinned departure
+receive textured emissive glow, a floor halo, and branching cyan neuron sparks.
+Generated alternatives do not acquire remembered status. The effect uses the
+existing resident window, with no additional shadow-casting lights. Normal
+materials/colors return on leaving Reflect; reduced motion freezes the sparks.
+
 The resident route window contains at most 16 route relics in addition to the
 standing chamber and its immediate neighborhood. Geometry/materials/labels are
 disposed when removed; cached canonical GLB geometry/textures remain shared.

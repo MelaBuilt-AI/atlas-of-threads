@@ -27,3 +27,11 @@ law, third-party rights, and the services' current terms.
 
 Generated output may not be unique. Inclusion here is a provenance notice, not a
 claim of exclusivity or endorsement by OpenAI, Tripo, or Three.js.
+
+## Generated terrain textures
+
+The ten PNG color textures under `viz/dist/assets/terrain/` were supplied by the
+project owner for Atlas of Threads on 2026-09-07. They are generated artwork,
+locally Lanczos-upscaled from 1254 × 1254 to 4096 × 4096 by Codex at the owner's
+request. The supplied PNGs are included unchanged. These are color maps only;
+no measured surface geometry or additional source detail is implied.
