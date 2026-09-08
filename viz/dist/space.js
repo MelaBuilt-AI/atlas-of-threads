@@ -4699,10 +4699,12 @@
     const read = payload.read || {};
     const traversal = read.traversal || {};
     const attribution = graphAttribution(payload);
+    const standingLabel = document.querySelector("#plate .standing-label");
+    standingLabel.textContent = payload.session_title ? `Standing here · ${payload.session_title}` : "Standing here";
+    standingLabel.title = payload.session_title || "";
     elKind.textContent = read.kind_line || `${n.kind} · ${n.status}`;
     elText.textContent = n.text;
     const hereBits = [
-      payload.session_title ? `Threadwalk: ${payload.session_title}` : null,
       attribution ? `inside the ${attribution} graph` : null,
       read.here_line,
       traversal.terminal ? traversal.state_line : null,

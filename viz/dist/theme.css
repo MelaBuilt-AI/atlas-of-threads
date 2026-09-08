@@ -2427,6 +2427,7 @@ body[data-traveling="true"] #path-preview { opacity: .2; pointer-events: none; }
 .arrival-blend[hidden] { display: none; }
 #scene-loading { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; background: #080c16; color: #ded8be; font: 14px ui-monospace, monospace; }
 #scene-loading[hidden] { display: none; }
+#plate .standing-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #plate, #path-preview { transition: opacity 300ms ease; }
 body[data-reflecting="true"] #reflect-trigger {
   color: #ecddff; background: #472879; border: 1px solid #c9a2ff;
