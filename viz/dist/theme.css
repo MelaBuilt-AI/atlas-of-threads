@@ -2464,3 +2464,5 @@ body[data-reflecting="true"] #plate .kind { color: #d6b5ff; }
 .start-audio-note { margin: 1rem 0 0; text-align: center; }
 .start-audio-note [data-open-audio] { padding: 0; border: 0; background: none; color: var(--mute); }
 .start-audio-note [data-open-audio]:hover { color: var(--phosphor); }
+
+#startup-music-status:not([hidden]) { display: block; margin-top: 0.4rem; color: var(--mute); font: 0.6rem ui-monospace, Menlo, monospace; }

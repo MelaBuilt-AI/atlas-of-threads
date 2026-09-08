@@ -28,23 +28,33 @@
 
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}") || {}; } catch (_) { /* optional */ }
-  let paused = Boolean(saved.paused);
+  // Each fresh Atlas launch welcomes the listener; pause lasts for this tab.
+  let paused = false;
   let queue = ALBUM;
   let index = 0;
   let waitingForGesture = false;
   let playVersion = 0;
   let importVersion = 0;
   let objectURLs = [];
+  let currentThreadwalk = null;
   audio.volume = Number.isFinite(saved.volume) ? Math.max(0, Math.min(1, saved.volume)) : 0.38;
   volume.value = String(Math.round(audio.volume * 100));
 
   function save() {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ paused, volume: audio.volume })); } catch (_) { /* optional */ }
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ volume: audio.volume })); } catch (_) { /* optional */ }
   }
 
   function render() {
     toggle.textContent = paused || waitingForGesture ? "Play music" : "Pause music";
-    toggle.setAttribute("aria-pressed", String(!paused));
+    toggle.setAttribute("aria-pressed", String(!paused && !waitingForGesture));
+    document.querySelectorAll("[data-open-audio]").forEach((button) => {
+      button.title = waitingForGesture ? "Click to start music and open audio controls" : "Open music and sound controls";
+    });
+    const startupHint = document.getElementById("startup-music-status");
+    if (startupHint) {
+      startupHint.hidden = !waitingForGesture;
+      startupHint.textContent = waitingForGesture ? "Click anywhere to start the music" : "";
+    }
     tracks.value = String(index);
     document.getElementById("music-volume-value").textContent = `${Math.round(audio.volume * 100)}%`;
   }
@@ -73,6 +83,7 @@
     ++playVersion;
     audio.pause();
     index = (next + queue.length) % queue.length;
+    audio.autoplay = !paused;
     audio.src = queue[index].src;
     status.textContent = paused ? "Paused" : "Loading…";
     render();
@@ -173,7 +184,7 @@
   toggle.addEventListener("click", () => {
     paused = waitingForGesture ? false : !paused;
     waitingForGesture = false;
-    if (paused) { ++playVersion; audio.pause(); status.textContent = "Paused"; }
+    if (paused) { ++playVersion; audio.autoplay = false; audio.pause(); status.textContent = "Paused"; }
     else play();
     save();
     render();
@@ -203,10 +214,21 @@
     document.getElementById("music-import-status").textContent = "";
   });
   function awaken(event) {
-    if (!waitingForGesture || paused || controls.contains(event.target)) return;
+    if (paused || !audio.paused || controls.contains(event.target)) return;
     play();
   }
+  // Click works for touch activation too, and retries if pointerdown was too early.
   window.addEventListener("pointerdown", awaken, { capture: true });
+  window.addEventListener("click", awaken, { capture: true });
   window.addEventListener("keydown", awaken, { capture: true });
+  window.TAMusic = {
+    enterThreadwalk(sessionId, resuming = false) {
+      if (sessionId === currentThreadwalk && !resuming) return;
+      currentThreadwalk = sessionId;
+      // Pick another starting point, then keep the listener's playlist order.
+      const offset = queue.length > 1 ? 1 + Math.floor(Math.random() * (queue.length - 1)) : 0;
+      select(index + offset);
+    },
+  };
   setQueue(ALBUM, "The Unwritten Atlas · 13 tracks");
 })();

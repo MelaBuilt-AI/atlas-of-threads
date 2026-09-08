@@ -1228,7 +1228,7 @@
       if (session.spawn) {
         button.addEventListener("click", () => {
           closeWorkspaceMenu();
-          inhabit(session.spawn.graph_id, session.spawn.node_id);
+          inhabit(session.spawn.graph_id, session.spawn.node_id, "startup");
         });
       }
       elWorkspaceHistory.append(button);
@@ -5742,6 +5742,7 @@
           });
         }
       }
+      window.TAMusic?.enterThreadwalk(payload.session_id, origin === "boot" || origin === "startup");
       rememberWalk(payload, prev, origin);
       view = payload;
       rememberLastStand(payload);
