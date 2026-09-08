@@ -69,6 +69,16 @@ into the rebuilt chamber over 650 ms, covering terrain/lighting rebasing and
 keeping the reading panels dim until the handoff completes. The transient canvas
 is cleared afterward. This is a visual handoff, not a second persisted scene.
 
+Full-build repair — 2026-09-08 (Codex): initial entry and direct jumps reveal
+the chamber after the visible monument images, terrain texture, GPU uploads and
+shader compilation are ready. Nearby travel retains its final frame during this
+work. The arrival blend has a bounded completion wait for background tabs.
+The standing readout includes the actual Threadwalk title alongside graph
+authorship. Agent setup explicitly adds a registered agent to an available
+collaborator slot before selecting it, preserving its guide role and enforcing
+the five-slot limit. Frozen Linux startup restores the original system library
+path before spawning native shells, browsers or providers.
+
 Reflect adds violet lighting and saturated violet return ribbons with stronger
 pulses. Visible chambers on the experienced path before the pinned departure
 receive textured emissive glow, a floor halo, and branching cyan neuron sparks.

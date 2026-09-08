@@ -134,8 +134,15 @@ def _respond(store, spec, envelope):
             raise HarnessError("Guide returned an invalid prose response.")
         update = {"status": "completed", "response": response, "model": model,
                   "completed_at": now_iso()}
-    except Exception:
-        update = {"status": "failed", "error": "The guide could not finish. Check the agent connection and try again; it may be busy with a collaborator response."}
+    except Exception as exc:
+        detail = str(exc).lower()
+        if "symbol lookup error" in detail:
+            error = "Atlas could not start the guide because of a packaged-library conflict. Quit Atlas and reopen the corrected build."
+        elif "read-only file system" in detail:
+            error = "The guide could not start because its runtime is read-only. Quit Atlas completely, then launch it from your desktop terminal and retry."
+        else:
+            error = "The guide could not finish. Check the agent connection and try again; it may be busy with a collaborator response."
+        update = {"status": "failed", "error": error}
     with _lock:
         try:
             data = _read(store, spec.name)

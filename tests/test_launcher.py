@@ -38,6 +38,27 @@ def test_launcher_defaults_to_the_local_application(monkeypatch):
     assert seen == [["launch"]]
 
 
+@pytest.mark.parametrize("original", [None, "/synthetic/system-libraries"])
+def test_frozen_linux_external_children_receive_system_library_path(monkeypatch, original):
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setenv("LD_LIBRARY_PATH", "/synthetic/_MEI-bundled")
+    if original is None:
+        monkeypatch.delenv("LD_LIBRARY_PATH_ORIG", raising=False)
+    else:
+        monkeypatch.setenv("LD_LIBRARY_PATH_ORIG", original)
+
+    def provider(_args):
+        child = subprocess.run([sys.executable, "-c",
+                                "import os; print(os.environ.get('LD_LIBRARY_PATH', '<unset>'))"],
+                               capture_output=True, text=True, check=True)
+        assert child.stdout.strip() == (original or "<unset>")
+        return 0
+
+    monkeypatch.setattr("thought_archaeology.launcher._adapter", lambda _name: provider)
+    assert launcher_main(["adapter", "codex", "describe"]) == 0
+
+
 def test_console_bridge_defaults_to_help_without_launching_desktop(monkeypatch, tmp_path):
     seen = []
     monkeypatch.setattr(cli, "main", lambda argv: seen.append(argv) or 0)

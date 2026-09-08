@@ -3,9 +3,22 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
+from pathlib import Path
 
 
 def smoke(command):
+    if sys.platform.startswith("linux"):
+        with tempfile.TemporaryDirectory(prefix="atlas-native-shell-") as folder:
+            provider = Path(folder) / "provider"
+            provider.write_text('#!/bin/bash\ncase "$LD_LIBRARY_PATH" in *"_MEI"*) exit 79;; esac\necho synthetic-native-provider\n')
+            provider.chmod(0o700)
+            env = {**os.environ, "TA_CODEX_BIN": str(provider), "TA_CODEX_MODEL": "synthetic"}
+            result = subprocess.run([*command, "adapter", "codex", "describe"],
+                                    env=env, capture_output=True, timeout=30)
+            assert result.returncode == 0, result.stderr
+            assert json.loads(result.stdout)["cli_version"] == "synthetic-native-provider"
+            print("PASS: packaged adapter starts native Bash without bundled library contamination.")
     for name in ("codex", "claude", "grok", "prime-agent"):
         prefix = name.upper().replace("-", "_")
         env = {key: value for key, value in os.environ.items()

@@ -202,7 +202,7 @@
   }
 
   const cache = new Map();
-  async function load(url) {
+  async function cloneRelic(url) {
     if (!cache.has(url)) {
       cache.set(
         url,
@@ -222,5 +222,13 @@
     return clone;
   }
 
-  window.RelicGLBLoader = { load };
+  const pending = new Set();
+  function load(url) {
+    const task = cloneRelic(url);
+    pending.add(task);
+    task.then(() => pending.delete(task), () => pending.delete(task));
+    return task;
+  }
+
+  window.RelicGLBLoader = { load, ready: () => Promise.allSettled([...pending]) };
 })();

@@ -541,6 +541,42 @@ def test_workspace_switches_future_harness_and_preserves_watcher_timing(
     assert registry.default_name() == "grok"
 
 
+def test_setup_can_assign_and_select_a_registered_guide_without_losing_its_role(tmp_path, monkeypatch):
+    import thought_archaeology.serve as server
+    import thought_archaeology.agent_spark as spark
+    store = Store(tmp_path / "store")
+    store.initialize()
+    monkeypatch.setenv("TA_HARNESS_CONFIG", str(tmp_path / "harnesses.json"))
+    registry = HarnessRegistry()
+    registry.register("first", sys.executable, make_default=True)
+    registry.register("guide", sys.executable)
+    registry.set_agent_roles("guide", collaborator=False, guide=True)
+    monkeypatch.setattr(spark, "describe_harness", lambda *a, **k: {"capabilities": ["discuss"], "default_model": "synthetic"})
+    monkeypatch.setattr(server, "ensure_application_worker", lambda *a, **k: {})
+    monkeypatch.setattr(server, "workspace_payload", lambda store: {"active_harness": registry.default_name()})
+    handler = object.__new__(InhabitHandler)
+    handler.store = store
+    handler._read_json = lambda: {"harness": "guide"}
+    handler._json = lambda *a: None
+    with pytest.raises(HarnessError, match="collaborator slot"):
+        handler._workspace_harness()
+    handler._read_json = lambda: {"harness": "guide", "assign_collaborator": True}
+    handler._workspace_harness()
+    assert registry.default_name() == "guide"
+    assert registry.collaborator_names() == ("first", "guide")
+    assert registry.guide_name() == "guide"
+
+    registry.set_agent_roles("guide", collaborator=False, guide=True)
+    def fail_worker(*args, **kwargs):
+        raise HarnessError("synthetic worker failure")
+    monkeypatch.setattr(server, "ensure_application_worker", fail_worker)
+    with pytest.raises(HarnessError, match="worker failure"):
+        handler._workspace_harness()
+    assert registry.default_name() == "first"
+    assert registry.collaborator_names() == ("first",)
+    assert registry.guide_name() == "guide"
+
+
 def test_onboarding_connects_only_a_known_packaged_harness(
     monkeypatch, tmp_path: Path
 ):

@@ -10,6 +10,7 @@
   let activeTexture = null;
   let activeName = null;
   let textureReady = false;
+  let textureLoaded = Promise.resolve();
 
   // Random among the least-used surfaces: the first ten walks each get a different place.
   function assignTexture(session, saved, random = Math.random) {
@@ -34,8 +35,11 @@
       if (activeTexture) activeTexture.dispose();
       activeName = name;
       textureReady = false;
-      activeTexture = new THREE.TextureLoader().load(`./assets/terrain/${name}-4k.png`, (loaded) => {
-        if (loaded === activeTexture) textureReady = true;
+      textureLoaded = new Promise((resolve) => {
+        activeTexture = new THREE.TextureLoader().load(`./assets/terrain/${name}-4k.png`, (loaded) => {
+          if (loaded === activeTexture) textureReady = true;
+          resolve();
+        }, undefined, () => resolve());
       });
       activeTexture.wrapS = activeTexture.wrapT = THREE.MirroredRepeatWrapping;
       activeTexture.colorSpace = THREE.SRGBColorSpace;
@@ -240,6 +244,7 @@
   }
 
   const api = { height, surface, path, pointAlong, assignTexture, TEXTURES, echo, tickEcho,
+    ready: () => textureLoaded,
     get textureName() { return activeName; }, get textureReady() { return textureReady; } };
   if (typeof module !== "undefined") module.exports = api;
   else scope.TATerrain = api;

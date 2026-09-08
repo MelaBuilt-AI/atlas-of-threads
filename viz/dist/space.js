@@ -256,6 +256,12 @@
   arrivalVeil.hidden = true;
   arrivalVeil.setAttribute("aria-hidden", "true");
   canvas.after(arrivalVeil);
+  const sceneLoading = document.createElement("div");
+  sceneLoading.id = "scene-loading";
+  sceneLoading.hidden = true;
+  sceneLoading.setAttribute("role", "status");
+  sceneLoading.textContent = "Preparing your Threadwalk…";
+  document.body.append(sceneLoading);
   let reflectChambers = [];
   const routeFacing = new THREE.Vector3();
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -779,7 +785,13 @@
         }
         addAction("Check again", refreshOnboarding);
       } else if (harness.registered) {
-        addAction("Select", () => selectOnboardingHarness(harness.name), true);
+        const assigned = (payload.harnesses || []).some((item) => item.name === harness.name);
+        if (!assigned && (payload.harnesses || []).length >= 5) {
+          addAction("Manage collaborator slots", () => { closeOnboarding(); openWorkspaceMenu(); });
+        } else {
+          addAction(assigned ? "Select" : "Add collaborator and select",
+            () => selectOnboardingHarness(harness.name), true);
+        }
       } else if (harness.provider_state === "ready") {
         addAction("Connect and select", () => connectOnboardingHarness(harness.name), true);
       }
@@ -892,7 +904,7 @@
     renderOnboarding(workspaceState || { available_harnesses: [], harnesses: [] });
     elOnboardingStatus.textContent = `Preparing ${workspaceName(name)} for the first path…`;
     try {
-      const result = await post("/api/workspace/harness", { harness: name });
+      const result = await post("/api/workspace/harness", { harness: name, assign_collaborator: true });
       onboardingBusy = false;
       renderOnboarding(result.workspace);
       elOnboardingInquiry.focus();
@@ -4193,9 +4205,15 @@
   async function finishArrivalBlend() {
     if (arrivalVeil.hidden) return;
     canvas.dataset.arriving = "true";
-    await arrivalVeil.animate([{ opacity: 1 }, { opacity: 0 }], {
+    const animation = arrivalVeil.animate([{ opacity: 1 }, { opacity: 0 }], {
       duration: 650, easing: "ease-in-out",
-    }).finished;
+    });
+    // Background tabs can suspend compositor animations independently of JS.
+    let timer;
+    await Promise.race([animation.finished.catch(() => {}),
+      new Promise((resolve) => { timer = setTimeout(resolve, 1000); })]);
+    clearTimeout(timer);
+    animation.cancel();
     arrivalVeil.hidden = true;
     arrivalVeil.width = arrivalVeil.height = 0;
     canvas.dataset.arriving = "false";
@@ -4684,6 +4702,7 @@
     elKind.textContent = read.kind_line || `${n.kind} · ${n.status}`;
     elText.textContent = n.text;
     const hereBits = [
+      payload.session_title ? `Threadwalk: ${payload.session_title}` : null,
       attribution ? `inside the ${attribution} graph` : null,
       read.here_line,
       traversal.terminal ? traversal.state_line : null,
@@ -5686,6 +5705,8 @@
       if (graphId) q.set("graph", graphId);
       const payload = await api(`/api/inhabit/${nodeId}?${q.toString()}`);
       const traveled = await travelTo(payload, origin);
+      if (!traveled) sceneLoading.hidden = false;
+      canvas.dataset.sceneReady = "false";
       const next = { graphId: payload.graph_id, nodeId: payload.node.id };
       const enteredCircuit = [...continuationCircuits.values()].find(
         (item) => item.phase === "arrival" && item.targetGraphId === next.graphId &&
@@ -5726,12 +5747,37 @@
       layout(payload);
       saveWalk();
       if (!walk.reflecting && origin !== "reflect-step") yaw = HOME_YAW;
+      await Promise.all([RelicGLBLoader.ready(), TATerrain.ready()]);
+      // Reveal complete monuments, with image uploads and shader compilation
+      // paid for under the loading cover or the final travel frame.
+      for (const object of risers) {
+        object.visible = true;
+        object.position.y = object.userData.restY;
+        object.scale.setScalar(object.userData.focusScale || 1);
+      }
+      risers = [];
+      scene.updateMatrixWorld(true);
+      const textures = new Set();
+      root.traverse((object) => {
+        for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
+          if (material) for (const value of Object.values(material)) {
+            if (value?.isTexture) textures.add(value);
+          }
+        }
+      });
+      for (const texture of textures) renderer.initTexture(texture);
+      updateNavigationLights(clock.getElapsedTime());
+      await renderer.compileAsync(scene, camera);
+      await new Promise(requestAnimationFrame);
+      canvas.dataset.sceneReady = "true";
+      sceneLoading.hidden = true;
       if (traveled) await finishArrivalBlend();
       canvas.focus({ preventScroll: true });
     } catch (error) {
       if (!view) throw error;
       elWalkStatus.textContent = `Could not enter that thought. You are still here. ${error.message || error}`;
     } finally {
+      sceneLoading.hidden = true;
       arrivalVeil.hidden = true;
       canvas.dataset.traveling = "false";
       document.body.dataset.traveling = "false";

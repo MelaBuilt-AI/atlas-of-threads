@@ -1070,6 +1070,7 @@ class InhabitHandler(BaseHTTPRequestHandler):
                     self.store, nid, graph_id=graph_id, session_id=session
                 )
                 payload = view.to_dict()
+                payload["session_title"] = self.store.load_session(view.graph.session_id).title
                 payload["continuation_harness"] = _harness_by_graph(
                     self.store
                 ).get(view.graph.id)
@@ -1681,9 +1682,13 @@ class InhabitHandler(BaseHTTPRequestHandler):
             return
         registry = HarnessRegistry()
         spec = registry.get(name)
-        if name not in registry.collaborator_names():
-            raise HarnessError("Assign this agent a collaborator slot first.")
         previous = registry.default_name()
+        added_role = name not in registry.collaborator_names()
+        if added_role:
+            if body.get("assign_collaborator") is not True:
+                raise HarnessError("Assign this agent a collaborator slot first.")
+            assign_roles(self.store, {"harness": name, "collaborator": True,
+                                      "guide": registry.guide_name() == name})
         registry.use(name)
         unit_path = resolve_harness_service_path()
         options = harness_service_options(unit_path)
@@ -1697,6 +1702,9 @@ class InhabitHandler(BaseHTTPRequestHandler):
                     path=unit_path,
                 )
             except HarnessError:
+                if added_role:
+                    registry.set_agent_roles(name, collaborator=False,
+                                             guide=registry.guide_name() == name)
                 if previous and previous != name:
                     registry.use(previous)
                 raise

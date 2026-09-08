@@ -108,6 +108,20 @@ def test_failed_and_interrupted_requests_remain_visible(tmp_path, monkeypatch):
     assert spark.discussion_payload(store)['turns'][0]['status'] == 'interrupted'
 
 
+@pytest.mark.parametrize('detail, expected', [
+    ('symbol lookup error: private path', 'packaged-library conflict'),
+    ('Read-only file system: private path', 'runtime is read-only'),
+])
+def test_guide_startup_errors_give_safe_recovery_instructions(tmp_path, monkeypatch, detail, expected):
+    store, registry, body = setup(tmp_path, monkeypatch)
+    monkeypatch.setattr(spark, '_adapter_call', lambda *a, **k: (_ for _ in ()).throw(HarnessError(detail)))
+    spark.begin_discussion(store, body)
+    turn = wait(store)['turns'][0]
+    assert turn['status'] == 'failed'
+    assert expected in turn['error']
+    assert 'private path' not in turn['error']
+
+
 def test_discussion_prompt_and_shared_session_exclusion(tmp_path, monkeypatch):
     store, registry, body = setup(tmp_path, monkeypatch)
     envelope = {'protocol_version': '1', 'operation': 'discuss', 'request': {'prompt': 'A question'},
