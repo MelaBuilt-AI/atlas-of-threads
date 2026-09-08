@@ -104,3 +104,58 @@ def test_linux_activation_atomically_replaces_the_running_package(monkeypatch, t
     assert installed.read_bytes() == b"new"
     assert installed.stat().st_mode & 0o111
     assert not downloaded.parent.exists()
+
+
+@pytest.mark.parametrize("operation", ["manifest", "download"])
+def test_linux_release_requests_load_host_roots_when_defaults_are_empty(monkeypatch, tmp_path, operation):
+    loaded = []
+
+    class Context:
+        def get_ca_certs(self):
+            return []
+
+        def load_verify_locations(self, *, cafile):
+            loaded.append(cafile)
+
+    context = Context()
+    monkeypatch.setattr(updates.ssl, "create_default_context", lambda: context)
+    monkeypatch.setattr(updates.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(updates.sys, "platform", "linux")
+    monkeypatch.delenv("SSL_CERT_FILE", raising=False)
+    monkeypatch.delenv("SSL_CERT_DIR", raising=False)
+    bundle = "/etc/ssl/cert.pem"
+    monkeypatch.setattr(Path, "is_file", lambda self: str(self) == bundle)
+
+    def opener(request, *, timeout, context):
+        assert loaded == [bundle]
+        assert context is not None
+        return Response(b'{"version":"v9.0.0"}' if operation == "manifest" else b"package")
+
+    monkeypatch.setattr(updates, "urlopen", opener)
+    if operation == "manifest":
+        assert updates.update_status()["latest_version"] == "v9.0.0"
+    else:
+        destination = tmp_path / "package"
+        updates._download("https://example.test/package", destination)
+        assert destination.read_bytes() == b"package"
+
+
+@pytest.mark.parametrize("existing_roots, override", [(True, None), (False, "SSL_CERT_FILE"), (False, "SSL_CERT_DIR")])
+def test_release_requests_preserve_existing_and_explicit_trust(monkeypatch, existing_roots, override):
+    class Context:
+        def get_ca_certs(self):
+            return [{}] if existing_roots else []
+
+        def load_verify_locations(self, **kwargs):
+            pytest.fail("Must not replace existing or explicit trust")
+
+    context = Context()
+    monkeypatch.setattr(updates.ssl, "create_default_context", lambda: context)
+    monkeypatch.setattr(updates.sys, "platform", "linux")
+    monkeypatch.delenv("SSL_CERT_FILE", raising=False)
+    monkeypatch.delenv("SSL_CERT_DIR", raising=False)
+    if override:
+        monkeypatch.setenv(override, "/explicit/trust")
+    monkeypatch.setattr(updates, "urlopen", lambda request, *, timeout, context: Response(b"ok"))
+    with updates._open_release(updates.Request("https://example.test"), timeout=5) as response:
+        assert response.read() == b"ok"

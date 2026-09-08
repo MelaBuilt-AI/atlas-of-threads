@@ -19,10 +19,15 @@ part of future releases.
 
 ## Verified release boundary
 
-Version **0.3.0 — Bring Your Own Agent** gathers the Agent Bridge, local and
+Version **0.3.1 — Bring Your Own Agent** gathers the Agent Bridge, local and
 remote onboarding, Agent Spark, terrain/Reflect navigation, cinematic audio,
 and bounded formatting repair. The owner accepted the completed build and
 authorized its public release on September 8, 2026.
+
+The 0.3.0 release passed its CI/package gates, but a final Arch startup check
+found that the frozen updater could not locate the host CA bundle. Version
+0.3.1 fixes that lookup for verified HTTPS release requests and respects explicit
+trust settings; its release repeats the full CI and packaging gates.
 
 Before the version bump, the exact final application source passed all 367
 local tests, Python 3.11/3.12 CI, both platform package builds, and installed
