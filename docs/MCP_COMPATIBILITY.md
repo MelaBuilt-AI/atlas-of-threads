@@ -142,7 +142,8 @@ onboarding are not accepted. [Setup and boundaries](REMOTE_AGENTS.md).
 Before claiming a new client/platform's complete lived-use acceptance, use its
 actual agent session to read an existing thought, append an explicitly requested
 path, reconnect and retrieve exact IDs. Test native memory separately if offered.
-The published `v0.2.0` installers still lack this development bridge.
+Atlas v0.3.0 includes this bridge. The dated checks below distinguish live
+client acceptance from isolated package smoke tests.
 
 ### Native inbound memory loop accepted
 

@@ -19,42 +19,30 @@ part of future releases.
 
 ## Verified release boundary
 
-The unreleased navigation increment adds curved terrain, a bounded resident route
-window and R Reflect traversal. Its interaction contract is in
-[the design amendment](DESIGN.md#reflect-and-curved-terrain-amendment--2026-09-07-codex).
-User acceptance in both views, branched/long routes and package checks are still
-required before a navigation release. Published `v0.2.0` is unchanged.
+Version **0.3.0 — Bring Your Own Agent** gathers the Agent Bridge, local and
+remote onboarding, Agent Spark, terrain/Reflect navigation, cinematic audio,
+and bounded formatting repair. The owner accepted the completed build and
+authorized its public release on September 8, 2026.
 
-The development Agent Bridge onboarding and console host are described in
-[Agent onboarding](AGENT_ONBOARDING.md) and [MCP compatibility](MCP_COMPATIBILITY.md).
-These changes do not advance the published `v0.2.0` channel. A future package
-release must include the console host and pass `packaging/smoke_mcp.py` against
-the installed Windows executable and standalone Linux executable.
+Before the version bump, the exact final application source passed all 367
+local tests, Python 3.11/3.12 CI, both platform package builds, and installed
+Windows smoke checks. Release preparation repeats these gates at the versioned
+source. GitHub Actions and the tagged release manifest are the authoritative
+record of the final commit and published artifacts.
 
-The development branch also includes Agent Spark private prose discussion and
-independent collaborator/guide roles. Local OpenCode, Codex, Claude Code, Grok
-and Prime Agent support guide discussions. The four latter adapters use Atlas
-discussion history without attaching a personal memory vault by default.
-Linux source tests and isolated role/restart checks pass; native Windows
-OpenCode return and guide acceptance remain pending. See
-[Agent Spark](AGENT_BRIDGE.md#agent-spark--local-guide-discussion) for the runtime
-and memory boundaries.
+The package smoke suite covers MCP, SSH dispatch, discovery, all 33 effect and
+13 music assets with HTTP range serving, guide entry points and formatting
+repair. Live-client acceptance and platform-specific limits remain explicitly
+recorded in [MCP compatibility](MCP_COMPATIBILITY.md); synthetic smokes do not
+claim a fresh live response from every provider. Remote helper hosting requires
+POSIX (including WSL); automatic LAN discovery and a native Windows remote
+Hermes/OpenClaw host are not implied. The Windows Atlas client can use the
+supported remote route.
 
-The optional source [remote-agent connection](REMOTE_AGENTS.md) adds verified SSH
-calls to existing Hermes/OpenClaw installations and an optional private
-Unix-socket forward for inbound MCP. Linux-to-WSL path/guide/session-reconnect
-acceptance passes. It is not a new packaged release or a shared Atlas service;
-native Windows remote execution remains unimplemented. Subsequent isolated native
-Hermes/OpenClaw inbound contribution, file-memory readback and fresh-session
-replay checks pass. The development package now includes manual `adapter ssh`
-dispatch, exercised by `packaging/smoke_ssh.py` alongside the existing MCP smoke.
-Development Workspace setup also discovers local CLIs and offers Add Remote Agent
-with SSH verification and scoped firewall guidance. `packaging/smoke_discovery.py`
-checks frozen UI/API assets, local adapter dispatch and setup-origin protection.
-`packaging/smoke_guides.py` verifies the four additional guide entry points and
-private-context rejection in standalone and installed packages without model calls.
-Remote helper hosting still requires POSIX; Windows-native Hermes/OpenClaw session
-adapters and automatic LAN host discovery are not implied.
+Audio logic checks cover autoplay retry, separate controls, random entry and
+local playlist resolution. Local file-picker interaction was not automated;
+file import logic was tested independently. Browser autoplay remains subject
+to the browser's user-interaction policy.
 
 - The project is MIT-licensed and owned under `MelaBuilt-AI`.
 - Runtime data, environments, caches, and package metadata are ignored. No live
@@ -89,7 +77,7 @@ adapters and automatic LAN host discovery are not implied.
 - `ta harness service` requires a systemd user session; other platforms use
   the foreground `ta harness watch` path.
 - Accounts and the shared Atlas are future work. The explicit private SSH
-  connection above is the development exception for networking. The current
+  connection above is an explicit private connection. The current
   release is a local-first Personal Atlas.
 
 Passing this checklist does not replace an explicit owner decision for future

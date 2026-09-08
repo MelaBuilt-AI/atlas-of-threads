@@ -84,7 +84,7 @@ and [Hermes configuration](https://hermes-agent.nousresearch.com/docs/user-guide
 4. Create one private host config and state directory per connected agent. Use
    absolute paths appropriate to that machine; examples below are placeholders.
 
-The development standalone application also includes this adapter. Substitute
+The v0.3.0 standalone application includes this adapter. Substitute
 `atlas-of-threads adapter ssh` (Linux) or `AtlasOfThreadsMCP.exe adapter ssh`
 (Windows) for `ta-harness-ssh`. Register that executable with the fixed arguments
 `adapter`, `ssh`, `--config`, and the local connection-file path. The console

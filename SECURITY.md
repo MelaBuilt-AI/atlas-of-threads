@@ -29,11 +29,11 @@ can reproduce the problem.
   owner-only permissions where the platform supports them.
 - Provider credentials are owned by provider CLIs and are not stored in the
   Thought Archaeology store.
-- The optional source SSH adapter sends selected public context to an explicitly
+- The optional SSH adapter sends selected public context to an explicitly
   configured remote Hermes/OpenClaw runtime. It requires verified SSH host keys;
   native credentials remain remote. Optional reverse MCP uses private Unix
   sockets and fixed store/collaborator scopes. See [remote agents](docs/REMOTE_AGENTS.md).
-- Development agent onboarding scans local installations without calling models.
+- Agent onboarding scans local installations without calling models.
   Remote discovery contacts only a user-entered SSH host, requires explicit trust
   for a new fingerprint and refuses changed trusted keys. Host config/commands
   stay in server-side setup state; browser requests select an expiring discovery

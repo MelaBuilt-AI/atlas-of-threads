@@ -33,11 +33,12 @@ The `0.x` application creates and inhabits a local Personal Atlas. It compiles
 finalized model answers into inspectable thought-graphs, preserves rejected
 roads and human interventions, supports attributed continuations from multiple
 AI collaborators, lets the inhabitant write Field Notes, and can freeze a
-completed local inquiry into a private Knowledge Capsule. The current source
-tree also contains two Atlas Agent Bridge slices: byte-preserving local reads,
-plus explicitly scoped inbound creation of one private root and one attributed
-agent path. Neither slice can publish or invoke an outbound harness, and they
-are not part of the `v0.2.0` installers.
+completed local inquiry into a private Knowledge Capsule. Version 0.3.0 adds
+local MCP reads, search and scoped attributed contributions, explicit memory
+receipts, named return connections, independent Agent Spark guide discussion,
+and verified SSH connections to existing Hermes/OpenClaw agents. Curved terrain,
+Reflect navigation and independent cinematic music/sound controls enrich the
+local experience. These bridges do not publish a Personal Atlas.
 
 The local application is not a hosted account, social network, remote model
 provider, public knowledge base, or shared Atlas client. It does not upload a

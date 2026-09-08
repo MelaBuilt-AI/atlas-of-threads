@@ -14,7 +14,7 @@
 
 <p align="center">
   <a href="https://github.com/MelaBuilt-AI/atlas-of-threads/actions/workflows/test.yml"><img src="https://github.com/MelaBuilt-AI/atlas-of-threads/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
-  <a href="https://github.com/MelaBuilt-AI/atlas-of-threads/releases/tag/v0.2.0"><img src="https://img.shields.io/badge/release-v0.2.0-35d5e8" alt="Release v0.2.0"></a>
+  <a href="https://github.com/MelaBuilt-AI/atlas-of-threads/releases/tag/v0.3.0"><img src="https://img.shields.io/badge/release-v0.3.0-35d5e8" alt="Release v0.3.0"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-ffb455" alt="MIT license"></a>
 </p>
 
@@ -27,7 +27,7 @@
   ·
   <a href="https://downloads.atlasofthreads.com/releases/latest/AtlasOfThreadsSetup.exe"><strong>Download for Windows</strong></a>
   ·
-  <a href="https://github.com/MelaBuilt-AI/atlas-of-threads/releases/tag/v0.2.0"><strong>Release notes</strong></a>
+  <a href="https://github.com/MelaBuilt-AI/atlas-of-threads/releases/tag/v0.3.0"><strong>Release notes</strong></a>
 </p>
 
 ---
@@ -56,9 +56,39 @@ explanation is a neural trace. The graph is the inspectable story of the answer.
 When causal evidence exists, it occupies a separate evidence layer with an
 explicitly bounded claim.
 
-## What ships in v0.2.0
+## v0.3.0 — Bring Your Own Agent
 
 The current release creates a private **Personal Atlas** on your computer.
+Bring an existing agent into that Atlas, choose who builds the next path and who
+walks beside you, and explore with a new terrain and cinematic soundscape.
+
+New in this release:
+
+- **Bring your own agent** — local discovery and MCP setup for Codex, Claude
+  Code, Grok Build, OpenCode, Prime Agent, Hermes, and OpenClaw; explicitly scoped
+  reads and contributions preserve exact source and agent attribution.
+- **Agent Spark** — a floating companion for private discussion of the current
+  thought, with one guide selected independently of up to five collaborators.
+- **Remote agent setup** — connect an existing Hermes or OpenClaw agent through
+  a verified SSH destination, with connection and scoped firewall guidance.
+- **Persistent agent connections** — optional named Codex/OpenCode return routes,
+  resumable conversations, and explicitly approved memory-file projection.
+- **Terrain and Reflect** — ten terrain textures, curved traveled paths,
+  smoother arrivals, exact-thought maps, and a pinned return from reflection.
+  Left/right selection now includes the central standing object.
+- **Music and sound** — all 33 cinematic effects, the main title plus 12 album
+  tracks, independent music/effects controls in `L`, previous/next and track
+  selection, and your own local songs, folders, or playlists.
+- **Welcoming playback** — title music at startup; a random track for each new
+  or explicitly resumed Threadwalk. Browsers that block autoplay start on the
+  first interaction. Moving within a Threadwalk keeps the music flowing.
+- **More reliable continuations** — one bounded repair when a collaborator
+  returns invalid graph formatting, plus packaged Linux launch and Windows
+  bridge improvements.
+
+Read the [detailed release post](docs/releases/v0.3.0.md).
+
+The continuing foundation:
 
 - **Inhabit Space** — move through answers as spatial chambers instead of a
   transcript or dashboard.
@@ -123,7 +153,7 @@ From a chamber:
 
 | Move | Control |
 |---|---|
-| Cycle among paths | `←` / `→` or `[` / `]` |
+| Cycle among paths and the central standing object | `←` / `→` or `[` / `]` |
 | Enter the selected path | `Enter` or `↑` |
 | Reflect / return to departure | `R` |
 | Retrace while reflecting | `↑` or `Enter` |
@@ -134,7 +164,7 @@ From a chamber:
 | Open Thread Compass | `T` |
 | Open Atlas Map | `A` |
 | Open Workspace | `M` |
-| Open legend and all controls | `L` |
+| Open legend, music, sound, and all controls | `L` |
 
 The standing thought and selected destination have separate cards. Click a path
 to preview it before entering. **Reflect** turns both shoulder and overhead views
@@ -171,11 +201,14 @@ change subscription eligibility.
 | OpenCode | Yes | No — configure its CLI first |
 | Prime Agent | Yes | No — configure its CLI first |
 
-Existing Hermes and OpenClaw agents on another Linux/macOS/WSL host can use the
-explicit [SSH connection](docs/REMOTE_AGENTS.md) for contributions and Spark guide
-discussion. Native credentials and memory stay on the agent host; these are
-manually configured connections, not additional guided setup buttons. The
-development package dispatches them through `adapter ssh`.
+Workspace setup discovers supported local installations. **Add Remote Agent**
+connects an existing Hermes or OpenClaw installation on a Linux/macOS/WSL host
+through verified SSH. Choose the agent after its health check; credentials and
+native memory remain on that host. See [remote setup](docs/REMOTE_AGENTS.md).
+
+Choose up to five collaborators and one independent guide. The same agent can
+serve both roles. Click **Agent Spark** to discuss the current thought privately;
+its conversation does not create a graph continuation or Field Note.
 
 The adapter's `describe` handshake confirms that a CLI can answer and reports
 its current public model/version. A desktop chat application alone is not a
@@ -188,32 +221,36 @@ rewrites stored attribution.
 For the protocol and provider-specific boundaries, read
 [Harness adapters](docs/HARNESS_ADAPTERS.md).
 
-### Agent Bridge development preview
+### Connect your own agent with MCP
 
-The source preview runs a local MCP server over stdio. With no collaborator ID,
-it remains the byte-preserving Slice A reader:
+The packaged local MCP server lets an agent read and search your Atlas, retrieve
+cited context, and—with explicitly granted scopes—create private Threadwalks,
+append attributed paths, and leave questions at exact thoughts. Repeating an
+identical contribution request reuses its receipt instead of duplicating a path.
+Read-only access is the default. MCP access does not itself grant Atlas access
+to the agent's memory or let Atlas call it back.
 
-```bash
-ta --store /path/to/personal-atlas mcp serve
-```
-
-Slice B can explicitly register one inbound collaborator and grant only the
-local scopes needed to create a private Threadwalk and append one attributed
-agent path. Slice C returns compact memory candidates and accepts only an
-opaque client-owned acknowledgement. The same stable collaborator can now be
-bound to a resumable Codex or OpenCode harness with approved read-only memory files,
-so questions asked inside Atlas can reach that named agent rather than a fresh
-stateless model call. None of these actions publishes or exposes hidden
-reasoning. The released `v0.2.0` installers predate these source changes. Read
-the exact setup, tools, idempotency, persistence, and privacy boundaries in
-[Agent Bridge](docs/AGENT_BRIDGE.md).
-
-[Connect your agent](docs/AGENT_ONBOARDING.md) covers Windows and Linux setup
-for Codex, Claude Code, Grok, OpenCode, Prime Agent, OpenClaw, and Hermes.
-`ta mcp config --client CLIENT` prints a client-specific configuration fragment;
+[Connect your agent](docs/AGENT_ONBOARDING.md) covers all seven client families.
+`ta mcp config --client CLIENT` prints a configuration fragment;
 `ta mcp check` verifies the local stdio connection without creating a graph.
-Windows development installers include `AtlasOfThreadsMCP.exe` for these commands.
+Windows installers include `AtlasOfThreadsMCP.exe`; Linux uses the installed
+Atlas executable. [Agent Bridge](docs/AGENT_BRIDGE.md) explains explicit memory
+acknowledgements and separate named Codex/OpenCode return connections.
 See [compatibility evidence](docs/MCP_COMPATIBILITY.md) for tested versions and limits.
+
+### Your soundtrack
+
+Press **L** during setup or inside Atlas. Music and sound effects have separate
+pause and volume controls. Skip forward/back, choose a track, or load your own
+music files or folder. M3U/M3U8 and PLS playlists can refer to songs supplied
+alongside them; playable HTTP(S) streams are also supported. Local songs stay
+in the browser tab and are never uploaded. Reload restores the Atlas album.
+
+Fresh launches request title playback and retain your volume. A music pause
+lasts for the current tab. Starting or explicitly resuming a Threadwalk selects
+a random track without immediately repeating the current one; it respects an
+in-session pause and your custom queue. Ordinary chamber travel does not restart
+music. If the browser blocks initial autoplay, click or press a key to begin.
 
 ## Local-first ownership
 
@@ -242,7 +279,7 @@ application parent and child plus the collaborator worker. Use
 | **Atlas of Threads** | The product and platform. |
 | **Thought Archaeology Framework** | The discovery and knowledge-extraction methodology powering Atlas. |
 | **Personal Atlas** | One person's private mapped reality on their machine. |
-| **The Atlas** | A future shared layer connecting deliberately published paths from independently owned Personal Atlases. It is not part of v0.2.0. |
+| **The Atlas** | A future shared layer connecting deliberately published paths from independently owned Personal Atlases. It is not part of v0.3.0. |
 | **Threads** | AI thoughts, memories, conversations, decisions, and reasoning. |
 | **Weaving** | Connecting Threads without erasing their origins. |
 | **Threadwalk** | Traversing connected thoughts and graph generations. |
@@ -362,10 +399,12 @@ contract; no vendor SDK or callback URL is required by the core.
 pytest -q
 node --check viz/dist/space.js
 node --check viz/dist/sound.js
+node --check viz/dist/music.js
+node --check viz/dist/spark.js
 ```
 
 The test workflow runs on Python 3.11 and 3.12. Package workflows build and
-smoke-test Windows and Linux artifacts for private acceptance, but only a stable
+smoke-test Windows and Linux artifacts for acceptance, but only a stable
 `vMAJOR.MINOR.PATCH` GitHub Release may advance the public update channel.
 
 CLI exit codes are `0` for success, `1` for validation or strict-policy failure,
@@ -388,7 +427,7 @@ CLI exit codes are `0` for success, `1` for validation or strict-policy failure,
 
 ## Current boundary
 
-Atlas of Threads v0.2.0 is a local Personal Atlas, not a hosted knowledge
+Atlas of Threads v0.3.0 is a local Personal Atlas, not a hosted knowledge
 network. **The Atlas**—a shared world connecting only what inhabitants
 deliberately publish—is the long-term direction. This repository does not add
 accounts, upload local graphs, infer consensus, or claim that the shared layer

@@ -186,7 +186,7 @@ jobs:
             --arg published_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             '{version: $version, commit: $commit, published_at: $published_at}' \
             > release/release.json
-      - name: Attach packages to the private GitHub Release
+      - name: Attach packages to the public GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
