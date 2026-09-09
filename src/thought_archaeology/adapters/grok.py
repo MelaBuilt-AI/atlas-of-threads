@@ -44,6 +44,7 @@ def _run_metadata(argv: list[str], *, timeout: float = 30) -> tuple[str, str]:
     try:
         proc = subprocess.run(
             argv,
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
             encoding="utf-8",

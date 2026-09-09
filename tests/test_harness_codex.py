@@ -23,6 +23,26 @@ from tests.test_cli import run
 FAKE_CODEX = Path(__file__).with_name("fake_codex_cli.py")
 
 
+@pytest.mark.parametrize("provider", ["codex", "grok", "opencode"])
+def test_provider_metadata_preserves_adapter_request(provider):
+    # WSL forwards inherited stdin even when a metadata command needs no input.
+    # Exercise real pipes so an eager child cannot consume the adapter envelope.
+    request = '{"operation":"discuss","request":{"prompt":"Keep this request"}}'
+    code = (
+        f"from thought_archaeology.adapters.{provider} import _run_metadata; "
+        "import sys; "
+        "_run_metadata([sys.executable, '-c', "
+        "'import sys; sys.stdin.read(); print(\"metadata\")']); "
+        "sys.stdout.write(sys.stdin.read())"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code], input=request, capture_output=True,
+        text=True, timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == request
+
+
 def test_codex_discovery_preserves_launcher_symlink(monkeypatch, tmp_path: Path):
     shim = tmp_path / "codex"
     shim.symlink_to(FAKE_CODEX)
