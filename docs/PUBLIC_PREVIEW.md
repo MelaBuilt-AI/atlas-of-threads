@@ -9,6 +9,9 @@ part of future releases.
 - Portable inquiries are a development slice after v0.3.1. Release acceptance
   must include two isolated stores, the physical Windows test PC, and a private
   guide discussion pinned to an imported source. See [portable inquiries](PORTABLE_INQUIRIES.md).
+- Portable inquiries and the local returned-path increment will ship with the
+  [combined online Atlas milestone](ONLINE_ATLAS.md). Its hosted world and
+  complete exchange must be accepted before a new public release.
 - The historical origin-conversation fixture was replaced with a synthetic
   reference example. Private source material is excluded from rewritten public
   history.

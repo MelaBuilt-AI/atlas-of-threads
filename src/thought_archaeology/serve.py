@@ -14,7 +14,7 @@ from pathlib import Path
 from types import MappingProxyType
 from urllib.parse import parse_qs, urlparse
 
-from thought_archaeology import portable
+from thought_archaeology import portable, return_paths
 from thought_archaeology.agent_spark import (guide_payload, assign_roles, discussion_payload, begin_discussion, clear_discussion)
 from thought_archaeology.adapters.provider_command import (
     command_argv,
@@ -1025,6 +1025,20 @@ class InhabitHandler(BaseHTTPRequestHandler):
         path = parsed.path
         qs = parse_qs(parsed.query)
         try:
+            if path == "/api/return-paths":
+                self._json(200, {"private_paths": return_paths.private_paths(self.store),
+                                 "offers": return_paths.inbox(self.store)})
+                return
+            if path.startswith("/api/return-paths/offers/"):
+                self._json(200, return_paths.load_offer(self.store, path.removeprefix("/api/return-paths/offers/")))
+                return
+            if path == "/api/return-paths/at":
+                graph_id = (qs.get("graph") or [""])[0]
+                node_id = (qs.get("node") or [""])[0]
+                graph = self.store.load_graph(graph_id)
+                own = next((p for p in return_paths.private_paths(self.store) if p['session_id'] == graph.session_id), None)
+                self._json(200, {"private_path": own, "arrivals": return_paths.arrivals(self.store, graph_id, node_id)})
+                return
             if path == "/api/inquiries":
                 self._json(200, {"inquiries": portable.list_inquiries(self.store)})
                 return
@@ -1275,6 +1289,44 @@ class InhabitHandler(BaseHTTPRequestHandler):
                 clear_discussion(local)
                 self._json(200, discussion_payload(local))
 
+    def _return_path_post(self, path: str) -> None:
+        body = self._read_json(max_bytes=portable.MAX_BYTES)
+        action = path.removeprefix("/api/return-paths/")
+        if action == "preview":
+            reviewed = return_paths.preview(self.store, body.get('inquiry_id', ''), body.get('graph_id', ''),
+                                            body.get('node_id', ''), body.get('question', ''))
+            self._json(200, {"reviewed": reviewed, "collaborator": HarnessRegistry().get().name})
+        elif action == "begin":
+            registry = HarnessRegistry()
+            spec = registry.get()
+            if body.get('collaborator') != spec.name or not isinstance(body.get('reviewed'), dict):
+                raise StoreError("Collaborator changed; review your question again")
+            # Validation precedes worker startup and request creation.
+            reviewed = body['reviewed']
+            context = reviewed.get('context', {})
+            source = context.get('source', {}) if isinstance(context, dict) else {}
+            if not isinstance(source, dict):
+                raise StoreError("Review the selected source context again")
+            current = return_paths.preview(self.store, source.get('inquiry_id', ''), source.get('graph_id', ''),
+                                           source.get('node_id', ''), reviewed.get('question', ''))
+            if current != reviewed:
+                raise StoreError("Selected context changed; review your question again")
+            unit_path = resolve_harness_service_path()
+            options = harness_service_options(unit_path)
+            ensure_application_worker(self.store, spec, interval=options['interval'], timeout=options['timeout'], path=unit_path)
+            self._json(202, return_paths.begin(self.store, reviewed))
+        elif action == "export":
+            offer = return_paths.export_offer(self.store, body.get('session_id', ''), author=body.get('author', ''))
+            self._json(200, offer)
+        elif action == "inspect":
+            self._json(200, return_paths.inspect_offer(self.store, body))
+        elif action == "receive":
+            self._json(200, return_paths.receive(self.store, body))
+        elif action == "decide":
+            self._json(200, return_paths.decide(self.store, body.get('id', ''), body.get('decision', '')))
+        else:
+            self._json(404, {"error": "Unknown return-path action"})
+
     def _read_json(self, *, max_bytes: int = 100_000) -> dict:
         length = int(self.headers.get("Content-Length") or 0)
         if length < 0 or length > max_bytes:
@@ -1306,6 +1358,10 @@ class InhabitHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         try:
+            if path.startswith("/api/return-paths/"):
+                self._require_local_json_request()
+                self._return_path_post(path)
+                return
             if path.startswith("/api/inquiries/"):
                 self._require_local_json_request()
                 self._portable_post(path)

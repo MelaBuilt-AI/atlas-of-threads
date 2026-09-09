@@ -25,7 +25,9 @@ mobile visitors have a readable view alongside the immersive experience.
 
 - [x] Reviewed portable exports, isolated imports and private recipient guides.
   Two-PC transfer and manual browser import are accepted.
-- [ ] Private exact-source continuation and reviewable offer-back files.
+- [x] Private exact-source continuation and reviewable offer-back files.
+  Local synthetic worker and browser flow pass; real-agent/two-PC acceptance
+  for returned paths remains in the final gate below.
 - [ ] Inert incoming offers, explicit acceptance/decline, exact-source doors,
   duplicate-delivery safety, and entry/return without changing source heads.
 - [ ] Separate hosted service for reviewed snapshots and durable deliveries;
@@ -46,6 +48,19 @@ mobile visitors have a readable view alongside the immersive experience.
 Build these as working increments in this draft PR. An unchecked item is not
 implemented merely because a design or mockup exists. Do not merge or release
 the portable part early to satisfy an intermediate checkpoint.
+
+## Current working increment
+
+The local A → B → A kernel now supports context review before a collaborator
+call, a separate private continuation session, reviewed return-path JSON export,
+inert receive, explicit accept/decline and duplicate reuse. Accepted paths have
+an entry link at the exact source chamber and a return-to-source link inside
+the received Threadwalk. Private continuations also link back to their imported
+source. These links establish working entry/return; native 3D arrival doors and
+unread traversal behavior remain unfinished.
+
+See [returned paths](RETURNED_PATHS.md) for the local contract and verification.
+The shared service, official-network identity and overworld are still to build.
 
 ## Implementation boundaries
 

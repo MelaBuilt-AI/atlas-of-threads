@@ -58,6 +58,16 @@ def _public_url(ref: str) -> bool:
         return False
 
 
+def project_graph(graph: ThoughtGraph) -> dict:
+    public = graph.to_dict()
+    public.pop("hidden_reasoning", None)
+    public["metadata"] = {"workspace_origin": True} if graph.metadata.get("workspace_origin") else {}
+    for node in public["nodes"]:
+        node.pop("probe_ids", None)
+        node.pop("sensor_ids", None)
+    return public
+
+
 def export_inquiry(store: Store, session_id: str, *, author: str, description: str = "") -> dict:
     """Project one selected Threadwalk; never scan/copy its enclosing directory."""
     if not is_ulid(session_id):
@@ -86,12 +96,7 @@ def export_inquiry(store: Store, session_id: str, *, author: str, description: s
             sources[graph.id] = {"graph_id": bridge["source_graph_id"],
                 "node_id": bridge["source_node_id"], "question": bridge.get("question", ""),
                 "author": bridge.get("harness") or bridge.get("client_family") or "Agent"}
-        public = graph.to_dict()
-        public.pop("hidden_reasoning", None)
-        public["metadata"] = {"workspace_origin": True} if graph.metadata.get("workspace_origin") else {}
-        for node in public["nodes"]:
-            node.pop("probe_ids", None)
-            node.pop("sensor_ids", None)
+        public = project_graph(graph)
         turn = turns.get(graph.turn_id)
         records.append({"graph": public, "source_sha256": store.graph_sha256(graph.id),
                         "shared_sha256": digest(public), "role": turn.role if turn else "assistant",

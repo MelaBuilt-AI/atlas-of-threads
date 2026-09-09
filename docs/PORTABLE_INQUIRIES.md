@@ -86,6 +86,8 @@ Physical Windows acceptance uses the existing packaging-test PC and separate
 test stores. The release update and candidate test require the OS to permit
 execution through its normal approval process. Never replace real inquiry data.
 
-Private continuation, offer-back/acceptance, upload hosting, verified authors,
-the shared isometric overworld, presence and live co-walking are later slices.
-This snapshot supplies their stable inquiry entrance and source identity.
+Private continuation and local offer-back/acceptance are now a development
+increment described in [returned paths](RETURNED_PATHS.md). Portable inquiries
+will ship in the [combined online milestone](ONLINE_ATLAS.md), not separately.
+Upload hosting, verified authors and the shared isometric overworld remain in
+that milestone; live co-walking is later work.
