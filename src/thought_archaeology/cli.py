@@ -11,6 +11,7 @@ import webbrowser
 from datetime import datetime, timezone
 from pathlib import Path
 
+from thought_archaeology import portable
 from thought_archaeology.agent_bridge import AgentBridgeError, register_collaborator
 from thought_archaeology.compile_common import CompileError
 from thought_archaeology.compile_posthoc import compile_posthoc
@@ -714,7 +715,34 @@ def _parser() -> argparse.ArgumentParser:
         help="print the local URL without opening a browser",
     )
 
+    p_inquiry = sub.add_parser("inquiry", parents=[sub_globals], help="share and visit portable Threadwalk snapshots")
+    inquiry_sub = p_inquiry.add_subparsers(dest="inquiry_cmd", required=True)
+    p_export = inquiry_sub.add_parser("export", parents=[sub_globals])
+    p_export.add_argument("--session", required=True)
+    p_export.add_argument("--author", required=True)
+    p_export.add_argument("--description", default="")
+    p_export.add_argument("--output", required=True, help="new .atlas-inquiry.json file to review before sharing")
+    for action in ("inspect", "import"):
+        p_action = inquiry_sub.add_parser(action, parents=[sub_globals])
+        p_action.add_argument("file")
+    inquiry_sub.add_parser("list", parents=[sub_globals])
     return parser
+
+
+def cmd_inquiry(args: argparse.Namespace) -> int:
+    if args.inquiry_cmd == "export":
+        bundle = portable.export_inquiry(_store(args), args.session, author=args.author, description=args.description)
+        with Path(args.output).expanduser().open("xb") as stream:
+            stream.write(portable.canonical(bundle))
+        result = portable.summary(bundle)
+    elif args.inquiry_cmd == "inspect":
+        result = portable.summary(portable.read_bundle(Path(args.file).expanduser()))
+    elif args.inquiry_cmd == "import":
+        result = portable.import_inquiry(_store(args), portable.read_bundle(Path(args.file).expanduser()))
+    else:
+        result = portable.list_inquiries(_store(args))
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return EXIT_OK
 
 
 def _store(args: argparse.Namespace) -> Store:
@@ -2585,6 +2613,7 @@ def main(argv: list[str] | None = None) -> int:
 
     handlers = {
         "init": cmd_init,
+        "inquiry": cmd_inquiry,
         "compile": cmd_compile,
         "show": cmd_show,
         "validate": cmd_validate,

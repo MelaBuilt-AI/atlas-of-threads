@@ -101,6 +101,7 @@ window.TAAgentSpark = function ({ scene, camera, sound, getView, canShow, isOver
   const draft=(text)=>{input.value=text;input.focus();status.textContent='Draft only · edit it, then Send when ready.';};
   const lastAnswer=()=>turns[exchangeIndex]?.status === 'completed' ? turns[exchangeIndex] : null;
   async function handoff() {
+    if(window.TA_INQUIRY_ID){status.textContent='This shared inquiry is read-only. Copy a response to keep your own notes.';return;}
     const answer=lastAnswer();
     if(!answer){status.textContent='Discuss a thought first, then choose a response to hand off.';return;}
     const chosen=answer.source;
@@ -108,7 +109,7 @@ window.TAAgentSpark = function ({ scene, camera, sound, getView, canShow, isOver
   }
   async function copyAnswer() {
     const answer=lastAnswer();if(!answer){status.textContent='No completed response yet.';return;}
-    try {await navigator.clipboard.writeText(`${answer.response}\n\nAgent: ${answer.agent.display_name} · ${answer.model}\nAtlas: ${location.origin}/#/g/${answer.source.graph_id}/n/${answer.source.node_id}`);status.textContent='Response and source link copied.';}catch(_){status.textContent='Copy unavailable. Select and copy the response text below.';}
+    try {await navigator.clipboard.writeText(`${answer.response}\n\nAgent: ${answer.agent.display_name} · ${answer.model}\nAtlas: ${location.origin}${location.pathname}#/g/${answer.source.graph_id}/n/${answer.source.node_id}`);status.textContent='Response and source link copied.';}catch(_){status.textContent='Copy unavailable. Select and copy the response text below.';}
   }
   function renderRing() {
     ring.replaceChildren();buttons=[];
@@ -121,6 +122,7 @@ window.TAAgentSpark = function ({ scene, camera, sound, getView, canShow, isOver
       History:[['Earlier exchange',()=>showExchange(-1)],['Later exchange',()=>showExchange(1)],['Latest exchange',()=>{followLatest=true;renderTurns();}]],
       Settings:[['Clear discussion',()=>{el('spark-clear-review').hidden=false;}],]
     };
+    if(window.TA_INQUIRY_ID) categories.Handoffs = [['Copy response',copyAnswer]];
     const outer = categories[category] || [];
     const anchor = Math.round(actions.findIndex(([label]) => label === category) * 1.5);
     outer.forEach(([label,action],i)=>segmentButton(label,action,i + anchor - Math.floor(outer.length / 2),12,249,294,true));

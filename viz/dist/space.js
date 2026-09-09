@@ -265,7 +265,7 @@
   let reflectChambers = [];
   const routeFacing = new THREE.Vector3();
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-  const WALK_MEMORY_KEY = "thought-archaeology.walk.v2";
+  const WALK_MEMORY_KEY = "thought-archaeology.walk.v2" + (window.TA_INQUIRY_ID || "");
   const elReflect = document.getElementById("reflect-trigger");
   let overhead = false;
   let manualRelicKey = null;
@@ -298,11 +298,11 @@
   let atlasMapViewport = null;
   let eligibilityKey = null;
   let capsuleEligibilityKey = null;
-  const COMPANION_MEMORY_KEY = "thought-archaeology.companions.v1";
-  const CIRCUIT_MEMORY_KEY = "thought-archaeology.continuation-circuits.v2";
-  const FIELD_NOTE_MEMORY_KEY = "thought-archaeology.field-notes-entered.v1";
-  const CAPSULE_EARNED_MEMORY_KEY = "thought-archaeology.knowledge-capsules-earned.v1";
-  const LAST_STAND_MEMORY_KEY = "thought-archaeology.last-stand.v1";
+  const COMPANION_MEMORY_KEY = "thought-archaeology.companions.v1" + (window.TA_INQUIRY_ID || "");
+  const CIRCUIT_MEMORY_KEY = "thought-archaeology.continuation-circuits.v2" + (window.TA_INQUIRY_ID || "");
+  const FIELD_NOTE_MEMORY_KEY = "thought-archaeology.field-notes-entered.v1" + (window.TA_INQUIRY_ID || "");
+  const CAPSULE_EARNED_MEMORY_KEY = "thought-archaeology.knowledge-capsules-earned.v1" + (window.TA_INQUIRY_ID || "");
+  const LAST_STAND_MEMORY_KEY = "thought-archaeology.last-stand.v1" + (window.TA_INQUIRY_ID || "");
   const knownHeads = new Map();
   const sessionTitles = new Map();
   let liveArrivals = loadCompanionThoughts();
@@ -542,7 +542,7 @@
   }
 
   function visibleArrivals(payload) {
-    let arrivals = liveArrivals.filter(
+    let arrivals = (payload.shared_arrivals || liveArrivals).filter(
       (arrival) =>
         arrival.anchorGraphId === payload.graph_id &&
         arrival.graphId !== payload.graph_id
@@ -5579,7 +5579,7 @@
       previous = null;
       try {
         let saved = JSON.parse(sessionStorage.getItem(WALK_MEMORY_KEY) || "null");
-        if (!saved) {
+        if (!saved && !window.TA_INQUIRY_ID) {
           const legacy = JSON.parse(sessionStorage.getItem("thought-archaeology.walk.v1") || "null");
           if (legacy?.sessionId === walkSession && sameStand(legacy.current, next)) {
             const path = [...legacy.trail, next];
@@ -5805,6 +5805,14 @@
       agentSpark.setWorkspace(workspace);
       const fromHash = parseHash();
       const lastStand = loadLastStand();
+      if (window.TA_INQUIRY_ID) {
+        const destination = fromHash || lastStand || {
+          graphId: workspace.history[0].spawn.graph_id,
+          nodeId: workspace.history[0].spawn.node_id,
+        };
+        await inhabit(destination.graphId, destination.nodeId, "boot");
+        return;
+      }
       const explicitDeepLink = Boolean(
         fromHash && (!lastStand || fromHash.graphId !== lastStand.graphId ||
           fromHash.nodeId !== lastStand.nodeId)

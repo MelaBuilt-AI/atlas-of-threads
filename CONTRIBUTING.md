@@ -24,4 +24,8 @@ Python 3.11+.
 
 ## Visual layer
 
+Portable inquiry tests use separate synthetic publisher/recipient stores.
+Preserve the read-only imported boundary and exact source identities described
+in [portable inquiries](docs/PORTABLE_INQUIRIES.md).
+
 `viz/dist` is the committed static build. Node/Vite is optional and only needed if you change the scene sources. `ta serve` must work with Python alone.

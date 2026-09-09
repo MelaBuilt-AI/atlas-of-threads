@@ -21,6 +21,11 @@ can reproduce the problem.
 
 ## Local security boundary
 
+- Development portable inquiry files require content review before sharing.
+  Import validates bounded JSON, graph schemas, hashes and references; it does
+  not fetch evidence or execute bundled content. Imported graphs are served
+  read-only and guide discussion stays separate. Checksums do not authenticate
+  publishers. See [portable inquiries](docs/PORTABLE_INQUIRIES.md).
 - `ta serve` accepts loopback binds only (`127.0.0.1`, `localhost`, or `::1`).
 - The local browser surface can write forks, vetoes, continuation requests,
   Field Notes, and Knowledge Capsules to the selected store. Treat access to an

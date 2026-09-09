@@ -80,7 +80,7 @@ def clear_discussion(store: Store) -> None:
             _write_private_json_atomic(path, {"turns": []})
 
 
-def begin_discussion(store: Store, body: dict) -> dict:
+def begin_discussion(store: Store, body: dict, *, source_store: Store | None = None, provenance: dict | None = None) -> dict:
     prompt = body.get("prompt")
     request_id = body.get("request_id")
     if not isinstance(prompt, str) or not 1 <= len(prompt.strip()) <= 8000:
@@ -92,10 +92,14 @@ def begin_discussion(store: Store, body: dict) -> dict:
     if not guide:
         raise HarnessError("Set up an agent as guide first.")
     spec = registry.get(guide["name"])
-    graph = store.load_graph(str(body.get("graph_id") or ""))
-    standing = inhabit(store, str(body.get("node_id") or ""), graph_id=graph.id).to_dict()
+    source_store = source_store or store
+    graph = source_store.load_graph(str(body.get("graph_id") or ""))
+    standing = inhabit(source_store, str(body.get("node_id") or ""), graph_id=graph.id).to_dict()
     source = {"session_id": graph.session_id, "graph_id": graph.id,
               "node_id": standing["node"]["id"], "text": standing["node"]["text"]}
+    if provenance:
+        source["inquiry"] = provenance
+        standing["shared_inquiry"] = provenance
     with _lock:
         data = _read(store, spec.name)
         for turn in data["turns"]:
@@ -109,7 +113,7 @@ def begin_discussion(store: Store, body: dict) -> dict:
         public_graph.pop("hidden_reasoning", None)
         envelope = {"protocol_version": HARNESS_PROTOCOL_VERSION, "operation": "discuss",
                     "request": {"id": request_id, "prompt": prompt.strip()},
-                    "session": store.load_session(graph.session_id).to_dict(),
+                    "session": source_store.load_session(graph.session_id).to_dict(),
                     "graph": public_graph, "standing": standing,
                     "discussion": [{"prompt": t["prompt"], "response": t.get("response"),
                                     "source": t["source"]}

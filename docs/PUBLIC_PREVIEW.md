@@ -6,6 +6,9 @@ part of future releases.
 
 ## Publication decisions
 
+- Portable inquiries are a development slice after v0.3.1. Release acceptance
+  must include two isolated stores, the physical Windows test PC, and a private
+  guide discussion pinned to an imported source. See [portable inquiries](PORTABLE_INQUIRIES.md).
 - The historical origin-conversation fixture was replaced with a synthetic
   reference example. Private source material is excluded from rewritten public
   history.
