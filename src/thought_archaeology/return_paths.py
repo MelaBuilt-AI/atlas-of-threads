@@ -118,9 +118,8 @@ def validate_offer(offer: dict) -> None:
         raise StoreError("Choose a valid Atlas return-path JSON file") from exc
 
 
-def inspect_offer(store: Store, offer: dict) -> dict:
-    validate_offer(offer)
-    source = offer['content']['source']
+def inspect_source(store: Store, source: dict) -> None:
+    """Match the canonical exact-source reference shared by returns and Capsules."""
     origin_path = store.root / 'portable-origin.json'
     if not origin_path.is_file() or json.loads(origin_path.read_text(encoding='utf-8'))['id'] != source['origin_id']:
         raise StoreError("This offer is addressed to a different Atlas origin")
@@ -129,6 +128,12 @@ def inspect_offer(store: Store, offer: dict) -> dict:
         raise StoreError("The offered path does not name a source chamber in this Atlas")
     if store.graph_sha256(graph.id) != source['source_sha256'] or portable.digest(portable.project_graph(graph)) != source['shared_sha256']:
         raise StoreError("The offered path does not match the exact source graph")
+
+
+def inspect_offer(store: Store, offer: dict) -> dict:
+    validate_offer(offer)
+    source = offer['content']['source']
+    inspect_source(store, source)
     return {"id": offer['id'], "source": source, "question": offer['content']['question'],
             "inquiry": portable.summary(offer['content']['inquiry'])}
 

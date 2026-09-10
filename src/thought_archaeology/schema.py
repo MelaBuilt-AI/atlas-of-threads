@@ -21,6 +21,7 @@ ULID_PATTERN = r"^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$"
 ISO_Z_PATTERN = r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
 
 SCHEMA_NAMES = (
+    "shared-capsule.schema.json",
     "portable-inquiry.schema.json",
     "thought-node.schema.json",
     "thought-edge.schema.json",

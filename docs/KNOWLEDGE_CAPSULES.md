@@ -1,6 +1,7 @@
 # Knowledge Capsules
 
-Status: existing local implementation, with an accepted shared Capsule plan
+Status: offline shared Capsule preparation implemented in the development branch;
+online delivery and witnessed expeditions remain planned.
 Local slice authorized: 2026-09-01
 Shared local/online direction accepted: 2026-09-10
 
@@ -10,7 +11,8 @@ Capsules become deliberate invitations, offerings and returns. An online launche
 serves as a Threadwalk's outbound port and a visible history of its expeditions.
 Each Capsule has one reviewed payload and one launch; an online port can serve
 successive Capsules. Invitations and returns are the first end-to-end priority.
-This section is an accepted plan, not implemented behavior.
+The offline preparation/receipt portion is implemented below. Connected delivery,
+acceptance and witnessed launch behavior remain an accepted plan.
 
 ### Intent, contents and destination
 
@@ -64,15 +66,75 @@ it becomes an accepted connection. Return flights can be witnessed too. Those
 meaningful contribution connections remain distinct from geographic map roads.
 Launcher history exposes sent, open, returned and accepted expeditions.
 
-Live witnessing, destinations, the shared Capsule format and local alignment are
-planned work within the combined online milestone. Private cluster destinations
+Live witnessing and connected destinations remain planned work within the
+combined online milestone. Private cluster destinations
 follow the separately deferred group/organization access design.
+
+## Implemented offline preparation and exchange — September 10
+
+Personal Atlas's **Capsules** button opens preparation and a local library.
+Choose invitation or offering, supply a sharing name and message, optionally add
+human interpretation, then choose a local Threadwalk and individual thoughts.
+Public web evidence attached to those thoughts is separately selected. Full answer
+prose and the source question are optional, separately reviewed additions; a full
+answer can contain otherwise unselected thoughts. Message-only Capsules are valid.
+No earned legacy launcher is required. Return intent is available from a received
+Capsule or an exact chamber in an imported portable inquiry.
+
+Review shows every included excerpt and expandable exact JSON. Freezing requires
+explicit review, re-resolves the draft against canonical sources and rejects a
+changed payload. Choose private keeping or local export. Export produces canonical
+`.atlas-capsule.json` and readable `.md` files with independent download links.
+Repeated exports reuse the same bytes and receipt; they never consume a legacy
+launcher or claim an online launch. Connecting a device does not upload them.
+
+The version-1 `atlas-capsule` envelope identifies canonical content by SHA-256.
+Its content includes origin, optional home Threadwalk, intent, attribution,
+message, interpretation, contextual return reference and explicit graph excerpts.
+Excerpts carry selected public thought fields, selected web evidence and exact
+source/shared graph hashes. Full graphs, ancestry, private guide conversations,
+private graph metadata, sensor/probe references and local evidence files are not
+implicitly carried. Source hashes identify versions; recipients cannot reconstruct
+an omitted full graph from excerpts. Sharing names are self-reported and hashes
+do not prove authorship. Included prose still needs human privacy review.
+
+Files are bounded to 256 KiB and validated before receipt. Inspecting a file is
+read-only; explicit receipt stores an inert copy without importing graphs, invoking
+an agent or accepting a contribution. A return must match a locally prepared
+Capsule or the exact local source of its referenced portable inquiry. Repeated
+receipt reuses the same artifact. Returned Capsules do not yet create accepted
+links; the older returned-path offer format retains its existing consent flow.
+
+From a received Capsule, choose a private question and which excerpts to give
+**your configured collaborator**. Review the exact context and current collaborator
+before creating a separate canonical private Threadwalk through the ordinary
+continuation worker. The Capsule's message and interpretation are included in this
+review; context is limited to 64 KiB. Receipt alone never starts work. The library
+links to these private workspaces and can prepare a return from their selected
+thoughts, anchored to the original incoming Capsule. Working offline means no Atlas
+service is required; the configured collaborator may still require its provider's
+network connection.
+
+Store records live under `capsules/prepared`, `capsules/received` and
+`capsules/exports`; exported files live under `exports/capsules/<id>/`.
+`capsule-source.json` in the new private session records its incoming context.
+These are transport artifacts and provenance receipts, not another graph store.
+Original local Capsule manifests, dossiers and launch receipts remain unchanged
+and readable through the library and their original chambers.
+
+Verification: synthetic A → B → A exchange through the ordinary worker, exact
+selection and privacy projection, stale/tampered review rejection, malformed-file
+rejection without writes, interrupted-export retry, exact-source return checking,
+local HTTP review/origin gates and byte-preserved legacy launch artifacts pass.
+Browser preparation, freeze/export and private workspace entry pass. The browser
+file-picker action was denied by browser permission review; receipt is covered by
+API tests, but manual file-picker and physical two-PC acceptance remain open.
 
 ## Existing local implementation
 
 The remainder documents the currently shipped private local Capsule contract.
-It remains authoritative for old artifacts until an explicit implementation and
-compatibility update delivers the shared plan above.
+It remains authoritative for old artifacts. The separate excerpt format above
+does not migrate or reinterpret their earned, one-shot lifecycle.
 
 ## Purpose
 

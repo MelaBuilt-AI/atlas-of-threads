@@ -14,7 +14,7 @@ from pathlib import Path
 from types import MappingProxyType
 from urllib.parse import parse_qs, urlparse
 
-from thought_archaeology import portable, return_paths
+from thought_archaeology import portable, return_paths, capsules
 from thought_archaeology.agent_spark import (guide_payload, assign_roles, discussion_payload, begin_discussion, clear_discussion)
 from thought_archaeology.adapters.provider_command import (
     command_argv,
@@ -1025,6 +1025,27 @@ class InhabitHandler(BaseHTTPRequestHandler):
         path = parsed.path
         qs = parse_qs(parsed.query)
         try:
+            if path.startswith("/api/capsules/"):
+                resource = path.removeprefix("/api/capsules/")
+                if resource == "library":
+                    self._json(200, capsules.library(self.store))
+                elif resource == "graphs":
+                    self._json(200, {"graphs":capsules.graph_choices(self.store, (qs.get("session") or [""])[0])})
+                elif resource == "context":
+                    self._json(200, capsules.context(self.store, (qs.get("graph") or [""])[0]))
+                elif re.fullmatch(r"(prepared|received)/[a-f0-9]{64}", resource):
+                    category, capsule_id = resource.split("/")
+                    self._json(200, capsules.load(self.store, category, capsule_id))
+                elif re.fullmatch(r"download/[a-f0-9]{64}/(json|markdown)", resource):
+                    _, capsule_id, kind = resource.split("/")
+                    capsule = capsules.load(self.store, "prepared", capsule_id)
+                    if not capsules._path(self.store, "exports", capsule_id).exists():
+                        raise StoreError("Export this frozen Capsule first")
+                    body = portable.canonical(capsule) if kind == "json" else capsules.markdown(capsule).encode("utf-8")
+                    self._send(200, body, "application/json; charset=utf-8" if kind == "json" else "text/markdown; charset=utf-8")
+                else:
+                    self._json(404, {"error":"Unknown Capsule resource"})
+                return
             if path == "/api/online/connection":
                 from thought_archaeology.online_connection import status
                 self._json(200, status(self.store))
@@ -1362,6 +1383,47 @@ class InhabitHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         try:
+            if path.startswith("/api/capsules/"):
+                self._require_local_json_request()
+                body = self._read_json(max_bytes=capsules.MAX_BYTES * 2)
+                action = path.removeprefix("/api/capsules/")
+                if action == "prepare":
+                    capsule = capsules.prepare(self.store, body)
+                    self._json(200, {"capsule":capsule, "summary":capsules.summary(capsule)})
+                elif action == "inspect":
+                    self._json(200, capsules.inspect_incoming(self.store, body))
+                elif action == "work-preview":
+                    reviewed = capsules.work_preview(self.store, body.get("id", ""), body.get("question", ""), body.get("excerpts", []))
+                    self._json(200, {"reviewed":reviewed, "collaborator":HarnessRegistry().get().name})
+                else:
+                    if body.get("reviewed") is not True:
+                        raise StoreError("Review the complete Capsule contents before this action")
+                    if action == "freeze":
+                        if body.get("destination") not in {"private", "file"}:
+                            raise StoreError("Choose private keeping or an exported file")
+                        info = capsules.freeze(self.store, body.get("draft"), body.get("capsule"))
+                        exported = capsules.export_files(self.store, info['id']) if body['destination'] == 'file' else None
+                        self._json(200, {"capsule":info,"export":exported})
+                    elif action == "receive":
+                        self._json(200, capsules.receive(self.store, body.get("capsule")))
+                    elif action == "export":
+                        self._json(200, capsules.export_files(self.store, body.get("id", "")))
+                    elif action == "begin-work":
+                        registry = HarnessRegistry()
+                        spec = registry.get()
+                        reviewed = body.get("context")
+                        if not isinstance(reviewed, dict) or not isinstance(reviewed.get("context"), dict) or body.get("collaborator") != spec.name:
+                            raise StoreError("Review the Capsule context and current collaborator again")
+                        current = capsules.work_preview(self.store, reviewed['context'].get('capsule_id',''), reviewed.get('question',''), reviewed.get('excerpt_indices',[]))
+                        if current != reviewed:
+                            raise StoreError("Selected Capsule context changed; review it again")
+                        unit_path = resolve_harness_service_path()
+                        options = harness_service_options(unit_path)
+                        ensure_application_worker(self.store, spec, interval=options['interval'], timeout=options['timeout'], path=unit_path)
+                        self._json(202, capsules.begin_work(self.store, reviewed))
+                    else:
+                        self._json(404, {"error":"Unknown Capsule action"})
+                return
             if path in {"/api/online/connect", "/api/online/check", "/api/online/disconnect"}:
                 self._require_local_json_request()
                 from thought_archaeology import online_connection

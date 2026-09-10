@@ -6967,7 +6967,11 @@
 
   window.addEventListener("hashchange", () => {
     const h = parseHash();
-    if (!h || !view) return;
+    if (!h) return;
+    if (!view) {
+      if (startupState) chooseStartup(h);
+      return;
+    }
     if (h.nodeId !== view.node.id || h.graphId !== view.graph_id) {
       if (atlasMapMode) closeAtlasMap(false);
       inhabit(h.graphId, h.nodeId, "hash");

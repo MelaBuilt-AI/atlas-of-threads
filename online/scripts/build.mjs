@@ -42,7 +42,7 @@ await writeFile("dist/public/index.html", world);
 let shell = await readFile("../viz/dist/index.html", "utf8");
 shell = shell.replace("<head>", '<head><base href="/player/" />');
 shell = shell.replace(
-  /  <script src="\.\/(?:portable|return-paths|agent-connect|sound|music)\.js"><\/script>\n/g,
+  /  <script src="\.\/(?:capsules|portable|return-paths|agent-connect|sound|music)\.js"><\/script>\n/g,
   "",
 );
 shell = shell.replace(

@@ -26,6 +26,14 @@ can reproduce the problem.
   not fetch evidence or execute bundled content. Imported graphs are served
   read-only and guide discussion stays separate. Checksums do not authenticate
   publishers. See [portable inquiries](docs/PORTABLE_INQUIRIES.md).
+- Development excerpt Capsules require exact payload review before freezing or
+  sharing. Bounded schema/checksum validation precedes inert receipt. Receiving
+  does not invoke an agent, import a graph or accept a contribution. A separate
+  reviewed action sends chosen context to the configured collaborator. Sharing
+  names are self-reported; source hashes do not authenticate a sender. Capsule
+  exports omit private metadata and local evidence files, but selected prose and
+  explicitly included full answers still need human review. See
+  [Capsules](docs/KNOWLEDGE_CAPSULES.md).
 - `ta serve` accepts loopback binds only (`127.0.0.1`, `localhost`, or `::1`).
 - The local browser surface can write forks, vetoes, continuation requests,
   Field Notes, and Knowledge Capsules to the selected store. Treat access to an

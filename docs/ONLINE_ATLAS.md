@@ -44,6 +44,8 @@ mobile visitors have a readable view alongside the immersive experience.
   private guide/continuation handoff.
 - [x] Stars associated with verified accounts, a Starred collection, optional
   in-app following, and stable Threadwalk identity across published editions.
+- [x] Offline Capsule preparation, exact excerpts, private keeping/file export,
+  inert receipt, private continuation and contextual return preparation.
 - [ ] Shared local/online Capsule intents (invitation, offering, return), reviewed
   contents/destination, discoverable requests and accepted return connections.
 - [ ] Actual online Capsule launch/return events, overworld launcher history,
@@ -104,8 +106,12 @@ implemented; external GitHub App deauthorization remains pending. No desktop
 package or combined release is claimed. See `online/README.md` for API/lifecycle
 rules and the verification boundary.
 
-Resume with shared Capsule preparation and offline exchange/compatibility, then
-connect invitations and exact-source returns to durable delivery. Add witnessed
+Offline shared Capsule preparation and exchange are now implemented, including
+reviewed private continuation and contextual return preparation. Legacy artifacts
+retain their meaning. See [Capsules](KNOWLEDGE_CAPSULES.md) for the format, controls
+and verification limits. No network Capsule launch or acceptance is claimed.
+
+Resume by connecting invitations and exact-source returns to durable delivery. Add witnessed
 launch/return events and ports against actual committed events, followed by native
 doors/unread, moderation/activity and the existing physical two-PC/release gates.
 

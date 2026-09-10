@@ -6,6 +6,13 @@ part of future releases.
 
 ## Publication decisions
 
+- The development branch now includes offline excerpt Capsule preparation,
+  reviewed private work and contextual return files. Existing local Capsules
+  keep their original one-shot contract. Connected delivery, return acceptance,
+  witnessed expeditions and physical two-PC acceptance remain part of the combined
+  milestone; this increment is not a desktop release. See
+  [Capsules](KNOWLEDGE_CAPSULES.md).
+
 - Portable inquiries are a development slice after v0.3.1. Release acceptance
   must include two isolated stores, the physical Windows test PC, and a private
   guide discussion pinned to an imported source. See [portable inquiries](PORTABLE_INQUIRIES.md).
