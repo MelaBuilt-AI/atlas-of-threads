@@ -103,3 +103,9 @@ and supports public read/download plus authenticated reviewed publication and
 withdrawal. The GitHub App is configured and live owner sign-in is verified.
 The existing public release and site are unchanged. See `online/README.md` and
 `docs/ONLINE_ATLAS.md` for the incomplete release and acceptance gates.
+
+The September 10 development continuation adds stable published editions, stars,
+optional in-app following and Personal Atlas device pairing with explicit local
+and account-side revocation. Synthetic browser/service checks pass; this does not
+claim GitHub-side deauthorization, physical two-PC exchange or installer acceptance.
+Shared Capsules, durable returns and the remaining combined milestone stay pending.

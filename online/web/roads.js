@@ -11,7 +11,7 @@
         // Sequence order breaks exact distance ties, independent of fetch order.
         if (d < distance) { source = candidate; distance = d; }
       }
-      return { id: target.id, source, target };
+      return { id: target.threadwalk_id || target.id, source, target };
     });
   };
 })();

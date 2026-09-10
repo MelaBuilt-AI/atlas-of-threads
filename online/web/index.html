@@ -24,7 +24,7 @@
       </div>
       <nav>
         <button id="library-toggle">Inquiries</button
-        ><button id="audio-toggle">Sound & music</button
+        ><button id="updates-open">Updates</button><button id="audio-toggle">Sound & music</button
         ><button id="publish-open">Publish an inquiry</button
         ><a id="login" href="/auth/login">Connect with GitHub</a>
       </nav>
@@ -47,6 +47,12 @@
         ><button id="read">Read here</button
         ><a id="download">Bring into Personal Atlas ↓</a>
       </div>
+      <div class="actions">
+        <button id="star" aria-pressed="false">☆ Star</button>
+        <label><input id="follow" type="checkbox" /> Follow updates</label>
+        <small id="follow-hint"></small>
+        <button id="editions">Published editions</button>
+      </div>
       <div id="connected-paths" class="actions" aria-label="Connected map paths"></div>
       <small
         >Downloaded inquiries open through Portable inquiries in your Personal
@@ -55,14 +61,14 @@
     </aside>
     <section id="library" hidden aria-label="Published inquiries">
       <header>
-        <h2>Published inquiries</h2>
+        <h2 id="library-title">Published inquiries</h2>
         <button id="library-close" aria-label="Close inquiries">×</button>
       </header>
-      <div id="inquiry-list"></div>
+      <label>Collection <select id="collection"><option value="all">All inquiries</option><option value="starred">Starred</option><option value="following">Following</option></select></label><div id="inquiry-list"></div>
       <button id="more" hidden>Load more</button>
     </section>
     <div class="world-footer">
-      <span>Drag to wander · scroll to approach · select a road to follow</span>
+      <span>Drag to wander · scroll to approach · choose a light to explore</span>
       <div>
         <button id="zoom-in" aria-label="Zoom in">+</button
         ><button id="zoom-out" aria-label="Zoom out">−</button
@@ -105,12 +111,25 @@
     </dialog>
     <dialog id="account-dialog">
       <header>
-        <h2>Your publications</h2>
+        <h2>Your Atlas account</h2>
         <button data-close aria-label="Close account">×</button>
       </header>
-      <div id="account-content"></div>
+      <h3>Connected Personal Atlases</h3>
+      <div id="devices-content"></div>
+      <form id="pairing-form">
+        <label>Device name <input id="device-name" required maxlength="80" placeholder="My laptop" /></label>
+        <button>Create pairing code</button>
+      </form>
+      <div id="pairing-result" hidden><label>Single-use pairing code <input id="pairing-code" readonly autocomplete="off" spellcheck="false" /></label></div>
+      <p id="pairing-status" role="status"></p>
+      <h3>Your published editions</h3><div id="account-content"></div>
+      <h3>Disconnect everywhere</h3>
+      <label><input id="revoke-all-check" type="checkbox" /> End every Atlas browser session, revoke all devices and cancel pairing codes. Publications and saved stars remain.</label>
+      <button id="revoke-all" disabled>Disconnect all sessions and devices</button>
       <button id="logout">Disconnect this browser</button>
     </dialog>
+    <dialog id="updates-dialog"><header><h2>Followed updates</h2><button data-close aria-label="Close updates">×</button></header><div id="updates-content"></div></dialog>
+    <dialog id="editions-dialog"><header><h2>Published editions</h2><button data-close aria-label="Close editions">×</button></header><div id="editions-content"></div></dialog>
     <div id="visit" hidden>
       <button id="world-return">↙ Return to the Atlas</button
       ><iframe

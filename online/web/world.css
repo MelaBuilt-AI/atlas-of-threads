@@ -435,3 +435,9 @@ aside, #library, dialog { background: #060e20ef; border-color: #83b3ee3b; box-sh
   .world-header nav { gap: .35rem; }
   #world-status { top: 8rem; left: 1rem; }
 }
+
+#pairing-code { width: 100%; font-family: ui-monospace, monospace; }
+#updates-content article, #editions-content article { padding: 1rem 0; border-top: 1px solid var(--line); }
+#updates-content button, #editions-content button { margin-right: .7rem; }
+#collection, #device-name, #pairing-code { background: #081226; color: inherit; border: 1px solid var(--line); padding: .5rem; }
+#star[aria-pressed="true"] { color: var(--gold); border-color: var(--gold); }

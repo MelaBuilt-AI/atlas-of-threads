@@ -1,5 +1,5 @@
 import { Miniflare } from "miniflare";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { sha } from "../src/publication.js";
 const mf = new Miniflare({
   modules: true,
@@ -25,7 +25,7 @@ const mf = new Miniflare({
 });
 const db = await mf.getD1Database("DB");
 for (const statement of (
-  await readFile("migrations/0001_publications.sql", "utf8")
+  (await Promise.all((await readdir("migrations")).filter(f => f.endsWith(".sql")).sort().map(f => readFile("migrations/"+f,"utf8")))).join("\n")
 )
   .split(";")
   .map((x) => x.trim())

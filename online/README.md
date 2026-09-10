@@ -24,8 +24,8 @@ sound effects. These are Workers Static Assets; inquiry uploads live in R2.
 Asset notices are retained. The world streams nearby relic models and initially
 loads one terrain texture; the original Threadwalk player retains the full media
 library. The shared score stays in the parent window through entry and return.
-World camera position is a browser preference; publication placement is durable
-and depends on the server sequence, never browser storage or layout randomness.
+World camera position is a browser preference; Threadwalk placement is durable
+and depends on its first publication’s server sequence, never browser storage or layout randomness.
 Fine filaments are atmospheric scenery. Larger bundled roads join each visible
 publication to the geographically nearest earlier publication, ordered by the
 server's stable sequence (earliest sequence breaks distance ties). These roads
@@ -55,9 +55,10 @@ and device performance still require user/browser acceptance.
 Each road combines a broad cyan glow with 27 braided cyan/gold filaments that
 spread near the two locales and converge into a prominent flowing route. A new
 road forms from the earlier locale toward the arrival over 2.4 seconds. Existing
-road meshes remain intact when later publications arrive. Select a road directly,
-or use **Follow path** in a locale's selection panel, to travel the camera along
-its curve to the neighboring Threadwalk. Dragging or arrow movement cancels travel.
+road meshes remain intact when later publications arrive. Select a Threadwalk node to center the camera smoothly and shine an overhead
+spotlight onto its island. Overview road clicks do not move the camera. Use
+**Follow path** in the selected locale’s panel to travel along the road’s curve
+to the neighboring Threadwalk. Dragging or arrow movement cancels travel.
 
 While the visible world is idle, the loaded publication pages refresh every 30
 seconds. New arrivals gain roads without reloading the world. Withdrawn locales
@@ -100,7 +101,33 @@ Publication requests require a session or a registered device bearer token, an
 explicit review flag, and at most 8 MiB including the display projection. Duplicate
 owner/snapshot pairs reuse one publication. Withdrawal removes its R2 object and
 keeps a tombstone; it cannot recall copies already downloaded. The preview limits
-each owner to 20 total publications, including withdrawn snapshots.
+each owner to 20 total publications, including all editions and withdrawn snapshots.
+
+## Ongoing Threadwalks, editions and saved interest
+
+An ongoing Threadwalk groups one verified owner’s publications by the portable
+origin and session identity. Its stable ID is its first publication ID. Migration
+`0002` joins existing editions without changing any snapshot IDs, R2 bytes or
+source graphs. Each new edition explicitly names the latest predecessor after
+review; concurrent competing editions accept one successor and reject stale
+reviews. Duplicate delivery of an already published snapshot still reuses it.
+
+The world shows the latest edition at the original location, with the original
+map sequence and geographic roads. Updating an edition refreshes its selection
+without moving the visitor’s camera or replaying an arrival. The **Published
+editions** panel reads or downloads earlier exact snapshots. Withdrawing the
+latest edition hides the locale; it does not resurrect an older edition. Older
+unwithdrawn editions remain available by exact link, and a revised publication
+can restore the ongoing locale. Stars survive withdrawal and restoration.
+
+**Star** saves appreciation in **Inquiries → Starred**. **Follow updates** is a
+separate, optional choice. Both are stored per account and ongoing Threadwalk,
+so they survive browser/device changes and published editions. A restrained star
+appears by the map title; followed unseen changes add a `new` cue. **Updates**
+shows new deliberate publications since following began. **Mark seen** records
+the displayed update sequence, leaving later events unread. No public ranking,
+stargazer list, GitHub repository star, email or push notification is created.
+Capsule invitation and accepted-return updates will be added with those features.
 
 ## GitHub owner setup
 
@@ -116,10 +143,31 @@ fetches the numeric GitHub user ID; login names are display values. GitHub acces
 and refresh tokens are not retained. Atlas sessions expire after seven days and
 logout deletes the current session. The device API creates independent random
 bearer credentials, stores only their SHA-256 hashes and supports revocation.
-A complete in-app device pairing/disconnection flow is not yet implemented.
+Personal Atlas now has **Connect to the Atlas** in its toolbar and Workspace.
+Open the online account panel and create a code for a named computer, then paste
+it into Personal Atlas. Codes expire after ten minutes, work once, and replace
+that account’s preceding pending code. Creation requires a current browser
+session. Exchange atomically issues a device credential and consumes the code;
+only hashes remain in D1. Up to ten active devices are allowed.
 
-GitHub deauthorization webhooks and prompt remote session revocation remain an
-online release gate; current sessions have their documented seven-day expiry.
+Personal Atlas stores the device credential in `online-connection.json` with
+owner-only permissions where supported. Local status reads do not contact the
+network; **Check connection** verifies access explicitly. The credential never
+enters browser responses, portable bundles, graph projections or agent calls.
+The client uses verified HTTPS, the existing packaged Linux CA fallback, and
+refuses redirects. Pairing itself sends no inquiry or Capsule.
+
+**Disconnect this Personal Atlas** revokes its device before removing the local
+credential. If offline, it retains the credential so disconnection can be retried;
+**Forget local connection** is a separately explained local-only option. The
+online account panel can revoke individual devices or **Disconnect all sessions
+and devices**, including pending codes. A device may revoke only itself and may
+not create other devices. Account revocation preserves publications and stars.
+
+GitHub-side App deauthorization webhooks remain a release gate; revoking the
+GitHub App itself does not yet promptly invalidate Atlas sessions. Atlas’s own
+account-wide and per-device revocation is implemented. Browser sessions otherwise
+expire after seven days. Webhooks remain disabled for the preview App.
 
 ## Deploy to your Cloudflare account
 
@@ -158,7 +206,16 @@ uses an exact callback URL and has webhooks disabled. These checks do not establ
 browser world-navigation/audio acceptance, physical two-PC exchange,
 performance/load testing or release acceptance.
 
-Still required in PR #5: device pairing, durable offered
+September 10 continuation: 18 online runtime/road tests and 409 Python tests pass.
+Additional cases cover migration, stable editions, competing publications,
+account-scoped stars/follows, bounded seen receipts, one-use/expired pairing,
+concurrent revocation, private local credential handling and offline forgetting.
+Chrome checks on isolated synthetic accounts cover selection, edition reading,
+stars, optional following, a real new-edition update and marking it seen. Actual
+Worker → local HTTP pairing, saved readback, browser check and disconnect passed.
+The existing Windows-discovery tests now isolate their synthetic home directories.
+
+Still required in PR #5: GitHub-side deauthorization, durable offered
 returns and reconnect, accepted doorway links in the shared world, block/report
 management, opt-in activity, complete browser/two-PC checks, and final installers.
 The report endpoint stores authenticated reports; no active moderation service or

@@ -1,6 +1,6 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { Miniflare } from "miniflare";
 import { inspect, sha, position } from "../src/publication.js";
 let mf, db, bucket;
@@ -38,7 +38,7 @@ before(async () => {
   });
   db = await mf.getD1Database("DB");
   bucket = await mf.getR2Bucket("INQUIRIES");
-  const sql = await readFile("migrations/0001_publications.sql", "utf8");
+  const sql = (await Promise.all((await readdir("migrations")).filter(f => f.endsWith(".sql")).sort().map(f => readFile("migrations/"+f,"utf8")))).join("\n");
   for (const s of sql
     .split(";")
     .map((x) => x.trim())
@@ -195,7 +195,7 @@ test("GitHub callback verifies numeric owner, binds state to browser, and consum
   });
   try {
     const odb = await oauth.getD1Database("DB");
-    for (const s of (await readFile("migrations/0001_publications.sql", "utf8"))
+    for (const s of ((await Promise.all((await readdir("migrations")).filter(f => f.endsWith(".sql")).sort().map(f => readFile("migrations/"+f,"utf8")))).join("\n"))
       .split(";")
       .map((x) => x.trim())
       .filter(Boolean))
@@ -269,4 +269,145 @@ test("concurrent duplicate deliveries cannot replace the winning snapshot", asyn
     saved,
   );
   assert.equal((await bucket.list()).objects.length, 1);
+});
+
+async function browser(owner = 'a') {
+  const session = crypto.randomUUID();
+  await db.prepare("INSERT INTO sessions VALUES(?,?,?)").bind(await sha(session), owner, Math.floor(Date.now()/1000)+600).run();
+  return (path, body) => mf.dispatchFetch('http://localhost:7490'+path, {
+    method: body === undefined ? 'GET' : 'POST',
+    headers: { Cookie:'atlas_session='+session, Origin:'http://localhost:7490', 'Content-Type':'application/json' },
+    ...(body === undefined ? {} : {body:JSON.stringify(body)})
+  });
+}
+async function revised(original, description) {
+  const { parse } = await import('lossless-json');
+  const { canonical } = await import('../src/publication.js');
+  const a = structuredClone(original), bundle = parse(a.inquiry_json);
+  bundle.content.description = description;
+  bundle.id = await sha(canonical(bundle.content));
+  a.inquiry_json = canonical(bundle);
+  return a;
+}
+
+test('editions preserve geography and immutable downloads; stars and independent follows persist across devices', async () => {
+  const publisher = await browser('a'), viewer = await browser('b'), secondDevice = await browser('b');
+  const first = JSON.parse(await readFile('test/fixtures/3.json','utf8'));
+  const published = await (await publisher('/api/publications',{artifact:first,reviewed:true})).json();
+  const one = await (await req('/api/publications/'+published.id)).json();
+  assert.equal(one.edition,1);
+  const endpoint = `/api/threadwalks/${one.threadwalk_id}/subscription`;
+  assert.equal((await viewer(endpoint,{starred:true,following:false})).status,200);
+  let library = await (await secondDevice('/api/library')).json();
+  assert.equal(library.publications[0].id,one.id);
+  assert.equal(library.subscriptions[0].following,0);
+  assert.equal((await viewer(endpoint,{starred:true,following:true})).status,200);
+  assert.equal((await (await viewer('/api/library')).json()).updates.length,0);
+  const nextArtifact = await revised(first,'Synthetic second edition');
+  assert.equal((await publisher('/api/publications',{artifact:nextArtifact,reviewed:true})).status,409);
+  const reply = await publisher('/api/publications',{artifact:nextArtifact,reviewed:true,previous_id:one.id});
+  assert.equal(reply.status,201,await reply.clone().text());
+  const two = await (await req('/api/publications/'+(await reply.json()).id)).json();
+  assert.equal(two.edition,2); assert.equal(two.previous_id,one.id);
+  assert.equal(two.threadwalk_id,one.threadwalk_id);
+  assert.deepEqual([two.x,two.z,two.sequence],[one.x,one.z,one.sequence]);
+  const world = await (await req('/api/world')).json();
+  assert.deepEqual(world.publications.filter(p=>p.threadwalk_id===one.threadwalk_id).map(p=>p.id),[two.id]);
+  assert.equal(await (await req(`/api/publications/${one.id}/bundle`)).text(),first.inquiry_json);
+  library = await (await secondDevice('/api/library')).json();
+  assert.equal(library.publications[0].id,two.id); assert.equal(library.updates.length,1);
+  const through = library.updates[0].seq;
+  const thirdArtifact = await revised(first,'Synthetic third edition');
+  assert.equal((await publisher('/api/publications',{artifact:thirdArtifact,reviewed:true,previous_id:two.id})).status,201);
+  assert.equal((await viewer(`/api/threadwalks/${one.threadwalk_id}/seen`,{through})).status,200);
+  library = await (await secondDevice('/api/library')).json();
+  assert.equal(library.updates.length,1); assert.ok(library.updates[0].seq>through);
+  assert.equal((await viewer(endpoint,{starred:false,following:true})).status,200);
+  library = await (await secondDevice('/api/library')).json();
+  assert.equal(library.subscriptions[0].starred,0); assert.equal(library.subscriptions[0].following,1);
+  const history = await (await req(`/api/threadwalks/${one.threadwalk_id}`)).json();
+  assert.deepEqual(history.publications.map(p=>p.edition),[3,2,1]);
+  assert.equal((await publisher(`/api/publications/${history.publications[0].id}/withdraw`,{})).status,200);
+  assert.ok(!(await (await req('/api/world')).json()).publications.some(p=>p.threadwalk_id===one.threadwalk_id));
+  assert.equal((await req(`/api/publications/${two.id}/bundle`)).status,200);
+  assert.equal((await (await secondDevice('/api/library')).json()).publications[0].withdrawn,true);
+});
+
+test('simultaneous editions choose one successor and one update; stale predecessor leaves no object', async () => {
+  const publisher = await browser('a');
+  const first = JSON.parse(await readFile('test/fixtures/4.json','utf8'));
+  const {id} = await (await publisher('/api/publications',{artifact:first,reviewed:true})).json();
+  const before = (await bucket.list()).objects.length;
+  const responses = await Promise.all(['left','right'].map(async name => {
+    const artifact = await revised(first,'Synthetic concurrent '+name);
+    const r = await publisher('/api/publications',{artifact,reviewed:true,previous_id:id});
+    return {status:r.status,data:await r.json()};
+  }));
+  assert.deepEqual(responses.map(r=>r.status).sort(),[201,409]);
+  const history = await (await req('/api/threadwalks/'+id)).json();
+  assert.equal(history.publications.length,2);
+  assert.equal((await bucket.list()).objects.length,before+1);
+  assert.equal((await db.prepare('SELECT count(*) AS n FROM updates WHERE threadwalk_id=?').bind(id).first()).n,2);
+});
+
+test('pairing is browser-owned, expiring and one-use; revocation removes access across sessions and devices', async () => {
+  const account = await browser('a');
+  assert.equal((await req('/api/pairings',{name:'No browser'})).status,403);
+  const start = await account('/api/pairings',{name:'Synthetic laptop'});
+  assert.equal(start.status,201);
+  const pairing = await start.json();
+  assert.ok(!(await db.prepare('SELECT * FROM pairings').all()).results.some(p=>Object.values(p).includes(pairing.code)));
+  const exchange = code => req('/api/pairings/exchange',{code},null,{Origin:'http://localhost:7490'});
+  const attempts = await Promise.all([exchange(pairing.code),exchange(pairing.code)]);
+  assert.deepEqual(attempts.map(r=>r.status).sort(),[201,403]);
+  const credential = await attempts.find(r=>r.status===201).json();
+  const deviceGet = path => mf.dispatchFetch('http://localhost:7490'+path,{headers:{Authorization:'Bearer '+credential.token}});
+  assert.equal((await (await deviceGet('/api/me')).json()).owner.id,'a');
+  assert.equal((await req('/api/instances/a/revoke',{},credential.token)).status,403);
+  assert.equal((await req('/api/pairings',{name:'Nested'},credential.token)).status,403);
+  const expired = await (await account('/api/pairings',{name:'Expired'})).json();
+  await db.prepare('UPDATE pairings SET expires_at=1').run();
+  assert.equal((await exchange(expired.code)).status,403);
+  const pending = await (await account('/api/pairings',{name:'Pending'})).json();
+  const otherSession = await browser('a');
+  assert.equal((await account('/api/account/revoke',{})).status,200);
+  assert.equal((await otherSession('/api/mine')).status,401);
+  assert.equal((await deviceGet('/api/mine')).status,401);
+  assert.equal((await exchange(pending.code)).status,403);
+  assert.ok((await db.prepare('SELECT count(*) AS n FROM publications').first()).n>0);
+  assert.ok((await db.prepare('SELECT count(*) AS n FROM subscriptions').first()).n>0);
+});
+
+test('pairing exchange racing account revocation cannot leave a live credential', async () => {
+  const account = await browser('a');
+  const {code} = await (await account('/api/pairings',{name:'Synthetic concurrent pairing'})).json();
+  await Promise.all([
+    req('/api/pairings/exchange',{code},null,{Origin:'http://localhost:7490'}),
+    account('/api/account/revoke',{}),
+  ]);
+  assert.equal((await db.prepare('SELECT count(*) AS n FROM instances WHERE owner_id=? AND revoked_at IS NULL').bind('a').first()).n,0);
+  assert.equal((await db.prepare('SELECT count(*) AS n FROM pairings WHERE owner_id=?').bind('a').first()).n,0);
+});
+
+test('migration joins existing editions while preserving the first placement and every snapshot', async () => {
+  const legacy = new Miniflare({modules:true,script:'export default {fetch(){return new Response("ok")}}',compatibilityDate:'2026-05-15',d1Databases:['DB']});
+  try {
+    const ldb = await legacy.getD1Database('DB');
+    const apply = async file => {
+      for (const s of (await readFile(file,'utf8')).split(';').map(s=>s.trim()).filter(Boolean)) await ldb.prepare(s).run();
+    };
+    await apply('migrations/0001_publications.sql');
+    await ldb.prepare("INSERT INTO owners VALUES('legacy','Synthetic legacy','synthetic',1)").run();
+    for (const [id,session] of [['old','same'],['other','different'],['new','same']]) {
+      await ldb.prepare(`INSERT INTO publications(id,owner_id,inquiry_id,origin_id,session_id,title,author,description,graph_count,thought_count,object_key,created_at)
+        VALUES(?,'legacy',?,'synthetic-origin',?,'Synthetic title','Synthetic author','Synthetic description',1,1,?,1)`).bind(id,id,session,id).run();
+    }
+    await apply('migrations/0002_editions_and_connections.sql');
+    assert.deepEqual((await ldb.prepare('SELECT id,seq,threadwalk_id,previous_id,object_key FROM publications ORDER BY seq').all()).results,[
+      {id:'old',seq:1,threadwalk_id:'old',previous_id:null,object_key:'old'},
+      {id:'other',seq:2,threadwalk_id:'other',previous_id:null,object_key:'other'},
+      {id:'new',seq:3,threadwalk_id:'old',previous_id:'old',object_key:'new'},
+    ]);
+    assert.equal((await ldb.prepare('SELECT count(*) AS n FROM updates').first()).n,3);
+  } finally { await legacy.dispose(); }
 });

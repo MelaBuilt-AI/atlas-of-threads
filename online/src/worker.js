@@ -171,9 +171,17 @@ async function auth(r, env, url) {
   headers.append("Set-Cookie", cookieHeader(env, "atlas_state", "", 0));
   return new Response(null, { status: 302, headers });
 }
+const rows = `SELECT p.*,o.login,o.kind,
+  (SELECT min(first.seq) FROM publications first WHERE first.threadwalk_id=p.threadwalk_id) AS world_seq,
+  (SELECT count(*) FROM publications prior WHERE prior.threadwalk_id=p.threadwalk_id AND prior.seq<=p.seq) AS edition
+  FROM publications p JOIN owners o ON o.id=p.owner_id`;
+const latestOnly = "p.seq=(SELECT max(last.seq) FROM publications last WHERE last.threadwalk_id=p.threadwalk_id)";
 const publicRow = (row) => ({
   id: row.id,
-  sequence: row.seq,
+  sequence: row.world_seq,
+  threadwalk_id: row.threadwalk_id,
+  previous_id: row.previous_id,
+  edition: row.edition,
   inquiry_id: row.inquiry_id,
   title: row.title,
   author: row.author,
@@ -187,18 +195,27 @@ const publicRow = (row) => ({
   thought_count: row.thought_count,
   created_at: row.created_at,
   withdrawn: !!row.withdrawn_at,
-  ...position(row.seq),
+  ...position(row.world_seq),
 });
 async function publication(env, id) {
   if (!/^[a-f0-9]{64}$/.test(id)) fail("Publication not found", 404);
   const row = await env.DB.prepare(
-    "SELECT p.*,o.login,o.kind FROM publications p JOIN owners o ON o.id=p.owner_id WHERE p.id=?",
+    rows + " WHERE p.id=?",
   )
     .bind(id)
     .first();
   if (!row) fail("Publication not found", 404);
   if (row.withdrawn_at) fail("This publication has been withdrawn", 410);
   return row;
+}
+async function registerInstance(env, ownerId, name, sessionHash) {
+  const id = crypto.randomUUID(), key = token();
+  const result = await env.DB.prepare(`INSERT INTO instances SELECT ?,?,?,?,?,NULL
+    WHERE (SELECT count(*) FROM instances WHERE owner_id=? AND revoked_at IS NULL)<10
+    AND EXISTS(SELECT 1 FROM sessions WHERE hash=? AND owner_id=? AND expires_at>?)`)
+    .bind(id,ownerId,name,await sha(key),now(),ownerId,sessionHash,ownerId,now()).run();
+  if (!result.meta.changes) fail("Revoke an unused device first", 429);
+  return { id, service: env.SITE_ORIGIN, token: key, name };
 }
 export default {
   async fetch(r, env) {
@@ -225,22 +242,44 @@ export default {
             Math.floor(Number(u.searchParams.get("after")) || 0),
           );
           const { results } = await env.DB.prepare(
-            "SELECT p.*,o.login,o.kind FROM publications p JOIN owners o ON o.id=p.owner_id WHERE p.withdrawn_at IS NULL AND p.seq>? ORDER BY p.seq LIMIT 100",
+            rows + ` WHERE p.withdrawn_at IS NULL AND ${latestOnly} AND world_seq>? ORDER BY world_seq LIMIT 100`,
           )
             .bind(cursor)
             .all();
           return json({
             publications: results.map(publicRow),
-            next: results.length === 100 ? results.at(-1).seq : null,
+            next: results.length === 100 ? results.at(-1).world_seq : null,
           });
+        }
+        if (path === "/api/edition-head") {
+          const who = await identity(r, env);
+          const row = await env.DB.prepare(rows + " WHERE p.owner_id=? AND p.origin_id=? AND p.session_id=? ORDER BY p.seq DESC LIMIT 1")
+            .bind(who.id,u.searchParams.get("origin") || "",u.searchParams.get("session") || "").first();
+          return json({ publication: row ? publicRow(row) : null });
         }
         if (path === "/api/mine") {
           const who = await identity(r, env);
           const { results } = await env.DB.prepare(
-            "SELECT p.*,o.login,o.kind FROM publications p JOIN owners o ON o.id=p.owner_id WHERE owner_id=? ORDER BY seq",
+            rows + " WHERE p.owner_id=? ORDER BY p.seq",
           )
             .bind(who.id)
             .all();
+          return json({ publications: results.map(publicRow) });
+        }
+        if (path === "/api/library") {
+          const who = await identity(r, env);
+          const { results } = await env.DB.prepare(rows + ` JOIN subscriptions s ON s.threadwalk_id=p.threadwalk_id
+            WHERE s.owner_id=? AND ${latestOnly} AND (s.starred=1 OR s.following=1) ORDER BY world_seq`).bind(who.id).all();
+          const { results: subscriptions } = await env.DB.prepare("SELECT threadwalk_id,starred,following,seen_seq FROM subscriptions WHERE owner_id=?").bind(who.id).all();
+          const { results: updates } = await env.DB.prepare(`SELECT u.* FROM updates u JOIN subscriptions s ON s.threadwalk_id=u.threadwalk_id
+            JOIN publications p ON p.id=u.publication_id WHERE s.owner_id=? AND s.following=1 AND u.seq>s.seen_seq
+            AND p.withdrawn_at IS NULL ORDER BY u.seq DESC LIMIT 100`).bind(who.id).all();
+          return json({ publications: results.map(publicRow), subscriptions, updates });
+        }
+        const editions = path.match(/^\/api\/threadwalks\/([a-f0-9]{64})$/);
+        if (editions) {
+          const { results } = await env.DB.prepare(rows + " WHERE p.threadwalk_id=? ORDER BY p.seq DESC").bind(editions[1]).all();
+          if (!results.length) fail("Threadwalk not found", 404);
           return json({ publications: results.map(publicRow) });
         }
         if (path === "/api/instances") {
@@ -284,6 +323,27 @@ export default {
       }
       if (r.method !== "POST") fail("Method not allowed", 405);
       sameOrigin(r, env);
+      if (path === "/api/pairings/exchange") {
+        const data = await body(r);
+        if (typeof data.code !== "string" || data.code.length > 100) fail("Enter the pairing code from your signed-in Atlas");
+        const codeHash = await sha(data.code.trim()), id = crypto.randomUUID(), key = token();
+        // Issuance and consumption share a transaction with respect to account revocation.
+        // A lost exchange needs a new code; no recoverable bearer is stored on the service.
+        await env.DB.batch([
+          env.DB.prepare(`INSERT INTO instances SELECT ?,p.owner_id,p.name,?,?,NULL FROM pairings p
+            WHERE p.code_hash=? AND p.expires_at>? AND
+            (SELECT count(*) FROM instances i WHERE i.owner_id=p.owner_id AND i.revoked_at IS NULL)<10`)
+            .bind(id,await sha(key),now(),codeHash,now()),
+          env.DB.prepare("DELETE FROM pairings WHERE code_hash=? AND EXISTS(SELECT 1 FROM instances WHERE id=?)").bind(codeHash,id),
+        ]);
+        const instance = await env.DB.prepare("SELECT name FROM instances WHERE id=? AND revoked_at IS NULL").bind(id).first();
+        if (!instance) {
+          const pending = await env.DB.prepare("SELECT 1 FROM pairings WHERE code_hash=? AND expires_at>?").bind(codeHash,now()).first();
+          if (pending) fail("Revoke an unused device first", 429);
+          fail("Pairing code expired, already used or revoked; create a new one", 403);
+        }
+        return json({ id, service: env.SITE_ORIGIN, token: key, name: instance.name }, 201);
+      }
       const who = await identity(r, env);
       if (path === "/api/logout") {
         await env.DB.prepare("DELETE FROM sessions WHERE hash=?")
@@ -297,33 +357,51 @@ export default {
         });
       }
       const data = await body(r);
-      if (path === "/api/instances") {
-        if (who.instance_id)
-          fail("Register devices from your signed-in browser", 403);
-        if (
-          typeof data.name !== "string" ||
-          !data.name.trim() ||
-          data.name.length > 80
-        )
+      if (path === "/api/account/revoke") {
+        if (who.instance_id) fail("Disconnect all devices from your signed-in browser", 403);
+        await env.DB.batch([
+          env.DB.prepare("DELETE FROM sessions WHERE owner_id=?").bind(who.id),
+          env.DB.prepare("DELETE FROM pairings WHERE owner_id=?").bind(who.id),
+          env.DB.prepare("UPDATE instances SET revoked_at=COALESCE(revoked_at,?) WHERE owner_id=?").bind(now(), who.id),
+        ]);
+        return json({ revoked: true });
+      }
+      if (path === "/api/instances" || path === "/api/pairings") {
+        if (who.instance_id) fail("Register devices from your signed-in browser", 403);
+        if (typeof data.name !== "string" || !data.name.trim() || data.name.length > 80)
           fail("Give this Personal Atlas a name");
-        const count = await env.DB.prepare(
-          "SELECT count(*) AS n FROM instances WHERE owner_id=? AND revoked_at IS NULL",
-        )
-          .bind(who.id)
-          .first();
-        if (count.n >= 10) fail("Revoke an unused device first", 429);
-        const id = crypto.randomUUID(),
-          key = token();
-        await env.DB.prepare("INSERT INTO instances VALUES(?,?,?,?,?,NULL)")
-          .bind(id, who.id, data.name.trim(), await sha(key), now())
-          .run();
-        return json(
-          { id, service: env.SITE_ORIGIN, token: key, name: data.name.trim() },
-          201,
-        );
+        if (path === "/api/instances") return json(await registerInstance(env, who.id, data.name.trim(), await sha(cookie(r, "atlas_session") || "")), 201);
+        const code = token();
+        const result = await env.DB.batch([
+          env.DB.prepare("DELETE FROM pairings WHERE expires_at<? OR owner_id=?").bind(now(), who.id),
+          env.DB.prepare(`INSERT INTO pairings SELECT ?,?,?,? WHERE EXISTS
+            (SELECT 1 FROM sessions WHERE hash=? AND owner_id=? AND expires_at>?)`)
+            .bind(await sha(code), who.id, data.name.trim(), now()+600, await sha(cookie(r,"atlas_session") || ""), who.id, now()),
+        ]);
+        if (!result[1].meta.changes) fail("Sign in again to pair this device", 401);
+        return json({ code, service: env.SITE_ORIGIN, expires_in: 600 }, 201);
+      }
+      const subscription = path.match(/^\/api\/threadwalks\/([a-f0-9]{64})\/(subscription|seen)$/);
+      if (subscription) {
+        const id = subscription[1];
+        const threadwalk = await env.DB.prepare("SELECT id FROM publications WHERE threadwalk_id=? ORDER BY seq DESC LIMIT 1").bind(id).first();
+        if (!threadwalk) fail("Threadwalk not found", 404);
+        const last = await env.DB.prepare("SELECT COALESCE(max(seq),0) AS seq FROM updates WHERE threadwalk_id=?").bind(id).first();
+        if (subscription[2] === "seen") {
+          if (!Number.isSafeInteger(data.through) || data.through < 0 || data.through > last.seq) fail("Invalid update receipt");
+          await env.DB.prepare("UPDATE subscriptions SET seen_seq=max(seen_seq,?) WHERE owner_id=? AND threadwalk_id=?").bind(data.through, who.id, id).run();
+        } else {
+          if (typeof data.starred !== "boolean" || typeof data.following !== "boolean") fail("Choose Star and Follow updates separately");
+          await env.DB.prepare(`INSERT INTO subscriptions VALUES(?,?,?,?,?) ON CONFLICT(owner_id,threadwalk_id)
+            DO UPDATE SET starred=excluded.starred,following=excluded.following,
+            seen_seq=CASE WHEN subscriptions.following=0 AND excluded.following=1 THEN excluded.seen_seq ELSE subscriptions.seen_seq END`)
+            .bind(who.id,id,Number(data.starred),Number(data.following),last.seq).run();
+        }
+        return json({ saved: true });
       }
       const revoke = path.match(/^\/api\/instances\/([a-f0-9-]+)\/revoke$/);
       if (revoke) {
+        if (who.instance_id && who.instance_id !== revoke[1]) fail("A device can only disconnect itself", 403);
         await env.DB.prepare(
           "UPDATE instances SET revoked_at=? WHERE id=? AND owner_id=?",
         )
@@ -347,6 +425,10 @@ export default {
             fail("This snapshot was withdrawn; publish a revised inquiry", 409);
           return json({ id, reused: true });
         }
+        const previous = await env.DB.prepare("SELECT id FROM publications WHERE owner_id=? AND origin_id=? AND session_id=? ORDER BY seq DESC LIMIT 1")
+          .bind(who.id,c.origin_id,c.session.id).first();
+        if ((data.previous_id || null) !== (previous?.id || null))
+          fail("This Threadwalk has a newer edition. Review it before publishing the next one", 409);
         const objectKey =
           "publications/" +
           id +
@@ -355,9 +437,11 @@ export default {
         await env.INQUIRIES.put(objectKey, JSON.stringify(data.artifact), {
           httpMetadata: { contentType: "application/json" },
         });
-        await env.DB.prepare(
-          `INSERT INTO publications(id,owner_id,instance_id,inquiry_id,origin_id,session_id,title,author,description,graph_count,thought_count,object_key,created_at)
-    SELECT ?,?,?,?,?,?,?,?,?,?,?,?,? WHERE (SELECT count(*) FROM publications WHERE owner_id=?)<? ON CONFLICT DO NOTHING`,
+        await env.DB.batch([env.DB.prepare(
+          `INSERT INTO publications(id,owner_id,instance_id,inquiry_id,origin_id,session_id,title,author,description,graph_count,thought_count,object_key,created_at,threadwalk_id,previous_id)
+    SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,COALESCE((SELECT threadwalk_id FROM publications WHERE owner_id=? AND origin_id=? AND session_id=? ORDER BY seq LIMIT 1),?),?
+    WHERE (SELECT count(*) FROM publications WHERE owner_id=?)<?
+    AND (SELECT id FROM publications WHERE owner_id=? AND origin_id=? AND session_id=? ORDER BY seq DESC LIMIT 1) IS ? ON CONFLICT DO NOTHING`,
         )
           .bind(
             id,
@@ -373,10 +457,11 @@ export default {
             c.graphs.reduce((n, g) => n + g.graph.nodes.length, 0),
             objectKey,
             now(),
+            who.id, c.origin_id, c.session.id, id, previous?.id || null,
             who.id,
             Number(env.MAX_PUBLICATIONS_PER_OWNER) || 20,
-          )
-          .run();
+            who.id, c.origin_id, c.session.id, previous?.id || null,
+          ), env.DB.prepare("INSERT INTO updates(threadwalk_id,publication_id,kind,created_at) SELECT threadwalk_id,id,'edition',created_at FROM publications WHERE id=? ON CONFLICT(publication_id) DO NOTHING").bind(id)]);
         const saved = await env.DB.prepare(
           "SELECT object_key,withdrawn_at FROM publications WHERE id=?",
         )
@@ -384,6 +469,8 @@ export default {
           .first();
         if (!saved) {
           await env.INQUIRIES.delete(objectKey);
+          const latest = await env.DB.prepare("SELECT id FROM publications WHERE owner_id=? AND origin_id=? AND session_id=? ORDER BY seq DESC LIMIT 1").bind(who.id,c.origin_id,c.session.id).first();
+          if ((latest?.id || null) !== (previous?.id || null)) fail("A newer edition arrived; review it before publishing", 409);
           fail("Preview publication limit reached", 429);
         }
         if (saved.object_key !== objectKey || saved.withdrawn_at)

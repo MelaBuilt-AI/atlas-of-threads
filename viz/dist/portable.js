@@ -38,6 +38,49 @@
     }, true);
     return;
   }
+  const connection = element('dialog', '', document.body); connection.id = 'online-connection-dialog';
+  const connectionHeader = element('header', '', connection); element('h2', 'Connect to the Atlas', connectionHeader);
+  button('Close', connectionHeader, () => connection.close());
+  element('p', 'Connecting identifies this Personal Atlas with your verified GitHub account. It does not publish your inquiries, send Capsules or call an agent.', connection);
+  const connectionStatus = element('p', '', connection); connectionStatus.setAttribute('role', 'status');
+  const connectionControls = element('section', '', connection);
+  async function showConnection() {
+    connectionControls.replaceChildren();
+    const info = await api('/api/online/connection');
+    if (info.connected) {
+      connectionStatus.textContent = `Saved connection: @${info.device.owner.login} · ${info.device.name}. Check connection to verify it is still active.`;
+      button('Check connection', connectionControls, () => connectionAction(async () => {
+        await api('/api/online/check', {}); connectionStatus.textContent = 'Connected and verified now. Your inquiries remain private until you publish them.';
+      }));
+      button('Disconnect this Personal Atlas', connectionControls, () => connectionAction(async () => {
+        await api('/api/online/disconnect', {}); await showConnection();
+      }));
+      const details = element('details', '', connectionControls); element('summary', 'Offline or already revoked?', details);
+      element('p', 'Forget the credential on this computer if you cannot reach the service. To revoke any still-active access, open your online Atlas account and disconnect this device there.', details);
+      button('Forget local connection', details, () => connectionAction(async () => {
+        await api('/api/online/disconnect', {forget_only:true}); await showConnection();
+        connectionStatus.textContent = 'Local credential removed. Disconnect the device in your online account to revoke any remaining access.';
+      }));
+    } else {
+      connectionStatus.textContent = 'Local-only · no account required for your Personal Atlas.';
+      const link = element('a', 'Open the online Atlas', connectionControls); link.href = info.service; link.target = '_blank'; link.rel = 'noopener noreferrer';
+      element('p', 'Sign in there, open your account name, and create a pairing code for this computer. Paste the code below within ten minutes.', connectionControls);
+      const form = element('form', '', connectionControls), label = element('label', 'Single-use pairing code', form);
+      const code = element('input', '', label); code.type = 'password'; code.required = true; code.maxLength = 100; code.autocomplete = 'off';
+      const submit = element('button', 'Connect this Personal Atlas', form); submit.type = 'submit';
+      form.onsubmit = event => {
+        event.preventDefault(); submit.disabled = true;
+        connectionAction(async () => { await api('/api/online/connect', {code:code.value}); code.value=''; await showConnection(); }).finally(() => { submit.disabled=false; });
+      };
+    }
+  }
+  async function connectionAction(action) {
+    try { await action(); } catch (error) { connectionStatus.textContent = error.message; }
+  }
+  connection.addEventListener('keydown', event => event.stopPropagation());
+  connection.addEventListener('close', () => connectionControls.replaceChildren());
+  const openConnection = () => { connection.showModal(); connectionAction(showConnection); };
+  button('Connect to the Atlas', bar, openConnection);
   const dialog = document.createElement('dialog'); dialog.id = 'portable-dialog'; document.body.append(dialog);
   const heading = element('header', '', dialog); element('h2', 'Portable inquiries', heading);
   button('Close', heading, () => dialog.close());
@@ -128,5 +171,5 @@
   function open() { dialog.showModal(); review.hidden=true; run(refresh); }
   button('Portable inquiries',bar,open);
   const workspace=document.getElementById('workspace-menu');
-  const section=element('section','',workspace);section.className='menu-section';button('Portable inquiries',section,open);
+  const section=element('section','',workspace);section.className='menu-section';button('Portable inquiries',section,open);button('Connect to the Atlas',section,openConnection);
 })();

@@ -42,7 +42,7 @@ mobile visitors have a readable view alongside the immersive experience.
   selection, Threadwalk entry and exact overworld return.
 - [ ] Public read-only web player and readable mobile view; local import and
   private guide/continuation handoff.
-- [ ] Stars associated with verified accounts, a Starred collection, optional
+- [x] Stars associated with verified accounts, a Starred collection, optional
   in-app following, and stable Threadwalk identity across published editions.
 - [ ] Shared local/online Capsule intents (invitation, offering, return), reviewed
   contents/destination, discoverable requests and accepted return connections.
@@ -83,9 +83,31 @@ registration and owner sign-in are now verified on the hosted preview, including
 the numeric GitHub identity and signed-in browser state. Authenticated
 publication/withdrawal and mocked OAuth pass runtime tests; this is not full
 network or lived-use acceptance.
-Durable offered returns, accepted world links, native arrival doors, device pairing,
-block/report management and activity are still to build. See
+The September 10 continuation implements node centering/spotlights and inert road
+clicks while retaining menu path travel. Stable ongoing Threadwalks now have
+reviewed, immutable editions; stars, Starred and optional in-app following persist
+across editions/devices. Personal Atlas pairs through an expiring single-use code,
+keeps its device credential private, and supports explicit check/disconnect and
+an explained offline forget option. The account panel revokes devices or all
+Atlas sessions/devices/pending codes. No pairing uploads an inquiry.
+
+Durable offered returns, accepted world links, native arrival doors,
+GitHub-side deauthorization, block/report management and activity are still to build. See
 [online service](../online/README.md) for setup, tested boundaries and deployment.
+
+## September 10 implementation checkpoint
+
+The first three dependency steps are implemented and verified in the draft:
+selection/spotlight behavior, stable editions with Personal Atlas pairing, and
+stars with optional in-app edition updates. Account-wide Atlas revocation is
+implemented; external GitHub App deauthorization remains pending. No desktop
+package or combined release is claimed. See `online/README.md` for API/lifecycle
+rules and the verification boundary.
+
+Resume with shared Capsule preparation and offline exchange/compatibility, then
+connect invitations and exact-source returns to durable delivery. Add witnessed
+launch/return events and ports against actual committed events, followed by native
+doors/unread, moderation/activity and the existing physical two-PC/release gates.
 
 ## Accepted Capsule direction — September 10
 

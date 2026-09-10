@@ -73,6 +73,7 @@ test("open-world refresh discovers arrivals, removes withdrawals and preserves l
   const elements = new Map(), intervals = [];
   const element = () => ({
     children: [], hidden: false, textContent: "",
+    addEventListener() {}, setAttribute() {},
     append(child) { child.parent = this; this.children.push(child); },
     remove() { this.parent.children = this.parent.children.filter(child => child !== this); },
     replaceChildren() { this.children = []; },
@@ -82,7 +83,7 @@ test("open-world refresh discovers arrivals, removes withdrawals and preserves l
     return elements.get(id);
   };
   $("visit").hidden = true;
-  const entry = n => ({ id: String(n), sequence: n, x: n * 10, z: 0,
+  const entry = n => ({ id: String(n), threadwalk_id: String(n), edition: 1, sequence: n, x: n * 10, z: 0,
     title: `Synthetic ${n}`, owner: { login: "Synthetic publisher", verified: false },
     inquiry_id: "synthetic", thought_count: 1 });
   let published = [entry(1), entry(2), entry(3)];

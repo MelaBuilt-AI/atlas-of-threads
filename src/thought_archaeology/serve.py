@@ -1025,6 +1025,10 @@ class InhabitHandler(BaseHTTPRequestHandler):
         path = parsed.path
         qs = parse_qs(parsed.query)
         try:
+            if path == "/api/online/connection":
+                from thought_archaeology.online_connection import status
+                self._json(200, status(self.store))
+                return
             if path == "/api/return-paths":
                 self._json(200, {"private_paths": return_paths.private_paths(self.store),
                                  "offers": return_paths.inbox(self.store)})
@@ -1358,6 +1362,18 @@ class InhabitHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         try:
+            if path in {"/api/online/connect", "/api/online/check", "/api/online/disconnect"}:
+                self._require_local_json_request()
+                from thought_archaeology import online_connection
+                data = self._read_json(max_bytes=4096)
+                if path.endswith("/connect"):
+                    result = online_connection.connect(self.store, data.get("code"))
+                elif path.endswith("/check"):
+                    result = online_connection.check(self.store)
+                else:
+                    result = online_connection.disconnect(self.store, forget_only=data.get("forget_only") is True)
+                self._json(200, result)
+                return
             if path == "/api/online/prepare":
                 self._require_local_json_request()
                 from thought_archaeology.online import prepare_publication

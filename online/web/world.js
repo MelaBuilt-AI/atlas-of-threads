@@ -29,12 +29,15 @@
   const reportError = (e) => ($("world-status").textContent = e.message);
   let selected = null,
     owner = null,
+    collection = "all",
+    libraryData = { publications: [], subscriptions: [], updates: [] },
     next = null,
     loading = false,
     scene,
     camera,
     renderer,
     weave,
+    spotlight,
     transition = null,
     returnState = null,
     lastSound = 0;
@@ -61,7 +64,7 @@
   const terrainHeight = (x, z) =>
     Math.sin(x * 0.026) * Math.cos(z * 0.032) * 1.5 +
     Math.sin(x * 0.077 + z * 0.036) * 0.4;
-  function choose(item, focus = false) {
+  function choose(item, focus = true) {
     selected = item;
     $("selection").hidden = false;
     $("library").hidden = true;
@@ -70,11 +73,18 @@
       `Published by ${ownerLabel(item)} · snapshot credit: ${item.author}`;
     $("selection-description").textContent = item.description;
     $("selection-counts").textContent =
-      `${item.graph_count} generations · ${item.thought_count} thoughts`;
+       `Edition ${item.edition} · ${item.graph_count} ${item.graph_count === 1 ? "generation" : "generations"} · ${item.thought_count} thoughts`;
     $("download").href = `/api/publications/${item.id}/bundle`;
     $("download").download =
       `${item.inquiry_id.slice(0, 12)}.atlas-inquiry.json`;
     connectedPaths(item);
+    paintSubscription();
+    if (spotlight) {
+      const height = terrainHeight(item.x, item.z);
+      spotlight.position.set(item.x, height + 30, item.z);
+      spotlight.target.position.set(item.x, height, item.z);
+      spotlight.visible = true;
+    }
     if (focus) moveTo({ ...state, x: item.x, z: item.z });
     sound("cycle");
   }
@@ -93,13 +103,15 @@
     sound("cameraShift", factor > 1);
   }
   function add(item) {
-    if (items.has(item.id)) return;
-    items.set(item.id, item);
-    const entry = el("button", "", $("inquiry-list"));
-    el("span", item.title, entry);
-    el("small", `${ownerLabel(item)} · ${item.thought_count} thoughts`, entry);
-    entry.onclick = () => choose(item, true);
-    item.entry = entry;
+    const existing = items.get(item.threadwalk_id);
+    if (existing) {
+      const changed = existing.id !== item.id;
+      Object.assign(existing, item);
+      if (existing.label) existing.label.textContent = mapTitle(existing);
+      if (changed && selected === existing) choose(existing, false);
+      return;
+    }
+    items.set(item.threadwalk_id, item);
     if (!scene) return;
     const group = new THREE.Group();
     group.position.set(item.x, terrainHeight(item.x, item.z), item.z);
@@ -145,7 +157,7 @@
           item.aura.beacon.visible = true;
         });
     };
-    item.label = el("div", item.title, $("labels"));
+    item.label = el("div", mapTitle(item), $("labels"));
     item.label.className = "locale-label";
   }
   function connectedPaths(item) {
@@ -172,13 +184,13 @@
     });
   }
   function remove(item) {
-    items.delete(item.id); item.entry.remove(); item.label?.remove();
+    items.delete(item.threadwalk_id); item.label?.remove();
     if (item.group) {
       scene.remove(item.group);
       weave.removeLocale(item.aura);
       item.group.traverse(object => object.geometry?.dispose());
     }
-    if (selected === item) { selected = null; $("selection").hidden = true; }
+    if (selected === item) { if (spotlight) spotlight.visible = false; selected = null; $("selection").hidden = true; }
   }
   async function loadWorld(more = false) {
     if (loading) return;
@@ -194,18 +206,102 @@
         // Refresh the loaded prefix; leave further pages under Load more.
       } while (!more && cursor && (cursor < maxLoaded || (next === null && cursor === maxLoaded)));
       if (!more) {
-        const active = new Set(received.map(item => item.id));
-        for (const item of items.values()) if (!active.has(item.id)) remove(item);
+        const active = new Set(received.map(item => item.threadwalk_id));
+        for (const item of items.values()) if (!active.has(item.threadwalk_id)) remove(item);
       }
       for (const item of received) add(item);
       next = result.next;
+      renderLibrary();
       if (weave) weave.syncRoads(AtlasRoadMap(items.values()));
       if (selected) connectedPaths(selected);
       $("more").hidden = !next;
       $("world-status").textContent = items.size
-        ? `${items.size} published ${items.size === 1 ? "inquiry" : "inquiries"} · choose a light or follow a road`
+        ? `${items.size} published ${items.size === 1 ? "inquiry" : "inquiries"} · choose a light to explore`
         : "The Atlas is ready for its first published inquiry.";
     } finally { loading = false; }
+  }
+  const subscriptionFor = item => libraryData.subscriptions.find(s => s.threadwalk_id === item?.threadwalk_id);
+  const mapTitle = item => (subscriptionFor(item)?.starred ? "★ " : "") + item.title +
+    (libraryData.updates.some(u => u.threadwalk_id === item.threadwalk_id) ? " · new" : "");
+  function paintSubscription() {
+    const saved = subscriptionFor(selected);
+    $("star").textContent = saved?.starred ? "★ Starred" : "☆ Star";
+    $("star").setAttribute("aria-pressed", String(!!saved?.starred));
+    $("follow").checked = !!saved?.following;
+    $("follow").disabled = !owner;
+    $("follow-hint").textContent = owner ? "Optional in-app updates" : "Connect with GitHub to save and follow";
+  }
+  async function loadLibrary() {
+    if (!owner) return;
+    libraryData = await api("/api/library");
+    for (const item of items.values()) if (item.label) item.label.textContent = mapTitle(item);
+    $("updates-open").textContent = libraryData.updates.length ? `Updates · ${libraryData.updates.length}` : "Updates";
+    paintSubscription(); renderLibrary();
+  }
+  function renderLibrary() {
+    $("inquiry-list").replaceChildren();
+    const list = collection === "all" ? [...items.values()] : libraryData.publications.filter(item => {
+      const saved = subscriptionFor(item);
+      return collection === "starred" ? saved?.starred : saved?.following;
+    });
+    $("library-title").textContent = { all: "Published inquiries", starred: "Starred", following: "Following" }[collection];
+    if (!list.length) el("p", collection === "all" ? "No inquiries loaded yet." : owner ? "Your saved Threadwalks will appear here." : "Connect with GitHub to save Threadwalks across devices.", $("inquiry-list"));
+    for (const item of list) {
+      const entry = el("button", "", $("inquiry-list"));
+      el("span", mapTitle(item), entry);
+      el("small", `${ownerLabel(item)} · edition ${item.edition}${item.withdrawn ? " · withdrawn" : ""}`, entry);
+      entry.disabled = item.withdrawn;
+      entry.onclick = () => {
+        add(item); weave?.syncRoads(AtlasRoadMap(items.values()));
+        choose(items.get(item.threadwalk_id));
+      };
+    }
+    $("more").hidden = collection !== "all" || !next;
+  }
+  async function saveSubscription(starred, following) {
+    if (!owner) { location.assign("/auth/login"); return; }
+    if (!selected) return;
+    try {
+      await api(`/api/threadwalks/${selected.threadwalk_id}/subscription`, { starred, following });
+      await loadLibrary();
+    } catch (e) { reportError(e); paintSubscription(); }
+  }
+  async function showUpdates() {
+    try {
+      await loadLibrary();
+      $("updates-content").replaceChildren();
+      if (!libraryData.updates.length) el("p", "You’re caught up. Follow a Threadwalk to hear about new published editions here.", $("updates-content"));
+      for (const update of libraryData.updates) {
+        const item = libraryData.publications.find(p => p.threadwalk_id === update.threadwalk_id);
+        const row = el("article", "", $("updates-content"));
+        el("p", `New edition · ${item?.title || "Threadwalk"}`, row);
+        const open = el("button", "Read this edition", row);
+        open.onclick = () => read(update.publication_id, item?.title);
+        const seen = el("button", "Mark seen", row);
+        seen.onclick = async () => {
+          try {
+            await api(`/api/threadwalks/${update.threadwalk_id}/seen`, { through: update.seq });
+            await showUpdates();
+          } catch (e) { reportError(e); }
+        };
+      }
+      $("updates-dialog").showModal();
+    } catch (e) { reportError(e); }
+  }
+  async function editions() {
+    if (!selected) return;
+    try {
+      const data = await api(`/api/threadwalks/${selected.threadwalk_id}`);
+      $("editions-content").replaceChildren();
+      for (const item of data.publications) {
+        const row = el("article", "", $("editions-content"));
+        el("h3", `Edition ${item.edition} · ${item.title}`, row);
+        if (item.withdrawn) { el("p", "Withdrawn", row); continue; }
+        const open = el("button", "Read snapshot", row); open.onclick = () => read(item.id, item.title);
+        const download = el("a", "Download inquiry", row); download.href = `/api/publications/${item.id}/bundle`;
+      }
+      $("editions-dialog").showModal();
+    } catch (e) { reportError(e); }
   }
   function setupScene() {
     renderer = new THREE.WebGLRenderer({
@@ -228,6 +324,16 @@
     rim.position.set(60, 25, -70);
     scene.add(rim);
     weave = AtlasWeave(scene, renderer, reduced);
+    spotlight = new THREE.SpotLight(0xc9eaff, 180, 65, Math.PI / 9, .75, 1);
+    spotlight.visible = false;
+    scene.add(spotlight, spotlight.target);
+    const beam = new THREE.Mesh(new THREE.ConeGeometry(8, 30, 48, 1, true),
+      new THREE.ShaderMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }',
+        fragmentShader: 'varying vec2 vUv; void main(){ float a=pow(sin(vUv.y*3.14159),2.)*.085; gl_FragColor=vec4(.53,.77,1.,a); }' }));
+    beam.position.y = -15;
+    spotlight.add(beam);
     const resize = () => {
       renderer.setSize(innerWidth, innerHeight, false);
     };
@@ -281,17 +387,9 @@
         );
         ray.setFromCamera(cursor, camera);
         const hit = ray.intersectObjects(
-          [...items.values()].map((x) => x.pick).filter(Boolean).concat(
-            [...weave.roads.values()].map(road => road.pick)),
+          [...items.values()].map((x) => x.pick).filter(Boolean),
         )[0];
         if (hit?.object.userData.item) choose(hit.object.userData.item);
-        else if (hit) {
-          const road = weave.roads.get(hit.object.userData.road);
-          const { source, target } = road.edge;
-          const fromSource = selected?.id === source.id || (selected?.id !== target.id &&
-            Math.hypot(state.x - source.x, state.z - source.z) < Math.hypot(state.x - target.x, state.z - target.z));
-          followRoad(road, fromSource ? target : source);
-        }
       }
       drag = null;
       save();
@@ -434,11 +532,11 @@
       leave();
   });
   window.AtlasWorldAudio = { sound: window.TASound };
-  async function read() {
-    if (!selected) return;
+  async function read(id = selected?.id, title = selected?.title) {
+    if (!id) return;
     try {
-      const b = await api("/api/publications/" + selected.id + "/bundle");
-      $("reader-title").textContent = selected.title;
+      const b = await api("/api/publications/" + id + "/bundle");
+      $("reader-title").textContent = title || "Published edition";
       $("reader-content").replaceChildren();
       for (const record of b.content.graphs) {
         const article = el("article", "", $("reader-content"));
@@ -466,11 +564,21 @@
   }
   async function account() {
     try {
-      const { publications } = await api("/api/mine");
+      const [{ publications }, devices] = await Promise.all([api("/api/mine"), api("/api/instances")]);
       $("account-content").replaceChildren();
+      $("devices-content").replaceChildren();
+      for (const device of devices.results) {
+        if (device.revoked_at) continue;
+        const row = el("p", device.name + " ", $("devices-content"));
+        const revoke = el("button", "Disconnect device", row);
+        revoke.onclick = async () => {
+          try { await api(`/api/instances/${device.id}/revoke`, {}); await account(); }
+          catch (e) { $("pairing-status").textContent = e.message; }
+        };
+      }
       for (const item of publications) {
         const row = el("div", "", $("account-content"));
-        el("h3", item.title, row);
+        el("h3", `${item.title} · edition ${item.edition}`, row);
         if (item.withdrawn) el("p", "Withdrawn", row);
         else {
           const button = el("button", "Withdraw this publication", row);
@@ -516,6 +624,8 @@
       const bundle = JSON.parse(artifact.inquiry_json),
         c = bundle.content,
         review = $("publication-review");
+      const { publication: head } = await api(`/api/edition-head?origin=${encodeURIComponent(c.origin_id)}&session=${encodeURIComponent(c.session.id)}`);
+      el("p", head ? `This becomes edition ${head.edition + 1} of ${head.title}. Its map location, stars and followers stay with it. The previous snapshot remains available unless withdrawn.` : "This starts a new Threadwalk in the shared Atlas.", review);
       el("h3", c.session.title, review);
       el(
         "p",
@@ -565,7 +675,7 @@
         publish.disabled = true;
         $("publication-status").textContent = "Publishing…";
         try {
-          await api("/api/publications", { artifact, reviewed: check.checked });
+          await api("/api/publications", { artifact, reviewed: check.checked, previous_id: head?.id || null });
           location.reload();
         } catch (e) {
           $("publication-status").textContent = e.message;
@@ -586,6 +696,28 @@
     }
     $("publication-dialog").showModal();
   };
+  $("star").onclick = () => saveSubscription(!subscriptionFor(selected)?.starred, !!subscriptionFor(selected)?.following);
+  $("follow").onchange = () => saveSubscription(!!subscriptionFor(selected)?.starred, $("follow").checked);
+  $("editions").onclick = editions;
+  $("updates-open").onclick = () => owner ? showUpdates() : location.assign("/auth/login");
+  $("collection").onchange = () => { collection = $("collection").value; renderLibrary(); };
+  $("pairing-form").onsubmit = async e => {
+    e.preventDefault();
+    try {
+      const result = await api("/api/pairings", { name: $("device-name").value });
+      $("pairing-code").value = result.code;
+      $("pairing-result").hidden = false;
+      $("pairing-status").textContent = "Paste this code into Personal Atlas → Connect to the Atlas. It expires in ten minutes and works once. Creating a new code replaces the previous one.";
+    } catch (e) { $("pairing-status").textContent = e.message; }
+  };
+  $("revoke-all-check").onchange = () => { $("revoke-all").disabled = !$("revoke-all-check").checked; };
+  $("revoke-all").onclick = async () => {
+    try { await api("/api/account/revoke", {}); location.reload(); }
+    catch (e) { $("pairing-status").textContent = e.message; }
+  };
+  $("account-dialog").addEventListener("close", () => {
+    $("pairing-code").value = ""; $("pairing-result").hidden = true;
+  });
   $("library-toggle").onclick = () => {
     $("library").hidden = !$("library").hidden;
     $("selection").hidden = true;
@@ -597,7 +729,7 @@
   $("zoom-out").onclick = () => zoom(1.25);
   $("home").onclick = () => moveTo({ x: 0, z: 0, span: 100 });
   $("enter").onclick = enter;
-  $("read").onclick = read;
+  $("read").onclick = () => read();
   $("world-return").onclick = leave;
   $("more").onclick = () => loadWorld(true).catch(reportError);
   $("logout").onclick = async () => {
@@ -614,12 +746,13 @@
   loadWorld().catch(reportError);
   setInterval(() => {
     if (!document.hidden && $("visit").hidden && !transition)
-      loadWorld().catch(reportError);
+      Promise.all([loadWorld(), loadLibrary()]).catch(reportError);
   }, 30000);
   api("/api/me")
     .then((data) => {
       owner = data.owner;
       if (owner) {
+        loadLibrary().catch(reportError);
         $("login").textContent = "@" + owner.login;
         $("login").href = "#account";
         $("login").onclick = (e) => {

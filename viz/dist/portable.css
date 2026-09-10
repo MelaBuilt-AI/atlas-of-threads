@@ -1,17 +1,17 @@
 #portable-bar {position:fixed;z-index:70;top:48px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:16px;max-width:70vw;padding:8px 14px;border:1px solid #56503e;border-radius:12px;background:#171b16e8;color:#ede8d9;font:13px/1.4 system-ui;}
 #portable-bar span {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-#portable-bar button,#portable-dialog button {cursor:pointer;color:#d7efb3;background:#293023;border:1px solid #69744e;border-radius:6px;padding:8px 12px;}
-#portable-bar a,#portable-dialog a {color:#c8ee99;white-space:nowrap;}
-#portable-dialog {color:#ede8d9;background:#171b16;border:1px solid #69744e;border-radius:16px;width:min(820px,90vw);max-height:86vh;padding:24px;font:15px/1.55 system-ui;}
-#portable-dialog::backdrop {background:#000a;}
-#portable-dialog header {display:flex;justify-content:space-between;align-items:center;}
-#portable-dialog h2 {margin:0;}
-#portable-dialog section {padding:16px 0;border-top:1px solid #414738;}
-#portable-dialog label {display:block;margin:12px 0;}
-#portable-dialog input:not([type=checkbox]),#portable-dialog textarea,#portable-dialog select {display:block;box-sizing:border-box;width:100%;color:#ede8d9;background:#242a20;border:1px solid #67734e;border-radius:5px;padding:9px;}
-#portable-dialog details {padding:12px;margin:8px 0;background:#242a20;border-radius:8px;}
-#portable-dialog summary {cursor:pointer;}
-#portable-dialog pre {white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.5 ui-monospace,monospace;}
-#portable-dialog button:disabled {opacity:.45;cursor:default;}
+#portable-bar button,:is(#portable-dialog, #online-connection-dialog) button {cursor:pointer;color:#d7efb3;background:#293023;border:1px solid #69744e;border-radius:6px;padding:8px 12px;}
+#portable-bar a,:is(#portable-dialog, #online-connection-dialog) a {color:#c8ee99;white-space:nowrap;}
+:is(#portable-dialog, #online-connection-dialog) {color:#ede8d9;background:#171b16;border:1px solid #69744e;border-radius:16px;width:min(820px,90vw);max-height:86vh;padding:24px;font:15px/1.55 system-ui;}
+:is(#portable-dialog, #online-connection-dialog)::backdrop {background:#000a;}
+:is(#portable-dialog, #online-connection-dialog) header {display:flex;justify-content:space-between;align-items:center;}
+:is(#portable-dialog, #online-connection-dialog) h2 {margin:0;}
+:is(#portable-dialog, #online-connection-dialog) section {padding:16px 0;border-top:1px solid #414738;}
+:is(#portable-dialog, #online-connection-dialog) label {display:block;margin:12px 0;}
+:is(#portable-dialog, #online-connection-dialog) input:not([type=checkbox]),:is(#portable-dialog, #online-connection-dialog) textarea,:is(#portable-dialog, #online-connection-dialog) select {display:block;box-sizing:border-box;width:100%;color:#ede8d9;background:#242a20;border:1px solid #67734e;border-radius:5px;padding:9px;}
+:is(#portable-dialog, #online-connection-dialog) details {padding:12px;margin:8px 0;background:#242a20;border-radius:8px;}
+:is(#portable-dialog, #online-connection-dialog) summary {cursor:pointer;}
+:is(#portable-dialog, #online-connection-dialog) pre {white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.5 ui-monospace,monospace;}
+:is(#portable-dialog, #online-connection-dialog) button:disabled {opacity:.45;cursor:default;}
 .imported-inquiry #workspace-menu,.imported-inquiry #workspace-scrim,.imported-inquiry #threshold-continue,.imported-inquiry #composer {display:none!important;}
-@media(max-width:640px) {#portable-bar {max-width:92vw;width:max-content;top:46px;font-size:11px;gap:8px;} #portable-dialog {padding:16px;}}
+@media(max-width:640px) {#portable-bar {max-width:92vw;width:max-content;top:46px;font-size:11px;gap:8px;} :is(#portable-dialog, #online-connection-dialog) {padding:16px;}}
