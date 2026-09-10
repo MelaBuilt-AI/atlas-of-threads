@@ -23,6 +23,7 @@ def paired_service(tmp_path, monkeypatch):
         def do_POST(self):
             self.respond()
         def respond(self):
+            assert self.headers.get('User-Agent', '').startswith('Atlas-of-Threads/')
             state['calls'].append(self.path)
             data = json.loads(self.rfile.read(int(self.headers.get('Content-Length', 0))) or '{}')
             status = 200

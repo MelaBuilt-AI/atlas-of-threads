@@ -5,6 +5,7 @@ import json
 from urllib.error import HTTPError, URLError
 from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_opener
 
+from thought_archaeology import __version__
 from thought_archaeology.store import Store, StoreError, _write_private_json_atomic
 from thought_archaeology.updates import _ssl_context
 
@@ -18,7 +19,8 @@ class _NoRedirect(HTTPRedirectHandler):
 
 
 def _request(path: str, data: dict | None = None, token: str | None = None) -> dict:
-    headers = {'Content-Type': 'application/json', 'Origin': SERVICE}
+    headers = {'Content-Type': 'application/json', 'Origin': SERVICE,
+               'User-Agent': f'Atlas-of-Threads/{__version__}'}
     if token:
         headers['Authorization'] = 'Bearer ' + token
     request = Request(SERVICE + path, headers=headers,
