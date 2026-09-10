@@ -33,7 +33,7 @@
     scene,
     camera,
     renderer,
-    terrain,
+    weave,
     transition = null,
     returnState = null,
     lastSound = 0;
@@ -102,35 +102,7 @@
     group.position.set(item.x, terrainHeight(item.x, item.z), item.z);
     scene.add(group);
     item.group = group;
-    const color = new THREE.Color().setHSL(
-      0.45 + (parseInt(item.id.slice(0, 2), 16) / 255) * 0.2,
-      0.36,
-      0.66,
-    );
-    const plinth = new THREE.Mesh(
-      new THREE.CylinderGeometry(3.1, 4.2, 0.65, 32),
-      new THREE.MeshStandardMaterial({
-        color: 0x293944,
-        roughness: 0.92,
-        metalness: 0.3,
-      }),
-    );
-    plinth.position.y = 0.25;
-    group.add(plinth);
-    const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(4.4, 0.055, 6, 64),
-      new THREE.MeshBasicMaterial({ color }),
-    );
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 0.8;
-    group.add(ring);
-    item.ring = ring;
-    const light = new THREE.Mesh(
-      new THREE.SphereGeometry(0.4, 12, 8),
-      new THREE.MeshBasicMaterial({ color }),
-    );
-    light.position.y = 5.8;
-    group.add(light);
+    item.aura = weave.locale(group, items.size - 1);
     const rayTarget = new THREE.Mesh(
       new THREE.CylinderGeometry(4, 4, 8, 12),
       new THREE.MeshBasicMaterial({ visible: false }),
@@ -167,7 +139,7 @@
           item.model = model;
         })
         .catch(() => {
-          light.scale.setScalar(2);
+          item.aura.beacon.visible = true;
         });
     };
     item.label = el("div", item.title, $("labels"));
@@ -190,63 +162,23 @@
     renderer = new THREE.WebGLRenderer({
       canvas: $("world"),
       antialias: true,
-      alpha: false,
-      powerPreference: "low-power",
+      alpha: true,
+      powerPreference: "high-performance",
     });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.setClearColor(0x09131b);
+    renderer.setClearColor(0x02040d, 0);
     scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x09131b, 0.0036);
-    scene.add(new THREE.HemisphereLight(0xa9dbe4, 0x1d2023, 1.8));
+    scene.fog = new THREE.FogExp2(0x02040d, 0.001);
+    scene.add(new THREE.HemisphereLight(0x8acbff, 0x161130, 2.5));
     const sun = new THREE.DirectionalLight(0xf1d5ab, 2);
     sun.position.set(-60, 100, 40);
     scene.add(sun);
     camera = new THREE.OrthographicCamera(-50, 50, 50, -50, 0.1, 1200);
-    const geo = new THREE.PlaneGeometry(1100, 1100, 180, 180);
-    geo.rotateX(-Math.PI / 2);
-    const pos = geo.attributes.position;
-    for (let i = 0; i < pos.count; i++)
-      pos.setY(i, terrainHeight(pos.getX(i), pos.getZ(i)) - 0.3);
-    geo.computeVertexNormals();
-    const material = new THREE.MeshStandardMaterial({
-      color: 0x6a8589,
-      roughness: 0.95,
-      metalness: 0.06,
-    });
-    terrain = new THREE.Mesh(geo, material);
-    scene.add(terrain);
-    new THREE.TextureLoader().load(
-      "./assets/terrain/01-neural-basalt-4k.png",
-      (texture) => {
-        texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-        texture.repeat.set(45, 45);
-        texture.colorSpace = THREE.SRGBColorSpace;
-        texture.anisotropy = Math.min(
-          4,
-          renderer.capabilities.getMaxAnisotropy(),
-        );
-        material.map = texture;
-        material.needsUpdate = true;
-      },
-    );
-    // Landscape filaments are navigational scenery, never inferred inquiry relationships.
-    for (let lane = -9; lane <= 9; lane++) {
-      const points = [];
-      for (let x = -450; x <= 450; x += 4) {
-        const z = lane * 26 + Math.sin(x * 0.018 + lane) * 9;
-        points.push(new THREE.Vector3(x, terrainHeight(x, z) + 0.03, z));
-      }
-      const line = new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints(points),
-        new THREE.LineBasicMaterial({
-          color: lane % 3 ? 0x284c50 : 0x547575,
-          transparent: true,
-          opacity: 0.6,
-        }),
-      );
-      scene.add(line);
-    }
+    const rim = new THREE.DirectionalLight(0x8b60ff, 2.3);
+    rim.position.set(60, 25, -70);
+    scene.add(rim);
+    weave = AtlasWeave(scene, renderer, reduced);
     const resize = () => {
       renderer.setSize(innerWidth, innerHeight, false);
     };
@@ -386,22 +318,21 @@
       camera.lookAt(state.x, 0, state.z);
       for (const item of items.values()) {
         const distance = Math.hypot(item.x - state.x, item.z - state.z);
-        if (item.loadRelic && distance < state.span * 1.1) item.loadRelic();
-        if (item.model) item.model.visible = distance < state.span * 1.3;
-        item.ring.material.color.setHex(
-          item === selected ? 0xf0ce8c : 0x74b7b7,
-        );
+        if (item.loadRelic && state.span < 260 && distance < state.span * 1.1) item.loadRelic();
+        if (item.model) item.model.visible = state.span < 260 && distance < state.span * 1.3;
+        item.aura.selection.visible = item === selected;
         const p = new THREE.Vector3(
           item.x,
           terrainHeight(item.x, item.z) + 7,
           item.z,
         ).project(camera);
         item.label.hidden =
-          state.span > 190 || Math.abs(p.x) > 1.1 || Math.abs(p.y) > 1.1;
+          (state.span > 145 && item !== selected) || Math.abs(p.x) > 1.1 || Math.abs(p.y) > 1.1;
         item.label.style.left = `${((p.x + 1) * innerWidth) / 2}px`;
         item.label.style.top = `${((-p.y + 1) * innerHeight) / 2}px`;
         item.label.classList.toggle("selected", item === selected);
       }
+      weave.update(time, state.span);
       renderer.render(scene, camera);
     }
     requestAnimationFrame(frame);

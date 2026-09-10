@@ -47,3 +47,12 @@ effects include a restrained layer of their original application cues; twelve
 new effects replace the earlier procedural sounds. Runtime OGG files are
 included unchanged from the supplied masters. Archival originals, WAV/MP3
 copies, production requests and receipts remain outside the source repository.
+
+## Online Atlas deep field
+
+`online/web/assets/atlas-deep-field.png` is the project owner's generated Atlas
+artwork, supplied as the fourth visual reference on 2026-09-10 and included
+unchanged. It provides a distant artistic backdrop, not live users, publications,
+or relationship data. The foreground filaments and orbital halos are rendered
+in Three.js around actual published inquiries, using the original Atlas models
+and terrain texture credited above.

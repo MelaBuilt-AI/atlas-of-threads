@@ -29,6 +29,22 @@ and depends on the server sequence, never browser storage or layout randomness.
 Filaments in the landscape are scenery, not inferred relationships or proof of
 contributions. Accepted contribution links remain a later world increment.
 
+## Visual direction — September 10
+
+The owner's five Atlas references define the world: deep indigo space, interwoven
+cyan/electric-blue/violet threads, occasional warm gold, orbital islands and
+luminous knots. The fourth supplied image is included unchanged as the distant
+artistic field. The navigable foreground uses 96 additive shader ribbons with
+soft halos and moving highlights, a bounded star/dust field, and layered orbital
+rings around the original relics on neural-basalt islands. Distant locales become
+beacons; nearby locales reveal the textured island, orbits and original model.
+Reduced-motion preferences freeze ambient pulses and orbit animation.
+
+Artwork and atmospheric currents do not represent users, live presence, accepted
+links or additional publications. Actual publication placements and selection
+remain server-backed. This is a visual implementation of the reference direction;
+visual fidelity and device performance still require user/browser acceptance.
+
 ## Prepare and publish
 
 In the updated Personal Atlas source app, open Portable inquiries, review an

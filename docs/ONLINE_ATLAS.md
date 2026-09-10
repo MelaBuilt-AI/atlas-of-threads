@@ -64,7 +64,9 @@ The next increment adds `online/`: a Cloudflare Worker, D1 publication/owner
 records, R2 snapshots, a shared isometric world with the existing terrain/relics,
 public reading/download, and entry into the same Python-authored Threadwalk
 renderer with exact world-camera return. A continuous parent-owned album crosses
-the transition. Personal Atlas can prepare online publication files locally.
+the transition. The September 10 visual update follows the owner’s supplied
+Atlas artwork with luminous blue/violet/gold currents, orbital islands and a
+deep-space background; original relics and terrain appear on approach. Personal Atlas can prepare online publication files locally.
 
 GitHub App OAuth and device-revocation endpoints are implemented. Real App
 registration and owner sign-in are now verified on the hosted preview, including
