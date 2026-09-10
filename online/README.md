@@ -216,8 +216,8 @@ Worker → local HTTP pairing, saved readback, browser check and disconnect pass
 The existing Windows-discovery tests now isolate their synthetic home directories.
 
 Still required in PR #5: GitHub-side deauthorization, full returned-path graph
-transport, accepted doorway links in the shared world, report management, witnessed
-Capsule expeditions, opt-in activity, complete browser/two-PC checks, and final installers.
+transport, accepted doorway links in the shared world, report management,
+opt-in activity, complete browser/two-PC checks, and final installers.
 The report endpoint stores authenticated reports; no active moderation service or
 response-time promise is implied. See `../docs/ONLINE_ATLAS.md` for the full gate.
 
@@ -257,3 +257,25 @@ real local Worker and two isolated Python HTTP servers passed receipt and explic
 acceptance with unchanged graphs/heads and no agent call. This is not physical
 Windows/two-PC, production load, or combined release acceptance. See
 [Capsules](../docs/KNOWLEDGE_CAPSULES.md) for offline compatibility and remaining work.
+
+## Witnessed expeditions
+
+Migration `0004` adds atomic launch/acceptance events, preserves existing edition
+update sequences and does not replay or backfill historical deliveries.
+`GET /api/expeditions?ports=THREADWALK_IDS&after=CURSOR` returns current port summaries
+and authorized events; omitting `after` establishes a watermark only. Requests
+accept up to 100 ports and return up to 100 events. Anonymous reads return no
+Capsule metadata. `GET /api/expeditions/history?threadwalk=ID&before=SEQUENCE` pages
+50 authorized records. Block/audience checks also apply to Capsule following.
+
+Personal Atlas can review a directed recipient's published target port; returns
+recover their original source. The map renders existing launcher/Capsule relics,
+beacons, history and bounded live flights while preserving camera control. The
+observer polls every 2.5 seconds, resets across hidden/offline/slow gaps and never
+replays history on arrival. Audio respects existing controls and distance/zoom;
+reduced motion suppresses flights. Accepting a return creates no public doorway.
+
+29 online tests and 433 Python tests pass. Synthetic Chrome/real-local-Worker
+checks cover directed and return flight, launcher history and explicit acceptance.
+Full hosted two-account exchange, listening/load and the existing release gates
+remain open. See [Capsules](../docs/KNOWLEDGE_CAPSULES.md) for the complete boundary.

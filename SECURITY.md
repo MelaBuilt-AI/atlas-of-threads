@@ -97,3 +97,8 @@ prevent further exchanges in either direction; withdrawal stops service reading
 but retains private records for retries/history and cannot erase recipient copies.
 Inbox listing and connection never acknowledge, accept, invoke agents, or upload
 local artifacts. See the detailed contract in `docs/KNOWLEDGE_CAPSULES.md`.
+
+Expedition streams, port history and followed Capsule updates inherit each delivery's
+audience and account blocks. Anonymous reads expose no Capsule event metadata;
+directed launch/return/acceptance events stay between sender and recipient. A map
+flight is a rendering of a committed event, never consent to publish a connection.

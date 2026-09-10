@@ -409,5 +409,12 @@ test('migration joins existing editions while preserving the first placement and
       {id:'new',seq:3,threadwalk_id:'old',previous_id:'old',object_key:'new'},
     ]);
     assert.equal((await ldb.prepare('SELECT count(*) AS n FROM updates').first()).n,3);
+    await apply('migrations/0003_capsule_delivery.sql');
+    await ldb.prepare(`INSERT INTO capsule_deliveries(id,owner_id,capsule_id,capsule_json,title,intent,audience,source_publication_id,review_json,created_at)
+      VALUES('legacy-capsule','legacy','legacy-hash','{}','Synthetic old Capsule','invitation','public','old','{}',1)`).run();
+    await apply('migrations/0004_expeditions.sql');
+    assert.equal((await ldb.prepare('SELECT count(*) n FROM expedition_events').first()).n,0);
+    assert.equal((await ldb.prepare('SELECT count(*) n FROM capsule_deliveries').first()).n,1);
+    assert.deepEqual((await ldb.prepare('SELECT seq FROM updates ORDER BY seq').all()).results,[{seq:1},{seq:2},{seq:3}]);
   } finally { await legacy.dispose(); }
 });

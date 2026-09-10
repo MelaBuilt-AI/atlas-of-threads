@@ -1,3 +1,4 @@
+import {launchRecords,acceptanceRecords} from './expeditions.js';
 // Inert, reviewed transport over the existing Capsule schema; no graph writes.
 import validate from '../dist/validate-capsule.js';
 import {parse} from 'lossless-json';
@@ -11,7 +12,7 @@ const columns = `SELECT d.*,o.login,o.kind,r.received_at,r.decision,r.decided_at
  LEFT JOIN capsule_receipts r ON r.delivery_id=d.id AND r.owner_id=CASE WHEN d.owner_id=? THEN d.recipient_id ELSE ? END`;
 const brief = r => ({id:r.id,sequence:r.seq,capsule_id:r.capsule_id,title:r.title,intent:r.intent,
  sender:{id:r.owner_id,login:r.login,verified:r.kind==='github'}, audience:r.audience,recipient_id:r.recipient_id,
- source_publication_id:r.source_publication_id,reply_delivery_id:r.reply_delivery_id,reply_publication_id:r.reply_publication_id,
+ source_publication_id:r.source_publication_id,reply_delivery_id:r.reply_delivery_id,reply_publication_id:r.reply_publication_id,target_publication_id:r.target_publication_id,
  created_at:r.created_at,withdrawn:!!r.withdrawn_at,received_at:r.received_at,decision:r.decision,decided_at:r.decided_at});
 async function row(env,id,who) {
  if(!hash.test(id)) fail('Choose a Capsule delivery',404);
@@ -57,15 +58,15 @@ async function review(env,who,data) {
  const c=await inspectCapsule(data.capsule_json), choice=data.destination;
  if(!choice||!['directed','public'].includes(choice.audience)) fail('Choose an explicit audience');
  const d={audience:choice.audience,recipient_id:choice.recipient_id||null,source_publication_id:choice.source_publication_id||null,
-  reply_delivery_id:choice.reply_delivery_id||null,reply_publication_id:choice.reply_publication_id||null};
- let recipient=null,source=null,replySource=null;
+  reply_delivery_id:choice.reply_delivery_id||null,reply_publication_id:choice.reply_publication_id||null,target_publication_id:choice.target_publication_id||null};
+ let recipient=null,source=null,replySource=null,targetPort=null;
  if(d.source_publication_id) {
   const p=await publication(env,d.source_publication_id);
   if(p.owner_id!==who.id||p.origin_id!==c.content.origin_id||p.session_id!==c.content.home_session_id) fail('Launch source must be your Capsule’s published home Threadwalk',403);
   source={id:p.id,title:p.title,threadwalk_id:p.threadwalk_id};
  }
  if(d.audience==='public' && (!source||d.recipient_id)) fail('Open Capsules need a published source and no private recipient');
-  if(!d.recipient_id && typeof choice.recipient_login==='string') {
+  if(d.audience==='directed' && !d.recipient_id && typeof choice.recipient_login==='string') {
    const found=await env.DB.prepare('SELECT id FROM owners WHERE login=? COLLATE NOCASE').bind(choice.recipient_login.trim()).first();
    if(!found)fail('Recipient has not connected to this Atlas',404);
    d.recipient_id=found.id;
@@ -96,7 +97,13 @@ async function review(env,who,data) {
   if(blocked) fail('Delivery is unavailable between these accounts',403);
   recipient={id:owner.id,login:owner.login,verified:owner.kind==='github'};
  }
- return {capsule_json:data.capsule_json,destination:d,sender:{id:who.id,login:who.login},recipient,source,reply_source:replySource};
+ if(d.target_publication_id) {
+  const target=await publication(env,d.target_publication_id);
+  if(d.audience!=='directed'||target.owner_id!==d.recipient_id)fail('Choose a published destination owned by the recipient');
+  if(reply)fail('A return uses its original source port as its destination');
+  targetPort={id:target.id,title:target.title,threadwalk_id:target.threadwalk_id};
+ }
+ return {capsule_json:data.capsule_json,destination:d,sender:{id:who.id,login:who.login},recipient,source,target:targetPort,reply_source:replySource};
 }
 export async function capsuleGet(env,u,who) {
  const path=u.pathname;
@@ -110,7 +117,10 @@ export async function capsuleGet(env,u,who) {
   return {deliveries:results.map(brief),next:results.length===50?results.at(-1).seq:null};
  }
  if(path==='/api/capsules/destinations') {
-  const {results}=await env.DB.prepare('SELECT id,title,origin_id,session_id FROM publications WHERE owner_id=? AND withdrawn_at IS NULL ORDER BY seq DESC').bind(who.id).all();
+  const login=u.searchParams.get('recipient');
+  const recipient=login?await env.DB.prepare('SELECT id,login FROM owners WHERE login=? COLLATE NOCASE').bind(login.trim()).first():who;
+  if(!recipient)fail('Recipient has not connected to this Atlas',404);
+  const {results}=await env.DB.prepare('SELECT id,title,origin_id,session_id FROM publications WHERE owner_id=? AND withdrawn_at IS NULL AND seq=(SELECT max(p.seq) FROM publications p WHERE p.threadwalk_id=publications.threadwalk_id) ORDER BY seq DESC').bind(recipient.id).all();
   return {publications:results};
  }
  const match=path.match(/^\/api\/capsules\/([a-f0-9]{64})$/);
@@ -148,13 +158,13 @@ export async function capsulePost(env,path,who,data) {
   const current=await review(env,who,proposed);
   if(canonical(current)!==canonical(proposed))fail('Audience or source changed; review delivery again',409);
   const d=current.destination;
-  await env.DB.prepare(`INSERT INTO capsule_deliveries(id,owner_id,instance_id,capsule_id,capsule_json,title,intent,audience,recipient_id,source_publication_id,reply_delivery_id,reply_publication_id,review_json,created_at)
-   SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE (SELECT count(*) FROM capsule_deliveries WHERE owner_id=?)<200
+  await env.DB.batch([env.DB.prepare(`INSERT INTO capsule_deliveries(id,owner_id,instance_id,capsule_id,capsule_json,title,intent,audience,recipient_id,source_publication_id,reply_delivery_id,reply_publication_id,review_json,created_at,target_publication_id)
+   SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE (SELECT count(*) FROM capsule_deliveries WHERE owner_id=?)<200
    AND NOT EXISTS(SELECT 1 FROM blocks WHERE (owner_id=? AND blocked_owner_id=?) OR (owner_id=? AND blocked_owner_id=?))
    AND (? IS NULL OR EXISTS(SELECT 1 FROM publications WHERE id=? AND withdrawn_at IS NULL))
    AND (? IS NULL OR EXISTS(SELECT 1 FROM publications WHERE id=? AND withdrawn_at IS NULL))
    AND (? IS NULL OR EXISTS(SELECT 1 FROM capsule_deliveries WHERE id=? AND withdrawn_at IS NULL)) ON CONFLICT DO NOTHING`)
-   .bind(id,who.id,who.instance_id||null,c.id,current.capsule_json,c.content.title,c.content.intent,d.audience,d.recipient_id,d.source_publication_id,d.reply_delivery_id,d.reply_publication_id,canonical(current),now(),who.id,who.id,d.recipient_id,d.recipient_id,who.id,d.source_publication_id,d.source_publication_id,d.reply_publication_id,d.reply_publication_id,d.reply_delivery_id,d.reply_delivery_id).run();
+   .bind(id,who.id,who.instance_id||null,c.id,current.capsule_json,c.content.title,c.content.intent,d.audience,d.recipient_id,d.source_publication_id,d.reply_delivery_id,d.reply_publication_id,canonical(current),now(),d.target_publication_id,who.id,who.id,d.recipient_id,d.recipient_id,who.id,d.source_publication_id,d.source_publication_id,d.reply_publication_id,d.reply_publication_id,d.reply_delivery_id,d.reply_delivery_id),...launchRecords(env,id)]);
   const saved=await env.DB.prepare('SELECT review_json FROM capsule_deliveries WHERE id=?').bind(id).first();
   if(!saved)fail('Delivery unavailable or preview limit reached',409);
   if(saved.review_json!==canonical(current))fail('This Capsule already launched to another destination',409);
@@ -175,11 +185,12 @@ export async function capsulePost(env,path,who,data) {
   if(!r.received_at)fail('Receive and review this return first');
   const detail=await capsuleGet(env,new URL(env.SITE_ORIGIN+'/api/capsules/'+r.id),who);
   if(canonical(data.source)!==canonical(detail.source)||data.capsule_id!==r.capsule_id)fail('Review this exact return and its original source');
-  await env.DB.prepare(`UPDATE capsule_receipts SET decision=?,decided_at=? WHERE delivery_id=? AND owner_id=? AND decision IS NULL
+  if(r.decision){if(r.decision!==data.decision)fail('This return already has a different decision',409);return {decision:r.decision,decided_at:r.decided_at};}
+  await env.DB.batch([env.DB.prepare(`UPDATE capsule_receipts SET decision=?,decided_at=? WHERE delivery_id=? AND owner_id=? AND decision IS NULL
    AND EXISTS(SELECT 1 FROM capsule_deliveries d WHERE d.id=? AND d.withdrawn_at IS NULL AND ${blockedSQL}
    AND (d.reply_delivery_id IS NULL OR EXISTS(SELECT 1 FROM capsule_deliveries p WHERE p.id=d.reply_delivery_id AND p.withdrawn_at IS NULL))
    AND (d.reply_publication_id IS NULL OR EXISTS(SELECT 1 FROM publications p WHERE p.id=d.reply_publication_id AND p.withdrawn_at IS NULL)))`)
-   .bind(data.decision,now(),r.id,who.id,r.id,who.id,who.id).run();
+   .bind(data.decision,now(),r.id,who.id,r.id,who.id,who.id),...acceptanceRecords(env,r.id,who.id)]);
   const saved=await env.DB.prepare('SELECT decision,decided_at FROM capsule_receipts WHERE delivery_id=? AND owner_id=?').bind(r.id,who.id).first();
   if(saved.decision!==data.decision)fail('This return already has a different decision or is unavailable',409);
   return saved;

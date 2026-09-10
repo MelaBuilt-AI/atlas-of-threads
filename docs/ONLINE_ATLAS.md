@@ -113,9 +113,11 @@ retain their meaning. See [Capsules](KNOWLEDGE_CAPSULES.md) for the format, cont
 and verification limits. Connected delivery and private acceptance now follow below.
 
 Connected invitations, exact-source return delivery, explicit receipts/decisions,
-withdrawal and blocks are implemented and tested. Resume with witnessed
-launch/return events and ports against actual committed events, followed by native
-doors/unread, moderation/activity and the existing physical two-PC/release gates.
+withdrawal and blocks are implemented and tested. Witnessed launch/return events,
+ports/history, beacons, distance-aware audio and audience-filtered following now
+track committed deliveries. Resume with shared/native accepted doors and unread,
+moderation/activity and the existing physical two-PC/release gates. Private return
+acceptance is not consent to publish a shared connection.
 
 ## Accepted Capsule direction — September 10
 
@@ -126,7 +128,7 @@ actual online launches and returns should be witnessed on the overworld with
 animation and distant sound. Personal Atlas adopts the same intent, content
 review and destination model while retaining complete offline use. Existing
 private artifacts keep their meaning. See [Capsule plan](KNOWLEDGE_CAPSULES.md).
-This direction is planned, not implemented by recording it here.
+The implemented expedition boundary and checks are recorded in the Capsule document.
 
 Implemented map interactions: selecting a Threadwalk centers the camera and shines
 a spotlight down on it. Overview-road clicks do not move the camera. Follow path

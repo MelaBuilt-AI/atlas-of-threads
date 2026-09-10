@@ -116,5 +116,6 @@ optional in-app following and Personal Atlas device pairing with explicit local
 and account-side revocation. Synthetic browser/service checks pass; this does not
 claim GitHub-side deauthorization, physical two-PC exchange or installer acceptance.
 Connected excerpt Capsules now support durable receipt, exact-source decisions,
-withdrawal and blocks. Full returned-path graph delivery, witnessed expeditions,
-shared/native doors and the remaining combined milestone stay pending.
+withdrawal and blocks. Witnessed flights, launcher history, beacons and Capsule
+following now obey delivery audiences and preserve camera control. Full returned-path
+graph delivery, shared/native doors and the remaining combined milestone stay pending.

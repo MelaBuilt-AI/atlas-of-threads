@@ -1394,7 +1394,7 @@ class InhabitHandler(BaseHTTPRequestHandler):
                     if action == "browse":
                         result = capsule_delivery.browse(self.store, body.get("view", "inbox"), body.get("after", 0))
                     elif action == "destinations":
-                        result = capsule_delivery.destinations(self.store)
+                        result = capsule_delivery.destinations(self.store, body.get("recipient"))
                     elif action == "read":
                         result = capsule_delivery.read(self.store, body.get("id", ""))
                     elif action == "review":

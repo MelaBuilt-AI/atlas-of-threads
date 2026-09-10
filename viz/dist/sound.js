@@ -461,7 +461,24 @@
     playOneShot({ idle: "sparkIdle", open: "sparkOpen", close: "sparkClose", click: "sparkClick" }[kind], 0.4);
   }
 
+  // Live expedition cues are never queued for later playback after loading/reconnect.
+  function expedition(phase, attenuation, pan) {
+    if (!context || muted || document.hidden || packState !== "ready") return;
+    const key = phase === "charge" ? "capsuleConstruction" : "capsuleLaunch";
+    const buffer = buffers.get(key);
+    if (!buffer) return;
+    const source = context.createBufferSource(), gain = context.createGain();
+    const duration = phase === "charge" ? 1.6 : Math.min(5, buffer.duration);
+    source.buffer = buffer; source.loop = phase === "charge";
+    gain.gain.setValueAtTime(PACK[key].gain * Math.max(0, Math.min(1, attenuation)), context.currentTime);
+    gain.gain.setTargetAtTime(.0001, context.currentTime + duration - .2, .06);
+    source.connect(gain); connectPanned(gain, cueBus, pan);
+    source.start(); source.stop(context.currentTime + duration);
+    source.onended = () => gain.disconnect();
+  }
+
   window.TASound = {
+    expedition,
     spark,
     awaken,
     toggleMuted,

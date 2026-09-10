@@ -38,9 +38,12 @@
     renderer,
     weave,
     spotlight,
+    expeditions,
+    expeditionObserver,
     transition = null,
     returnState = null,
-    lastSound = 0;
+    lastSound = 0,
+    expeditionNoticeUntil = 0;
   try {
     const saved = JSON.parse(sessionStorage.getItem("atlas.world.camera.v1"));
     if (saved && ["x", "z", "span"].every((k) => Number.isFinite(saved[k])))
@@ -78,6 +81,7 @@
     $("download").download =
       `${item.inquiry_id.slice(0, 12)}.atlas-inquiry.json`;
     connectedPaths(item);
+    $("expedition-history").onclick=()=>showExpeditions(item.threadwalk_id,item.title);
     paintSubscription();
     if (spotlight) {
       const height = terrainHeight(item.x, item.z);
@@ -270,13 +274,14 @@
     try {
       await loadLibrary();
       $("updates-content").replaceChildren();
-      if (!libraryData.updates.length) el("p", "You’re caught up. Follow a Threadwalk to hear about new published editions here.", $("updates-content"));
+      if (!libraryData.updates.length) el("p", "You’re caught up. Follow a Threadwalk for editions and Capsule updates you can access.", $("updates-content"));
       for (const update of libraryData.updates) {
         const item = libraryData.publications.find(p => p.threadwalk_id === update.threadwalk_id);
         const row = el("article", "", $("updates-content"));
-        el("p", `New edition · ${item?.title || "Threadwalk"}`, row);
-        const open = el("button", "Read this edition", row);
-        open.onclick = () => read(update.publication_id, item?.title);
+        const caption={"capsule-invitation":"New invitation","capsule-offering":"New offering","capsule-return":"Returned contribution","capsule-accepted":"Accepted return"}[update.kind] || "New edition";
+        el("p", `${caption} · ${item?.title || "Threadwalk"}`, row);
+        const open = el("button", update.delivery_id ? "Read Capsule" : "Read this edition", row);
+        open.onclick = () => update.delivery_id ? window.AtlasCapsules.open(update.delivery_id) : read(update.publication_id, item?.title);
         const seen = el("button", "Mark seen", row);
         seen.onclick = async () => {
           try {
@@ -303,6 +308,25 @@
       $("editions-dialog").showModal();
     } catch (e) { reportError(e); }
   }
+  async function showExpeditions(id,title=items.get(id)?.title,before=0) {
+    const dialog=$("expedition-dialog"),content=$("expedition-content");
+    if(!dialog.open)dialog.showModal();content.replaceChildren();$("expedition-title").textContent=`Capsule port · ${title||"Threadwalk"}`;
+    if(!owner){el("p","Sign in to see open expeditions and your directed deliveries.",content);return;}
+    try {
+      const data=await api(`/api/expeditions/history?threadwalk=${id}&before=${before}`);
+      el("p","Open Capsules are visible to signed-in visitors. Directed deliveries and return decisions are shown only to their participants. History is not replayed as a live flight.",content);
+      if(!data.deliveries.length)el("p","No expeditions available to this account yet.",content);
+      for(const d of data.deliveries){const row=el("article","",content);
+        el("h3",d.title,row);el("p",`${d.intent} · ${d.source_threadwalk_id===id?"outbound":"incoming"} · ${d.withdrawn_at?"withdrawn":d.decision|| (d.received_at?"received":d.audience==="public"?"open":"sent")} · ${new Date(d.created_at*1000).toLocaleString()}`,row);
+        if(!d.withdrawn_at){const b=el("button","Review Capsule",row);b.onclick=()=>window.AtlasCapsules.open(d.id);}}
+      if(data.next){const b=el("button","Earlier expeditions",content);b.onclick=()=>showExpeditions(id,title,data.next);}
+    }catch(e){el("p",e.message,content);}
+  }
+  function suspendExpeditions(){expeditionObserver?.reset();expeditions?.clearFlights();}
+  function pollExpeditions(){
+    const nearby=[...items.values()].sort((a,b)=>Math.hypot(a.x-state.x,a.z-state.z)-Math.hypot(b.x-state.x,b.z-state.z)).slice(0,100).map(p=>p.threadwalk_id);
+    return expeditionObserver?.poll(nearby);
+  }
   function setupScene() {
     renderer = new THREE.WebGLRenderer({
       canvas: $("world"),
@@ -324,6 +348,13 @@
     rim.position.set(60, 25, -70);
     scene.add(rim);
     weave = AtlasWeave(scene, renderer, reduced);
+    expeditions = AtlasExpeditions(scene,items,terrainHeight,()=>matchMedia("(prefers-reduced-motion: reduce)").matches,id=>showExpeditions(id));
+    expeditionObserver = AtlasExpeditionObserver(
+      (ports,after)=>api(`/api/expeditions?ports=${ports.join(",")}${after===null?"":"&after="+after}`),
+      data=>{expeditions.sync(data.ports);if(!data.viewer||data.viewer_changed)expeditions.clearFlights();if(!data.viewer||Date.now()>expeditionNoticeUntil)$("expedition-status").textContent=data.unavailable?"Expedition connection paused":data.viewer?"Capsule ports · gold beacons hold invitations and arrivals":"Sign in to witness Capsule expeditions";},
+      event=>{expeditionNoticeUntil=Date.now()+10000;expeditions.witness(event,state);$("expedition-status").textContent=event.kind==="accepted"?"A returned contribution was accepted":`${event.intent==="return"?"Return":"Capsule"} departing · ${event.source?.title||"private source"}`;},
+      ()=>!document.hidden&&$("visit").hidden);
+    document.addEventListener("visibilitychange",()=>{suspendExpeditions();if(!document.hidden)pollExpeditions();});
     spotlight = new THREE.SpotLight(0xc9eaff, 180, 65, Math.PI / 9, .75, 1);
     spotlight.visible = false;
     scene.add(spotlight, spotlight.target);
@@ -387,9 +418,10 @@
         );
         ray.setFromCamera(cursor, camera);
         const hit = ray.intersectObjects(
-          [...items.values()].map((x) => x.pick).filter(Boolean),
+          [...items.values()].map((x) => x.pick).filter(Boolean).concat(expeditions?.picks||[]),
         )[0];
-        if (hit?.object.userData.item) choose(hit.object.userData.item);
+        if(hit?.object.userData.expeditionPort)showExpeditions(hit.object.userData.expeditionPort);
+        else if (hit?.object.userData.item) choose(hit.object.userData.item);
       }
       drag = null;
       save();
@@ -491,6 +523,7 @@
         item.label.style.top = `${((-p.y + 1) * innerHeight) / 2}px`;
         item.label.classList.toggle("selected", item === selected);
       }
+      expeditions?.update(time,state);
       weave.update(time, state.span);
       renderer.render(scene, camera);
     }
@@ -504,6 +537,7 @@
       const id = selected.id;
       sound("traverse");
       moveTo({ x: selected.x, z: selected.z, span: 18 }, () => {
+        suspendExpeditions();
         $("visit").hidden = false;
         $("labels").hidden = true;
         $("threadwalk").src = "/player/?publication=" + id;
@@ -515,6 +549,7 @@
   }
   function leave() {
     $("visit").hidden = true;
+    suspendExpeditions(); pollExpeditions();
     $("threadwalk").src = "about:blank";
     $("labels").hidden = false;
     sound("traverse", "back");
@@ -743,7 +778,8 @@
       "The 3D view is unavailable. Open Inquiries to read and download every Threadwalk.";
     $("library").hidden = false;
   }
-  loadWorld().catch(reportError);
+  loadWorld().then(pollExpeditions).catch(reportError);
+  setInterval(pollExpeditions,2500);
   setInterval(() => {
     if (!document.hidden && $("visit").hidden && !transition)
       Promise.all([loadWorld(), loadLibrary()]).catch(reportError);

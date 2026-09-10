@@ -43,3 +43,7 @@ Keep receipt, explicit source-owner decisions and graph import distinct. Add
 numbered migrations rather than rewriting deployed tables; transport must preserve
 canonical JSON strings and retry the original delivery identity. Never seed real
 Capsules or invoke a real collaborator for a transport test.
+
+Expedition events must commit with delivery/acceptance and inherit delivery visibility.
+Preserve edition update sequences in migrations. Test observer watermarks and hidden/
+offline gaps without replaying historical deliveries or taking control of the camera.

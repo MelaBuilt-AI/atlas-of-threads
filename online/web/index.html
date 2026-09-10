@@ -53,6 +53,7 @@
         <small id="follow-hint"></small>
         <button id="editions">Published editions</button>
       </div>
+      <button id="expedition-history">Capsule port &amp; expedition history</button>
       <div id="connected-paths" class="actions" aria-label="Connected map paths"></div>
       <small
         >Downloaded inquiries open through Portable inquiries in your Personal
@@ -128,6 +129,8 @@
       <button id="revoke-all" disabled>Disconnect all sessions and devices</button>
       <button id="logout">Disconnect this browser</button>
     </dialog>
+    <p id="expedition-status" role="status"></p>
+    <dialog id="expedition-dialog"><header><h2 id="expedition-title">Capsule expeditions</h2><button data-close aria-label="Close expeditions">×</button></header><div id="expedition-content"></div></dialog>
     <dialog id="updates-dialog"><header><h2>Followed updates</h2><button data-close aria-label="Close updates">×</button></header><div id="updates-content"></div></dialog>
     <dialog id="editions-dialog"><header><h2>Published editions</h2><button data-close aria-label="Close editions">×</button></header><div id="editions-content"></div></dialog>
     <div id="visit" hidden>
@@ -145,6 +148,7 @@
     <script src="./music.js"></script>
     <script src="/roads.js"></script>
     <script src="/weave.js"></script>
+    <script src="/expeditions.js"></script>
     <script src="/world.js"></script>
     <script src="/capsules.js"></script>
   </body>

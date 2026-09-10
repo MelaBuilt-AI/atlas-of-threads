@@ -1,3 +1,4 @@
+import {expeditions,expeditionVisible,expeditionBindings} from './expeditions.js';
 import { capsuleGet, capsulePost } from "./capsules.js";
 import { inspect, sha, fail, MAX_BYTES, position } from "./publication.js";
 const now = () => Math.floor(Date.now() / 1000);
@@ -227,6 +228,8 @@ export default {
         return await auth(r, env, u);
       if (!path.startsWith("/api/")) return env.ASSETS.fetch(r);
       if (r.method === "GET") {
+        if(path==="/api/expeditions"||path==="/api/expeditions/history")
+          return json(await expeditions(env,u,await identity(r,env,false)));
         if (path.startsWith("/api/capsules") || path === "/api/blocks")
           return json(await capsuleGet(env, u, await identity(r, env)));
         if (path === "/api/health")
@@ -274,9 +277,12 @@ export default {
           const { results } = await env.DB.prepare(rows + ` JOIN subscriptions s ON s.threadwalk_id=p.threadwalk_id
             WHERE s.owner_id=? AND ${latestOnly} AND (s.starred=1 OR s.following=1) ORDER BY world_seq`).bind(who.id).all();
           const { results: subscriptions } = await env.DB.prepare("SELECT threadwalk_id,starred,following,seen_seq FROM subscriptions WHERE owner_id=?").bind(who.id).all();
-          const { results: updates } = await env.DB.prepare(`SELECT u.* FROM updates u JOIN subscriptions s ON s.threadwalk_id=u.threadwalk_id
-            JOIN publications p ON p.id=u.publication_id WHERE s.owner_id=? AND s.following=1 AND u.seq>s.seen_seq
-            AND p.withdrawn_at IS NULL ORDER BY u.seq DESC LIMIT 100`).bind(who.id).all();
+          const { results: updates } = await env.DB.prepare(`SELECT u.*,e.delivery_id FROM updates u JOIN subscriptions s ON s.threadwalk_id=u.threadwalk_id
+            JOIN publications p ON p.id=u.publication_id
+            LEFT JOIN expedition_events e ON e.seq=u.capsule_event_id LEFT JOIN capsule_deliveries d ON d.id=e.delivery_id
+            WHERE s.owner_id=? AND s.following=1 AND u.seq>s.seen_seq
+            AND p.withdrawn_at IS NULL AND (u.capsule_event_id IS NULL OR (d.withdrawn_at IS NULL AND ${expeditionVisible}))
+            ORDER BY u.seq DESC LIMIT 100`).bind(who.id,...expeditionBindings(who)).all();
           return json({ publications: results.map(publicRow), subscriptions, updates });
         }
         const editions = path.match(/^\/api\/threadwalks\/([a-f0-9]{64})$/);
@@ -466,7 +472,7 @@ export default {
             who.id,
             Number(env.MAX_PUBLICATIONS_PER_OWNER) || 20,
             who.id, c.origin_id, c.session.id, previous?.id || null,
-          ), env.DB.prepare("INSERT INTO updates(threadwalk_id,publication_id,kind,created_at) SELECT threadwalk_id,id,'edition',created_at FROM publications WHERE id=? ON CONFLICT(publication_id) DO NOTHING").bind(id)]);
+          ), env.DB.prepare("INSERT INTO updates(threadwalk_id,publication_id,kind,created_at) SELECT threadwalk_id,id,'edition',created_at FROM publications WHERE id=? ON CONFLICT DO NOTHING").bind(id)]);
         const saved = await env.DB.prepare(
           "SELECT object_key,withdrawn_at FROM publications WHERE id=?",
         )

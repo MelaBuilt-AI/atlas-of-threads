@@ -193,23 +193,28 @@
       const recipient=field('Recipient GitHub login (must have joined this Atlas)','input',content,'',120);
       const source=field('Optional published home Threadwalk','select',content);el('option','No public launch location',source).value='';
       for(const p of dests.publications)if(p.origin_id===capsule.content.origin_id&&p.session_id===capsule.content.home_session_id)el('option',p.title,source).value=p.id;
+      const target=field('Optional recipient Threadwalk port','select',content);el('option','Account inbox only',target).value='';
+      const findPorts=button('Find recipient ports',content,()=>run(async()=>{target.replaceChildren();el('option','Account inbox only',target).value='';const found=await online('destinations',{recipient:recipient.value});for(const p of found.publications)el('option',p.title,target).value=p.id;}));
+      el('p','A published home port lets current observers witness the launch. Open expeditions are visible to signed-in visitors; directed flights and returns stay between their participants. An account-only destination has no map arrival port.',content);
       const reply=capsule.content.reply_to;
+      if(reply){target.closest('label').hidden=true;target.disabled=true;findPorts.hidden=true;}
       let parent=null, original=null;
       if(reply?.kind==='capsule') {
         original=saved.deliveries.find(d=>!d.sent&&d.capsule_id===reply.id);
         if(original){parent={value:original.id};recipient.value=original.sender.login;el('p',`Returning to ${original.title} from ${original.sender.login}.`,content);}
         else parent=field('Original online Capsule delivery ID','input',content,'',64);
       } else if(reply?.kind==='inquiry')parent=field('Exact source publication ID (from its online link)','input',content,'',64);
-      audience.onchange=()=>{recipient.disabled=audience.value==='public';};
+      audience.onchange=()=>{recipient.disabled=audience.value==='public';target.disabled=!!reply||audience.value==='public';if(target.disabled)target.value='';};
       el('p','Open delivery publishes these excerpts at the chosen home Threadwalk. Directed delivery shares them with one account. Recipients can keep copies. Each frozen Capsule has one online launch.',content);
       button('Review destination with the online Atlas',content,()=>run(async()=>{
-        const destination={audience:audience.value,recipient_login:recipient.value,source_publication_id:source.value||null,
+        const destination={audience:audience.value,recipient_login:audience.value==='directed'?recipient.value:null,source_publication_id:source.value||null,target_publication_id:target.value||null,
           reply_delivery_id:reply?.kind==='capsule'?parent.value:null,reply_publication_id:reply?.kind==='inquiry'?parent.value:null};
         const result=await online('review',{id:capsule.id,destination});
         reset();render(capsule);const r=result.review;
         el('h3','Review online delivery',content);
         el('p',`Sender: ${r.sender.login}. Audience: ${r.recipient?`${r.recipient.login} · account ${r.recipient.id}${r.recipient.verified?' · GitHub verified':' · synthetic'}`:'All signed-in Atlas visitors'}.`,content);
-        el('p',r.source?`Launch location: ${r.source.title}`:'No public launch location.',content);
+        el('p',r.source?`Launch location: ${r.source.title}`:'No map launch location.',content);
+        if(r.target)el('p',`Arrival port: ${r.target.title}`,content);
         if(r.reply_source){el('h4','Exact return destination',content);if(r.reply_source.capsule_json)render(JSON.parse(r.reply_source.capsule_json));else exact(r.reply_source,content);}
         exact(r.destination,content);
         consent('Send this exact Capsule to the reviewed audience.','Send reviewed Capsule',async()=>{

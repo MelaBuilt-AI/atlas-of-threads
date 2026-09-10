@@ -1,7 +1,7 @@
 # Knowledge Capsules
 
 Status: offline preparation and connected delivery/receipt/return decisions are
-implemented in the development branch; witnessed expeditions remain planned.
+implemented in the development branch, including witnessed expeditions and history.
 Local slice authorized: 2026-09-01
 Shared local/online direction accepted: 2026-09-10
 
@@ -12,7 +12,7 @@ serves as a Threadwalk's outbound port and a visible history of its expeditions.
 Each Capsule has one reviewed payload and one launch; an online port can serve
 successive Capsules. Invitations and returns are the first end-to-end priority.
 Offline preparation and connected delivery/acceptance are implemented below.
-Witnessed launch behavior remains an accepted plan.
+Witnessed launch behavior is implemented as described below.
 
 ### Intent, contents and destination
 
@@ -66,8 +66,8 @@ it becomes an accepted connection. Return flights can be witnessed too. Those
 meaningful contribution connections remain distinct from geographic map roads.
 Launcher history exposes sent, open, returned and accepted expeditions.
 
-Live witnessing remains planned work within the combined online milestone. Private cluster destinations
-follow the separately deferred group/organization access design.
+Live witnessing is implemented within the combined online milestone. Private cluster
+destinations follow the separately deferred group/organization access design.
 
 ## Implemented offline preparation and exchange — September 10
 
@@ -165,8 +165,7 @@ without that source can still review the return in the online browser.
 Acceptance does not publish private returned excerpts, import graphs, invoke an
 agent, or yet create a world/native doorway. Existing private continuation and
 selected return preparation reuse the offline work loop. Shared accepted links,
-native doors, beacons, live flights, expedition rendering and followed Capsule
-updates remain the next increment. A delivery sequence/time is a committed record,
+native doors and full returned-path graph transport remain unfinished. A delivery sequence/time is a committed record,
 not a claim that anybody witnessed an animation.
 
 Senders can withdraw service access; downloaded copies and private local receipts
@@ -187,8 +186,42 @@ Verification: 24 online runtime/road tests and 433 Python tests pass. Chrome's r
 local Worker → two isolated Personal Atlases loop passed review/send, inert receipt,
 contextual return preparation/send, exact-source receipt and acceptance. The browser
 return was a synthetic human-authored message; no real collaborator was called.
-Physical two-PC exchange, GitHub App deauthorization, witnessing, load/audio and
+Physical two-PC exchange, GitHub App deauthorization, listening/load and
 installer/release acceptance remain open.
+
+## Witnessed expeditions — September 10
+
+Migration `0004` records each committed delivery and explicit accepted return once,
+in the same transaction as its underlying action. Historical deliveries are not
+backfilled as new launches. The same events appear under followed Threadwalks,
+with the delivery's existing audience and block checks applied on every read.
+Directed events and decisions are visible only to sender and recipient; open
+invitations/offerings are visible to signed-in visitors. Anonymous visitors see no
+Capsule event metadata. Acceptance remains private disclosure-wise.
+
+Personal Atlas can choose an optional published destination owned by a directed
+recipient. Returns recover the original source port. A published home supplies the
+launch location; unpublished sources never invent one. Ports expose readable,
+paginated expedition history, pending/open beacons and accepted-return markers.
+Clicking a launcher or its history control opens review without moving the camera.
+
+Current observers can witness charge, crown-first curved flight and fading trails
+using the existing supplied Capsule/launcher models. Returns travel toward their
+actual source; open invitations ascend without inventing a recipient. Initial
+connection, reload, hidden tabs, failed requests and gaps over eight seconds reset
+the live watermark, leaving durable history without replaying it as present motion.
+Flights are bounded to eight and ten seconds each. Reduced motion suppresses
+flights; muted/hidden audio stays silent, with distance/zoom attenuation and stereo
+placement through the existing sound controls. Offscreen arrivals remain history.
+
+Verification: **29 online tests and 433 Python tests pass**. Real local D1 tests
+cover audience/block filtering, directed target ownership, atomic/idempotent launch
+and acceptance events, following and migration preservation. Observer/THREE tests
+cover reconnection, stale responses, camera preservation, curved flight orientation,
+reduced motion and resource cleanup. Chrome showed synthetic launch and return
+flights between two actual ports, launcher history, source review and acceptance.
+Listening, full hosted two-account exchange and physical two-PC acceptance remain
+open; no real user Capsule or collaborator was used.
 
 ## Existing local implementation
 

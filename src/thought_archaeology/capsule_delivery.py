@@ -40,8 +40,9 @@ def browse(store, view='inbox', after=0):
     return _call(store, '/api/capsules?' + urlencode({'view': view, 'after': after}))
 
 
-def destinations(store):
-    return _call(store, '/api/capsules/destinations')
+def destinations(store, recipient=None):
+    query = '?' + urlencode({'recipient': recipient}) if recipient else ''
+    return _call(store, '/api/capsules/destinations' + query)
 
 
 def review(store, capsule_id, destination):

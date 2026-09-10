@@ -70,7 +70,7 @@ test("road bundles form toward the new locale, retain existing meshes, and dispo
 });
 
 test("open-world refresh discovers arrivals, removes withdrawals and preserves loaded pagination", async () => {
-  const elements = new Map(), intervals = [];
+  const elements = new Map(), intervals = new Map();
   const element = () => ({
     children: [], hidden: false, textContent: "",
     addEventListener() {}, setAttribute() {},
@@ -89,7 +89,7 @@ test("open-world refresh discovers arrivals, removes withdrawals and preserves l
   let published = [entry(1), entry(2), entry(3)];
   const requests = [];
   const ui = vm.createContext({
-    console, performance, setInterval: fn => intervals.push(fn),
+    console, performance, setInterval: (fn,ms) => intervals.set(ms,fn),
     matchMedia: () => ({ matches: true }),
     sessionStorage: { getItem: () => null }, addEventListener() {},
     document: { hidden: false, getElementById: $, createElement: element, querySelectorAll: () => [] },
@@ -110,10 +110,10 @@ test("open-world refresh discovers arrivals, removes withdrawals and preserves l
   $("more").onclick(); await settle();
   assert.deepEqual(titles(), ["Synthetic 1", "Synthetic 2", "Synthetic 3"]);
   published = [entry(1), entry(3), entry(4)];
-  intervals[0](); await settle();
+  intervals.get(30000)(); await settle();
   assert.deepEqual(titles(), ["Synthetic 1", "Synthetic 3", "Synthetic 4"]);
   const count = requests.length;
   ui.document.hidden = true;
-  intervals[0](); await settle();
+  intervals.get(30000)(); await settle();
   assert.equal(requests.length, count);
 });

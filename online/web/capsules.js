@@ -48,6 +48,7 @@
   if(data.next)button('Next page',content,()=>list(view,data.next));
   const blocked=await api('/api/blocks');if(blocked.blocks.length){el('h3','Blocked accounts',content);for(const b of blocked.blocks)button(`Unblock ${b.login}`,content,async()=>{await api('/api/blocks',{owner_id:b.id,blocked:false});await list(view);});}
  }
+ window.AtlasCapsules={open:id=>{if(!dialog.open)dialog.showModal();return run(()=>read(id));}};
  const trigger=document.getElementById('capsules-toggle');trigger.onclick=()=>{dialog.showModal();run(()=>list());};
  dialog.addEventListener('keydown',e=>e.stopPropagation());
 })();
