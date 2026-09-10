@@ -48,11 +48,11 @@ new effects replace the earlier procedural sounds. Runtime OGG files are
 included unchanged from the supplied masters. Archival originals, WAV/MP3
 copies, production requests and receipts remain outside the source repository.
 
-## Online Atlas deep field
+## Online Atlas visual references
 
-`online/web/assets/atlas-deep-field.png` is the project owner's generated Atlas
-artwork, supplied as the fourth visual reference on 2026-09-10 and included
-unchanged. It provides a distant artistic backdrop, not live users, publications,
-or relationship data. The foreground filaments and orbital halos are rendered
-in Three.js around actual published inquiries, using the original Atlas models
-and terrain texture credited above.
+The project's generated Atlas artwork, supplied by the owner on 2026-09-10,
+informs the animated neural field's palette, branching filaments and glow.
+The reference image used in the first preview was removed at the owner's request;
+no static background artwork is included in the online world. The neural field,
+traveling lights and orbital halos are rendered in Three.js. Original Atlas
+models and terrain textures retain their credits above.

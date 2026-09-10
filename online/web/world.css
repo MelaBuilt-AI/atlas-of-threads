@@ -413,14 +413,8 @@ dialog select {
   }
 }
 
-/* Supplied artwork in the distance, navigable locales in the foreground. */
+/* Deep space; the entire neural field is rendered and animated in WebGL. */
 :root { background: #02040d; --line: #719cdf38; --muted: #b6c9e1; --gold: #ffdc9b; }
-#deep-field {
-  position: fixed; inset: 0;
-  background: linear-gradient(90deg, #02040d45, #02040d15),
-    url('/assets/atlas-deep-field.png') 58% center / cover no-repeat;
-  opacity: .58; pointer-events: none;
-}
 .world-header { padding: 1.7rem 2rem; background: linear-gradient(#02040ddb, #02040d00); }
 h1 { font-size: 2.5rem; letter-spacing: -.025em; text-shadow: 0 0 28px #76bbff50; }
 .eyebrow { color: #91caff; letter-spacing: .25em; }
@@ -440,5 +434,4 @@ aside, #library, dialog { background: #060e20ef; border-color: #83b3ee3b; box-sh
   .world-header h1 { font-size: 1.8rem; }
   .world-header nav { gap: .35rem; }
   #world-status { top: 8rem; left: 1rem; }
-  #deep-field { background-position: 66% center; opacity: .45; }
 }

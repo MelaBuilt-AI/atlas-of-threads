@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir, cp, readdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, cp, readdir, rm } from "node:fs/promises";
 import { build } from "esbuild";
 import Ajv from "ajv/dist/2020.js";
 import standalone from "ajv/dist/standalone/index.js";
@@ -26,6 +26,8 @@ await build({
   outfile: "dist/worker.js",
   target: "es2022",
 });
+// Rebuild only generated public output, so removed artwork cannot remain deployed.
+await rm("dist/public", { recursive: true, force: true });
 await mkdir("dist/public/player", { recursive: true });
 await cp("../viz/dist", "dist/public/player", { recursive: true });
 await cp("web", "dist/public", { recursive: true });

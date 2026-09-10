@@ -33,17 +33,19 @@ contributions. Accepted contribution links remain a later world increment.
 
 The owner's five Atlas references define the world: deep indigo space, interwoven
 cyan/electric-blue/violet threads, occasional warm gold, orbital islands and
-luminous knots. The fourth supplied image is included unchanged as the distant
-artistic field. The navigable foreground uses 96 additive shader ribbons with
-soft halos and moving highlights, a bounded star/dust field, and layered orbital
-rings around the original relics on neural-basalt islands. Distant locales become
-beacons; nearby locales reveal the textured island, orbits and original model.
-Reduced-motion preferences freeze ambient pulses and orbit animation.
+luminous knots. Following user feedback, the static background image is removed.
+The background is now an animated neural lattice with 484 junctions and curved
+connections. Foreground currents use branching dendrites, braided strands,
+traveling luminous knots and bright pulse trails. A shared displacement field
+makes joined branches undulate together. Scenery ribbons are batched into five
+meshes; a bounded particle field carries the stars and traveling lights.
 
-Artwork and atmospheric currents do not represent users, live presence, accepted
-links or additional publications. Actual publication placements and selection
-remain server-backed. This is a visual implementation of the reference direction;
-visual fidelity and device performance still require user/browser acceptance.
+Nearby locales reveal the original textured islands, orbits and relic models;
+distant locales become beacons. Reduced-motion preferences freeze ambient
+geometry motion, pulses and orbital animation. Atmospheric connections are
+scenery, not inferred relationships, live presence or accepted contribution links.
+Actual publication placements and selection remain server-backed. Visual feel
+and device performance still require user/browser acceptance.
 
 ## Prepare and publish
 
