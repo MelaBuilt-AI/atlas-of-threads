@@ -33,7 +33,7 @@
   consent('Keep this Capsule in my account inbox.','Acknowledge receipt',async()=>{await api('/api/capsules/'+id+'/receive',{reviewed:true});await read(id);});
   if(d.received_at) {
    button('Download exact Capsule JSON',content,()=>{const url=URL.createObjectURL(new Blob([d.capsule_json],{type:'application/json'})),a=el('a','',content);a.href=url;a.download=d.capsule_id.slice(0,12)+'.atlas-capsule.json';a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);});
-   if(d.intent==='return'&&!d.decision){el('p','Acceptance records a private contribution relationship to this exact source. World doorways and shared contribution links are still being built.',content);
+   if(d.intent==='return'&&!d.decision){el('p','Acceptance records a private contribution relationship to this exact source. Use Returned paths in Personal Atlas to offer a full Threadwalk doorway with separate public consent.',content);
     for(const decision of ['accepted','declined'])consent(`I reviewed this return and its original source: ${decision}.`,decision==='accepted'?'Accept contribution':'Decline contribution',async()=>{await api('/api/capsules/'+id+'/decide',{reviewed:true,decision,source:d.source,capsule_id:d.capsule_id});await read(id);});}
   }
   el('p','Original online delivery ID (for a contextual return):',content);el('pre',id,content);

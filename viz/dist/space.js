@@ -4411,7 +4411,7 @@
       autoFocus,
       audioRole,
       arrivalKey: arrivalKey(arrival),
-      walk: () => inhabit(arrival.graphId, arrival.nodeId, arrival.returnOrigin ? "return" : "walk"),
+      walk: () => arrival.href ? window.TADoorways.follow(arrival) : inhabit(arrival.graphId, arrival.nodeId, arrival.returnOrigin ? "return" : "walk"),
     });
     if (rise) markRise(ring, 0.24 + i * 0.08);
     return { autoFocus, choiceIndex: choices.length - 1 };
@@ -4455,7 +4455,7 @@
     const traversal = (payload.read && payload.read.traversal) || {};
     const atOrigin = payload.origin && payload.origin.id === payload.node.id;
     const atThreshold = Boolean(traversal.terminal || atOrigin);
-    const arrivals = atThreshold ? visibleArrivals(payload) : [];
+    const arrivals = [...(atThreshold ? visibleArrivals(payload) : []), ...(window.TADoorways?.arrivals(payload) || [])];
     const storyNodes = forward.map((node) => ({
       node,
       ghost: false,
@@ -5814,7 +5814,7 @@
         return;
       }
       const explicitDeepLink = Boolean(
-        fromHash && (!lastStand || fromHash.graphId !== lastStand.graphId ||
+        fromHash && (/^[a-f0-9]{64}$/.test(new URLSearchParams(location.search).get("doorway") || "") || !lastStand || fromHash.graphId !== lastStand.graphId ||
           fromHash.nodeId !== lastStand.nodeId)
       );
       if (explicitDeepLink) {

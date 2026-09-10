@@ -1,3 +1,4 @@
+import {doorwayGet,doorwayPost} from './doorways.js';
 import {expeditions,expeditionVisible,expeditionBindings} from './expeditions.js';
 import { capsuleGet, capsulePost } from "./capsules.js";
 import { inspect, sha, fail, MAX_BYTES, position } from "./publication.js";
@@ -228,6 +229,7 @@ export default {
         return await auth(r, env, u);
       if (!path.startsWith("/api/")) return env.ASSETS.fetch(r);
       if (r.method === "GET") {
+        if(path.startsWith("/api/doorways")) return json(await doorwayGet(env,u,await identity(r,env,false)));
         if(path==="/api/expeditions"||path==="/api/expeditions/history")
           return json(await expeditions(env,u,await identity(r,env,false)));
         if (path.startsWith("/api/capsules") || path === "/api/blocks")
@@ -368,6 +370,7 @@ export default {
       const data = await body(r);
       if (path.startsWith("/api/capsules") || path === "/api/blocks")
         return json(await capsulePost(env, path, who, data));
+      if(path.startsWith("/api/doorways")) return json(await doorwayPost(env,path,who,data));
       if (path === "/api/account/revoke") {
         if (who.instance_id) fail("Disconnect all devices from your signed-in browser", 403);
         await env.DB.batch([

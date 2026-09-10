@@ -102,3 +102,14 @@ Expedition streams, port history and followed Capsule updates inherit each deliv
 audience and account blocks. Anonymous reads expose no Capsule event metadata;
 directed launch/return/acceptance events stay between sender and recipient. A map
 flight is a rendering of a committed event, never consent to publish a connection.
+
+
+Shared doorway proposals require a contributor-owned, already public returned
+snapshot. Full graph publication and offering the connection are separate reviewed
+actions. Only the exact source owner can consent to publish the link. Pending
+proposals stay between participants; public projection omits the separate offer
+question field. Prose already published inside either inquiry remains public. Canonical full-return downloads validate against the existing Python
+portable/return-path contracts before local import. Blocks, participant withdrawal
+and exact-publication withdrawal hide service links; prior copies remain available.
+Native receipt/acceptance never invokes an agent, and private Capsule decisions
+never supply public doorway consent. See `docs/RETURNED_PATHS.md`.

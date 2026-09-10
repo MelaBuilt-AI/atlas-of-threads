@@ -35,7 +35,7 @@ def _request(path: str, data: dict | None = None, token: str | None = None) -> d
             raise StoreError('Pairing code expired or already used. Create a new code in your signed-in Atlas.') from None
         if error.code == 429 and path in {'/api/pairings/exchange', '/api/instances'}:
             raise StoreError('Device limit reached. Disconnect an unused device in your Atlas account.') from None
-        if path.startswith('/api/capsules') or path == '/api/blocks':
+        if path.startswith(('/api/capsules', '/api/doorways', '/api/publications')) or path == '/api/blocks':
             try:
                 message = json.loads(error.read(4096)).get('error')
             except (ValueError, OSError):

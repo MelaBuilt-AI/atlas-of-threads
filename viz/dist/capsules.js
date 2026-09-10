@@ -241,7 +241,7 @@
       if(detail.received_at) {
         button('Open private Capsule / continue / prepare return',content,()=>run(()=>savedView('received',capsule.id)));
         if(capsule.content.intent==='return'&&!detail.decision) {
-          el('p','Acceptance records a private contribution relationship to this exact source. It does not publish the returned excerpts or create a world doorway yet.',content);
+          el('p','Acceptance records a private contribution relationship to this exact source. It does not publish the returned excerpts or create a world doorway. Use Returned paths to offer a full Threadwalk doorway with separate public consent.',content);
           for(const decision of ['accepted','declined'])consent(`I reviewed this return and its original source: ${decision}.`,decision==='accepted'?'Accept contribution':'Decline contribution',async()=>{
             await online('decide',{id,decision,source:detail.source,capsule_id:capsule.id,reviewed:true});await onlineRead(id);
           });

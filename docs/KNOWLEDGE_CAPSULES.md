@@ -163,9 +163,10 @@ original Capsule or source graph in this Personal Atlas. Another paired computer
 without that source can still review the return in the online browser.
 
 Acceptance does not publish private returned excerpts, import graphs, invoke an
-agent, or yet create a world/native doorway. Existing private continuation and
-selected return preparation reuse the offline work loop. Shared accepted links,
-native doors and full returned-path graph transport remain unfinished. A delivery sequence/time is a committed record,
+agent, or create a world/native doorway. Existing private continuation and
+selected return preparation reuse the offline work loop. The separate full
+[returned-path flow](RETURNED_PATHS.md) now provides reviewed shared/native doors
+for published inquiries. A delivery sequence/time is a committed record,
 not a claim that anybody witnessed an animation.
 
 Senders can withdraw service access; downloaded copies and private local receipts

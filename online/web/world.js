@@ -40,6 +40,7 @@
     spotlight,
     expeditions,
     expeditionObserver,
+    contributionLines,
     transition = null,
     returnState = null,
     lastSound = 0,
@@ -218,6 +219,7 @@
       renderLibrary();
       if (weave) weave.syncRoads(AtlasRoadMap(items.values()));
       if (selected) connectedPaths(selected);
+      await loadDoorways();
       $("more").hidden = !next;
       $("world-status").textContent = items.size
         ? `${items.size} published ${items.size === 1 ? "inquiry" : "inquiries"} · choose a light to explore`
@@ -529,6 +531,22 @@
     }
     requestAnimationFrame(frame);
   }
+  async function loadDoorways() {
+    if(!scene||!window.AtlasContributionLines)return;
+    const links=[];let after=0;
+    do {const page=await api('/api/doorways/public?after='+after);links.push(...page.doorways);after=page.next;}while(after);
+    contributionLines ||= AtlasContributionLines(scene,items,terrainHeight);
+    contributionLines.sync(links);
+  }
+  window.AtlasDoorwayWorld={enter:async(endpoint,arrival)=>{
+    try {
+      await api('/api/publications/'+endpoint.publication_id);
+      if($('visit').hidden)returnState={...state};
+      suspendExpeditions();$('visit').hidden=false;$('labels').hidden=true;
+      $('threadwalk').src='/player/?publication='+endpoint.publication_id+(arrival?'&arrival='+arrival:'')+'#/g/'+endpoint.graph_id+'/n/'+endpoint.node_id;
+      $('threadwalk').focus();
+    }catch(e){reportError(e);}
+  }};
   async function enter() {
     if (!selected) return;
     try {

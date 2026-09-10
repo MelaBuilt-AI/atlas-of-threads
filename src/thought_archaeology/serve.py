@@ -1195,6 +1195,8 @@ class InhabitHandler(BaseHTTPRequestHandler):
                 session = (qs.get("session") or [None])[0]
                 graph_id = (qs.get("graph") or [None])[0]
                 payload = inhabit_payload(self.store, nid, graph_id=graph_id, session=session)
+                from thought_archaeology import doorways
+                payload["external_doors"] = doorways.native(self.store, payload["graph_id"], nid)
                 self._json(200, payload)
                 return
             self._static(path)
@@ -1267,6 +1269,8 @@ class InhabitHandler(BaseHTTPRequestHandler):
             if not is_ulid(node_id):
                 raise StoreError("Invalid shared thought identity")
             payload = inhabit_payload(imported, node_id, graph_id=graph_id)
+            from thought_archaeology import doorways
+            payload["external_doors"] = doorways.native(self.store, payload["graph_id"], node_id, inquiry_id)
             payload.update(parallel_available=False, field_note_eligibility=None, knowledge_capsule_eligibility=None,
                            stored_knowledge_capsule_launcher=None, shared_inquiry=info,
                            shared_arrivals=portable.arrivals(bundle, payload["graph_id"]))
@@ -1317,9 +1321,23 @@ class InhabitHandler(BaseHTTPRequestHandler):
                 self._json(200, discussion_payload(local))
 
     def _return_path_post(self, path: str) -> None:
-        body = self._read_json(max_bytes=portable.MAX_BYTES)
+        body = self._read_json(max_bytes=portable.MAX_BYTES * 3)
         action = path.removeprefix("/api/return-paths/")
-        if action == "preview":
+        if action.startswith("online/"):
+            from thought_archaeology import doorways
+            name = action.removeprefix("online/")
+            if name == "list": result = doorways.browse(self.store, body.get('after', 0))
+            elif name == "prepare": result = doorways.prepare(self.store, body.get('offer'))
+            elif name == "publish": result = doorways.publish(self.store, body.get('offer'), body.get('artifact'))
+            elif name == "review": result = doorways.review(self.store, body.get('offer'), body.get('source_id'), body.get('target_id'))
+            elif name == "send": result = doorways.send(self.store, body.get('review'))
+            elif name == "read": result = doorways.read(self.store, body.get('id'))
+            elif name == "receive": result = doorways.receive(self.store, body.get('id'))
+            elif name == "decide": result = doorways.decide(self.store, body.get('id'), body.get('review'), body.get('decision'), body.get('public_consent', False))
+            elif name == "withdraw": result = doorways.withdraw(self.store, body.get('id'))
+            else: raise StoreError("Unknown online doorway action")
+            self._json(200, result)
+        elif action == "preview":
             reviewed = return_paths.preview(self.store, body.get('inquiry_id', ''), body.get('graph_id', ''),
                                             body.get('node_id', ''), body.get('question', ''))
             self._json(200, {"reviewed": reviewed, "collaborator": HarnessRegistry().get().name})

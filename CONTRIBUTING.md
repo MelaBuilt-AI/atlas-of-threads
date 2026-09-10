@@ -47,3 +47,10 @@ Capsules or invoke a real collaborator for a transport test.
 Expedition events must commit with delivery/acceptance and inherit delivery visibility.
 Preserve edition update sequences in migrations. Test observer watermarks and hidden/
 offline gaps without replaying historical deliveries or taking control of the camera.
+
+
+Returned doorways reuse full portable snapshots and exact source references.
+Keep contributor publication, connection offering, public acceptance, local import
+and browser visit state separate. Do not derive links from graph resemblance or
+publish a private Capsule decision as a shared relationship. Exercise the shared
+and native entry-return paths without mutating source graphs or calling real agents.

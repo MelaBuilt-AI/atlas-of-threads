@@ -91,7 +91,26 @@
           player.inhabit[
             (graphId || c.session.head_graph_id) + ":" + path.slice(8)
           ];
-        return view ? reply(view) : reply({ error: "Chamber not found" }, 404);
+        if(!view)return reply({ error: "Chamber not found" }, 404);
+        const external_doors=[];
+        // Read current accepted links separately from the immutable Python chamber projection.
+        let cursor=0;
+        do {
+          const response=await nativeFetch('/api/doorways/public?publication='+id+'&after='+cursor);
+          if(!response.ok)throw Error('Shared doorways temporarily unavailable');
+          const page=await response.json();cursor=page.next;
+          for(const d of page.doorways){
+            const source=d.source.publication_id===id&&d.source.graph_id===view.graph_id&&d.source.node_id===view.node.id;
+            const returning=d.target.publication_id===id&&(new URL(location.href).searchParams.get('arrival')===d.id||(d.target.graph_id===view.graph_id&&d.target.node_id===view.node.id));
+            if(!source&&!returning)continue;
+            const dest=source?d.target:d.source;
+            external_doors.push({id:d.id,scope:'shared',anchorGraphId:view.graph_id,graphId:dest.graph_id,nodeId:dest.node_id,kind:'claim',
+              title:source?dest.title:'Return to source chamber',text:dest.author,returnOrigin:!source,entry:{graph_id:d.target.graph_id,node_id:d.target.node_id},
+              description:'An explicitly accepted public contribution doorway.',
+              href:'/player/?publication='+dest.publication_id+(source?'&arrival='+d.id:'')+'#/g/'+dest.graph_id+'/n/'+dest.node_id});
+          }
+        }while(cursor);
+        return reply({...view,external_doors});
       }
       return reply({ error: "Unavailable in a published inquiry" }, 404);
     } catch (e) {

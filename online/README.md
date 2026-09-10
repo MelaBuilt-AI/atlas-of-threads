@@ -215,8 +215,7 @@ stars, optional following, a real new-edition update and marking it seen. Actual
 Worker → local HTTP pairing, saved readback, browser check and disconnect passed.
 The existing Windows-discovery tests now isolate their synthetic home directories.
 
-Still required in PR #5: GitHub-side deauthorization, full returned-path graph
-transport, accepted doorway links in the shared world, report management,
+Still required in PR #5: GitHub-side deauthorization, report management,
 opt-in activity, complete browser/two-PC checks, and final installers.
 The report endpoint stores authenticated reports; no active moderation service or
 response-time promise is implied. See `../docs/ONLINE_ATLAS.md` for the full gate.
@@ -245,7 +244,8 @@ Offline recipients find durable deliveries on their next explicit check. Lost
 send responses reuse the single launch; received content is stored before the
 local acknowledgement, and acknowledgements/decisions are retryable. Accepted
 returns record a private relationship to their exact Capsule or published inquiry
-source; they do not publicly expose the return or create world/native doors yet.
+source; they do not publicly expose the return or create world/native doors.
+Shared doors use the separate full-return/publication consent flow below.
 Withdrawal stops subsequent service access but keeps private records/tombstones;
 prior downloaded copies cannot be recalled. Blocks apply in both directions to
 new exchanges and incoming/open visibility. Sender quota: 200 total deliveries,
@@ -279,3 +279,35 @@ reduced motion suppresses flights. Accepting a return creates no public doorway.
 checks cover directed and return flight, launcher history and explicit acceptance.
 Full hosted two-account exchange, listening/load and the existing release gates
 remain open. See [Capsules](../docs/KNOWLEDGE_CAPSULES.md) for the complete boundary.
+
+
+## Shared returned doorways
+
+Migration `0005` adds participant-private doorway proposals and explicit source-owner
+public decisions between two exact published inquiry snapshots. The contributor must
+publish the complete returned inquiry first and separately consent to the connection.
+`/api/doorways/review` checks the canonical return hash, exact source chamber and both
+publication owners without writes; `/send` requires that frozen review. Full return
+JSON is reconstructed from the pinned R2 publication on `/api/doorways/ID`, preserving
+canonical numeric hashes. Graphs are not copied to D1.
+
+`GET /api/doorways?after=SEQUENCE` pages 50 participant records;
+`GET /api/doorways/sources?inquiry=HASH` finds exact public source choices.
+`POST /api/doorways/ID/decide` requires the exact review and explicit public consent
+for acceptance. Either participant may `POST /api/doorways/ID/withdraw`.
+`GET /api/doorways/public?publication=ID&after=SEQUENCE` optionally filters an exact
+publication and pages 100 public accepted projections, hiding either publication's
+withdrawal and either-direction blocks. Pending proposals never enter that feed.
+No listing marks a path received or visited. Quota: 200 offers per contributor.
+
+Personal Atlas integrates reviewed publication, proposal/send, full receipt and local
+import/acceptance through its paired device. The shared browser provides public and
+participant collections, review/accept/decline, exact download and withdrawal. Shared
+and native players render accepted chamber doors and source returns with separate
+browser-local visit cues. Violet map arcs remain distinct from geographic roads.
+See [returned paths](../docs/RETURNED_PATHS.md) for the public-snapshot prerequisite,
+network-retry behavior, offline guarantees and acceptance limits.
+
+436 Python, 33 online and 7 audio tests pass, with synthetic browser checks for the
+contributor/source-owner flow and native/shared 3D entry-return. Full hosted two-account,
+physical two-PC, listening/capacity and combined release acceptance remain open.

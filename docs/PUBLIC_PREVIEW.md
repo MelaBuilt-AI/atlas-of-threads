@@ -117,5 +117,7 @@ and account-side revocation. Synthetic browser/service checks pass; this does no
 claim GitHub-side deauthorization, physical two-PC exchange or installer acceptance.
 Connected excerpt Capsules now support durable receipt, exact-source decisions,
 withdrawal and blocks. Witnessed flights, launcher history, beacons and Capsule
-following now obey delivery audiences and preserve camera control. Full returned-path
-graph delivery, shared/native doors and the remaining combined milestone stay pending.
+following now obey delivery audiences and preserve camera control. Explicitly
+reviewed full returns between published snapshots now create shared/native doors,
+exact source-return routes and visited cues. The remaining combined release gates
+still apply; private excerpt acceptance never automatically publishes a doorway.

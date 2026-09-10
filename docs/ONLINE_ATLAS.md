@@ -66,8 +66,8 @@ call, a separate private continuation session, reviewed return-path JSON export,
 inert receive, explicit accept/decline and duplicate reuse. Accepted paths have
 an entry link at the exact source chamber and a return-to-source link inside
 the received Threadwalk. Private continuations also link back to their imported
-source. These links establish working entry/return; native 3D arrival doors and
-unread traversal behavior remain unfinished.
+source. Native 3D arrival/source-return doors and browser-local visited cues now
+reuse these exact accepted artifacts. Published shared doorways are described below.
 
 See [returned paths](RETURNED_PATHS.md) for the local contract and verification.
 The next increment adds `online/`: a Cloudflare Worker, D1 publication/owner
@@ -94,8 +94,9 @@ an explained offline forget option. The account panel revokes devices or all
 Atlas sessions/devices/pending codes. No pairing uploads an inquiry.
 
 Connected excerpt Capsule delivery/reconnect, exact-source decisions and blocks
-are implemented. Full returned-path graph transport, accepted world links, native
-arrival doors, GitHub-side deauthorization, report management and activity remain. See
+are implemented. Published full-return transport, explicitly accepted public links
+and native doors/visited cues now work. GitHub-side deauthorization, report management
+and activity remain. See
 [online service](../online/README.md) for setup, tested boundaries and deployment.
 
 ## September 10 implementation checkpoint
@@ -115,9 +116,10 @@ and verification limits. Connected delivery and private acceptance now follow be
 Connected invitations, exact-source return delivery, explicit receipts/decisions,
 withdrawal and blocks are implemented and tested. Witnessed launch/return events,
 ports/history, beacons, distance-aware audio and audience-filtered following now
-track committed deliveries. Resume with shared/native accepted doors and unread,
-moderation/activity and the existing physical two-PC/release gates. Private return
-acceptance is not consent to publish a shared connection.
+track committed deliveries. Shared/native doors and visited cues now connect
+explicitly reviewed published full returns. Resume with deauthorization,
+moderation/activity and physical two-PC/release gates. Private excerpt acceptance
+is not consent to publish a shared connection; see [returned paths](RETURNED_PATHS.md).
 
 ## Accepted Capsule direction — September 10
 
@@ -232,6 +234,8 @@ inert receipt, reconnect/retry, exact-source accept/decline, withdrawal and acco
 blocks in Personal Atlas and the shared browser. Service and local tests plus a
 synthetic two-store browser loop pass; see [Capsules](KNOWLEDGE_CAPSULES.md).
 Decisions are private: accepting excerpts does not expose them as public content
-or import a full returned Threadwalk. Public contribution links/native doors and
-full `atlas-return-path` graph transport remain incomplete. This is a working
-increment in draft PR #5, not completion of the combined release checklist.
+or import a full returned Threadwalk. The separate full-return flow now provides
+public contribution links and shared/native doors between exact published snapshots,
+with explicit contributor and source-owner consent. Private full-graph network offers
+without publication are outside this increment. Draft PR #5 still retains the
+remaining combined release checklist.

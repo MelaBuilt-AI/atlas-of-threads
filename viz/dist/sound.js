@@ -1,5 +1,6 @@
 /* Thought Archaeology cinematic sound field. Owner-supplied cinematic OGG pack. */
 (function () {
+  if (window.TASound) return; // A hosted chamber can share its parent Atlas audio.
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
   const toggle = document.getElementById("sound-toggle");
   const volume = document.getElementById("sound-volume");
