@@ -173,6 +173,7 @@ async function auth(r, env, url) {
 }
 const publicRow = (row) => ({
   id: row.id,
+  sequence: row.seq,
   inquiry_id: row.inquiry_id,
   title: row.title,
   author: row.author,

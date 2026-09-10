@@ -118,6 +118,7 @@ test("publish, anonymous read, exact portable download, duplicate reuse and stab
   );
   const world = await (await req("/api/world")).json();
   assert.equal(world.publications.length, 1);
+  assert.equal(world.publications[0].sequence, 1);
   assert.equal(world.publications[0].owner.verified, false);
   assert.deepEqual(
     { x: world.publications[0].x, z: world.publications[0].z },

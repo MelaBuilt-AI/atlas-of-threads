@@ -17,7 +17,9 @@ a doorway. The world gains a path grounded in that explicit exchange.
 The overworld uses an isometric camera, arrow movement, panning and zoom, with
 published Threadwalks represented as neurons along sprawling paths. Placement
 is stable; relationships come from explicit accepted contributions, not inferred
-similarity. Selecting a neuron exposes its title, author and entry action.
+similarity. Geographic roads additionally connect each public Threadwalk to its
+nearest earlier neighbor across publishers. They are shared-world travel routes;
+accepted contribution relationships remain a separate layer. Selecting a neuron exposes its title, author and entry action.
 Browser visitors can read without installing Atlas or configuring an agent;
 mobile visitors have a readable view alongside the immersive experience.
 
@@ -78,6 +80,20 @@ network or lived-use acceptance.
 Durable offered returns, accepted world links, native arrival doors, device pairing,
 block/report management and activity are still to build. See
 [online service](../online/README.md) for setup, tested boundaries and deployment.
+
+## Roads and future clusters
+
+The September 10 road increment turns converging trace bundles into prominent
+flowing paths between Threadwalks. New arrivals connect to the nearest earlier
+publication and grow their road outward from that neighbor. Visitors can follow
+a road with the camera; periodic refreshes reveal new publications and remove
+withdrawn ones without a page reload.
+
+The user's future group/organization/private-cluster direction is recorded:
+each cluster has a distinct color, connects internally, and is enclosed by a
+glowing boundary. Public roads route around the outside and continue branching
+beyond it or to either side. Membership/private access and cluster obstacle
+routing remain future work; this increment implements public geographic roads.
 
 ## Implementation boundaries
 

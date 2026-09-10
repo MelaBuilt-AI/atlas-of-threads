@@ -38,12 +38,12 @@
         }`,
     }));
     // Soft additive ribbons retain luminous width independently of WebGL lines.
-    function ribbon(points, width, material, parent = scene, strength = 1) {
-      const batched = parent === scene;
-      let data = batched ? batches.get(material) : null;
+    function ribbon(points, width, material, parent = scene, strength = 1, batchTarget = parent === scene ? batches : null) {
+      const batched = !!batchTarget;
+      let data = batched ? batchTarget.get(material) : null;
       if (!data) {
         data = { positions: [], uvs: [], indices: [], motion: [], strength: [] };
-        if (batched) batches.set(material, data);
+        if (batched) batchTarget.set(material, data);
       }
       const start = data.positions.length / 3;
       for (let i = 0; i < points.length; i++) {
@@ -146,7 +146,7 @@
         if (i % 2 === 0) point(new THREE.Vector3(p.x + (random() - .5) * 5, p.y + random() * 2,
           p.z + (random() - .5) * 5), color, random() < .012 ? 2.8 : .12 + random() * .24);
       }
-      ribbon(points, lane % 8 === 0 ? 1.2 : .42, ribbonMaterials[index]);
+      ribbon(points, lane % 8 === 0 ? 1.2 : .42, ribbonMaterials[index], scene, .65);
       currents.push({ points, color });
       // Dendrites leave the trunk, spread, and subdivide into fine reaching tips.
       for (let fork = 0; fork < 5; fork++) {
@@ -242,7 +242,75 @@
       selection.rotation.x = Math.PI / 2; selection.position.y = .48; selection.visible = false; group.add(selection);
       const entry = { detail, orbits, glow, beacon, selection, phase: sequence }; locales.push(entry); return entry;
     }
-    return { locale, update(time, span) {
+    const roads = new Map();
+    function syncRoads(edges) {
+      const wanted = new Map(edges.map(edge => [edge.id, edge]));
+      for (const [id, road] of roads) {
+        if (wanted.get(id)?.source.id === road.edge.source.id) continue;
+        scene.remove(road.group);
+        road.group.traverse(object => { object.geometry?.dispose(); });
+        for (const material of road.materials) material.dispose();
+        road.pick.material.dispose();
+        roads.delete(id);
+      }
+      for (const edge of edges) {
+        if (roads.has(edge.id)) continue;
+        const from = edge.source.group.position.clone(), to = edge.target.group.position.clone();
+        from.y += .45; to.y += .45;
+        const direction = to.clone().sub(from), length = Math.hypot(direction.x, direction.z);
+        const normal = new THREE.Vector3(-direction.z / length, 0, direction.x / length);
+        const bend = Math.min(7, length * .15) * (edge.target.sequence % 2 ? 1 : -1);
+        const curve = new THREE.CatmullRomCurve3([from,
+          from.clone().lerp(to, .33).addScaledVector(normal, bend),
+          from.clone().lerp(to, .67).addScaledVector(normal, bend), to]);
+        const group = new THREE.Group(), batch = new Map(), growth = { value: reduced ? 1 : 0 };
+        const materials = [0, 3].map(index => {
+          const material = ribbonMaterials[index].clone();
+          material.uniforms.time = clock; material.uniforms.growth = growth;
+          material.vertexShader = material.vertexShader.replace(
+            'drift(position, time) * motion',
+            'drift(position, time) * motion * sin(uv.x * 3.14159265) * .3');
+          material.fragmentShader = 'uniform float growth;\n' + material.fragmentShader;
+          material.fragmentShader = material.fragmentShader.replace('float fade =',
+            'float reveal = 1.0 - smoothstep(growth - .025, growth, vUv.x);\n          float fade = reveal *');
+          return material;
+        });
+        const samples = curve.getPoints(100);
+        // A broad luminous bed and 27 converging filaments make one readable road.
+        ribbon(samples, 3.2, materials[0], group, .23, batch);
+        for (let strand = 0; strand < 27; strand++) {
+          const lane = (strand - 13) / 13;
+          const points = samples.map((point, i) => {
+            const t = i / 100, envelope = Math.pow(Math.sin(Math.PI * t), .4);
+            const spread = (1.75 + 3 * Math.pow(Math.abs(t * 2 - 1), 4)) * envelope;
+            const braid = Math.sin(t * 22 + strand * 1.7) * .3 * envelope;
+            const p = point.clone().addScaledVector(normal, lane * spread + braid);
+            p.y += Math.cos(t * 18 + strand) * .15 * envelope;
+            return p;
+          });
+          ribbon(points, strand % 5 ? .14 : .26, materials[strand % 7 === 0 ? 1 : 0], group, 1.1, batch);
+        }
+        for (const [material, data] of batch) group.add(new THREE.Mesh(ribbonGeometry(data), material));
+        const pick = new THREE.Mesh(new THREE.TubeGeometry(curve, 48, 2.7, 6, false),
+          new THREE.MeshBasicMaterial({ visible: false }));
+        pick.userData.road = edge.id; group.add(pick); scene.add(group);
+        roads.set(edge.id, { edge, group, curve, pick, materials, growth, birth: null });
+      }
+      return roads;
+    }
+    return { locale, syncRoads, roads, removeLocale(item) {
+      const index = locales.indexOf(item);
+      if (index >= 0) locales.splice(index, 1);
+      item.glow.material.dispose(); item.selection.material.dispose(); item.beacon.material.dispose();
+      item.detail.traverse(object => {
+        if (object.material && !ribbonMaterials.includes(object.material)) object.material.dispose();
+      });
+    }, update(time, span) {
+      for (const road of roads.values()) {
+        if (road.birth === null) road.birth = time;
+        road.growth.value = reduced ? 1.03 : Math.min(1.03, (time - road.birth) / 2400);
+      }
+
       clock.value = reduced ? 0 : time * .001;
       scale.value = innerHeight * renderer.getPixelRatio() / span;
       for (let lane = 0; lane < currents.length; lane++) {

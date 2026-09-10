@@ -26,8 +26,11 @@ loads one terrain texture; the original Threadwalk player retains the full media
 library. The shared score stays in the parent window through entry and return.
 World camera position is a browser preference; publication placement is durable
 and depends on the server sequence, never browser storage or layout randomness.
-Filaments in the landscape are scenery, not inferred relationships or proof of
-contributions. Accepted contribution links remain a later world increment.
+Fine filaments are atmospheric scenery. Larger bundled roads join each visible
+publication to the geographically nearest earlier publication, ordered by the
+server's stable sequence (earliest sequence breaks distance ties). These roads
+represent a shared world across publishers; accepted contribution links remain
+a separate later increment.
 
 ## Visual direction — September 10
 
@@ -46,6 +49,29 @@ geometry motion, pulses and orbital animation. Atmospheric connections are
 scenery, not inferred relationships, live presence or accepted contribution links.
 Actual publication placements and selection remain server-backed. Visual feel
 and device performance still require user/browser acceptance.
+
+## Converging roads and growing arrivals
+
+Each road combines a broad cyan glow with 27 braided cyan/gold filaments that
+spread near the two locales and converge into a prominent flowing route. A new
+road forms from the earlier locale toward the arrival over 2.4 seconds. Existing
+road meshes remain intact when later publications arrive. Select a road directly,
+or use **Follow path** in a locale's selection panel, to travel the camera along
+its curve to the neighboring Threadwalk. Dragging or arrow movement cancels travel.
+
+While the visible world is idle, the loaded publication pages refresh every 30
+seconds. New arrivals gain roads without reloading the world. Withdrawn locales
+are removed; surviving locales reconnect to their nearest remaining predecessor.
+Placement and sequence come from the service; geographic road layout is a browser
+projection with no graph/author/membership inference. Larger worlds retain the
+explicit Load more boundary. Hidden tabs, Threadwalk visits and camera transitions
+skip polling. Reduced-motion displays completed roads and makes travel immediate.
+
+Future group/organization/private-cluster direction: distinct shared color for
+each cluster, internal roads only, and a luminous enclosing boundary. Outside
+public roads should route around that boundary and continue branching beyond or
+to either side. This is saved future scope; cluster membership, private access,
+barriers and obstacle routing are not implemented in this increment.
 
 ## Prepare and publish
 

@@ -30,6 +30,7 @@
   let selected = null,
     owner = null,
     next = null,
+    loading = false,
     scene,
     camera,
     renderer,
@@ -73,6 +74,7 @@
     $("download").href = `/api/publications/${item.id}/bundle`;
     $("download").download =
       `${item.inquiry_id.slice(0, 12)}.atlas-inquiry.json`;
+    connectedPaths(item);
     if (focus) moveTo({ ...state, x: item.x, z: item.z });
     sound("cycle");
   }
@@ -97,12 +99,13 @@
     el("span", item.title, entry);
     el("small", `${ownerLabel(item)} · ${item.thought_count} thoughts`, entry);
     entry.onclick = () => choose(item, true);
+    item.entry = entry;
     if (!scene) return;
     const group = new THREE.Group();
     group.position.set(item.x, terrainHeight(item.x, item.z), item.z);
     scene.add(group);
     item.group = group;
-    item.aura = weave.locale(group, items.size - 1);
+    item.aura = weave.locale(group, item.sequence - 1);
     const rayTarget = new THREE.Mesh(
       new THREE.CylinderGeometry(4, 4, 8, 12),
       new THREE.MeshBasicMaterial({ visible: false }),
@@ -145,18 +148,64 @@
     item.label = el("div", item.title, $("labels"));
     item.label.className = "locale-label";
   }
-  async function loadWorld(reset = false) {
-    if (reset) {
-      location.reload();
-      return;
+  function connectedPaths(item) {
+    $("connected-paths").replaceChildren();
+    for (const road of weave?.roads.values() || []) {
+      const target = road.edge.source.id === item.id ? road.edge.target
+        : road.edge.target.id === item.id ? road.edge.source : null;
+      if (!target) continue;
+      const button = el("button", "Follow path · " + target.title, $("connected-paths"));
+      button.onclick = () => followRoad(road, target);
     }
-    const result = await api("/api/world" + (next ? "?after=" + next : ""));
-    for (const item of result.publications) add(item);
-    next = result.next;
-    $("more").hidden = !next;
-    $("world-status").textContent = items.size
-      ? `${items.size} published ${items.size === 1 ? "inquiry" : "inquiries"} · choose a light to enter`
-      : "The Atlas is ready for its first published inquiry.";
+  }
+  function followRoad(road, target) {
+    const from = target.id === road.edge.target.id ? road.edge.source : road.edge.target;
+    $("selection").hidden = true;
+    sound("traverse");
+    moveTo({ x: from.x, z: from.z, span: Math.min(state.span, 65) }, () => {
+      transition = {
+        start: performance.now(), duration: reduced ? 0 : 2800,
+        from: { ...state }, to: { ...state, x: target.x, z: target.z },
+        curve: road.curve, reverse: target.id === road.edge.source.id,
+        then: () => choose(target),
+      };
+    });
+  }
+  function remove(item) {
+    items.delete(item.id); item.entry.remove(); item.label?.remove();
+    if (item.group) {
+      scene.remove(item.group);
+      weave.removeLocale(item.aura);
+      item.group.traverse(object => object.geometry?.dispose());
+    }
+    if (selected === item) { selected = null; $("selection").hidden = true; }
+  }
+  async function loadWorld(more = false) {
+    if (loading) return;
+    loading = true;
+    try {
+      const maxLoaded = Math.max(0, ...[...items.values()].map(item => item.sequence));
+      let cursor = more ? next : null, result;
+      const received = [];
+      do {
+        result = await api("/api/world" + (cursor ? "?after=" + cursor : ""));
+        received.push(...result.publications);
+        cursor = result.next;
+        // Refresh the loaded prefix; leave further pages under Load more.
+      } while (!more && cursor && (cursor < maxLoaded || (next === null && cursor === maxLoaded)));
+      if (!more) {
+        const active = new Set(received.map(item => item.id));
+        for (const item of items.values()) if (!active.has(item.id)) remove(item);
+      }
+      for (const item of received) add(item);
+      next = result.next;
+      if (weave) weave.syncRoads(AtlasRoadMap(items.values()));
+      if (selected) connectedPaths(selected);
+      $("more").hidden = !next;
+      $("world-status").textContent = items.size
+        ? `${items.size} published ${items.size === 1 ? "inquiry" : "inquiries"} · choose a light or follow a road`
+        : "The Atlas is ready for its first published inquiry.";
+    } finally { loading = false; }
   }
   function setupScene() {
     renderer = new THREE.WebGLRenderer({
@@ -232,9 +281,17 @@
         );
         ray.setFromCamera(cursor, camera);
         const hit = ray.intersectObjects(
-          [...items.values()].map((x) => x.pick).filter(Boolean),
+          [...items.values()].map((x) => x.pick).filter(Boolean).concat(
+            [...weave.roads.values()].map(road => road.pick)),
         )[0];
-        if (hit) choose(hit.object.userData.item);
+        if (hit?.object.userData.item) choose(hit.object.userData.item);
+        else if (hit) {
+          const road = weave.roads.get(hit.object.userData.road);
+          const { source, target } = road.edge;
+          const fromSource = selected?.id === source.id || (selected?.id !== target.id &&
+            Math.hypot(state.x - source.x, state.z - source.z) < Math.hypot(state.x - target.x, state.z - target.z));
+          followRoad(road, fromSource ? target : source);
+        }
       }
       drag = null;
       save();
@@ -301,6 +358,10 @@
         for (const k of ["x", "z", "span"])
           state[k] =
             transition.from[k] + (transition.to[k] - transition.from[k]) * u;
+        if (transition.curve) {
+          const point = transition.curve.getPointAt(transition.reverse ? 1 - u : u);
+          state.x = point.x; state.z = point.z;
+        }
         if (t === 1) {
           const done = transition.then;
           transition = null;
@@ -538,7 +599,7 @@
   $("enter").onclick = enter;
   $("read").onclick = read;
   $("world-return").onclick = leave;
-  $("more").onclick = () => loadWorld().catch(reportError);
+  $("more").onclick = () => loadWorld(true).catch(reportError);
   $("logout").onclick = async () => {
     await api("/api/logout", {});
     location.reload();
@@ -551,6 +612,10 @@
     $("library").hidden = false;
   }
   loadWorld().catch(reportError);
+  setInterval(() => {
+    if (!document.hidden && $("visit").hidden && !transition)
+      loadWorld().catch(reportError);
+  }, 30000);
   api("/api/me")
     .then((data) => {
       owner = data.owner;
