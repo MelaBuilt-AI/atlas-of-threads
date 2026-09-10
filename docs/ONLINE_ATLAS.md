@@ -30,33 +30,39 @@ mobile visitors have a readable view alongside the immersive experience.
 - [x] Private exact-source continuation and reviewable offer-back files.
   Local synthetic worker and browser flow pass; real-agent/two-PC acceptance
   for returned paths remains in the final gate below.
-- [ ] Inert incoming offers, explicit acceptance/decline, exact-source doors,
+- [x] Inert incoming offers, explicit acceptance/decline, exact-source doors,
   duplicate-delivery safety, and entry/return without changing source heads.
-- [ ] Separate hosted service for reviewed snapshots and durable deliveries;
+- [x] Separate hosted service for reviewed snapshots and durable deliveries;
   reconnect/offline delivery and a disconnect/block action.
-- [ ] GitHub App owner authentication, stable numeric GitHub owner IDs, distinct
-  registered instance identities, local keys and revocation.
-- [ ] Explicit publication review, bounded visibility, withdrawal/tombstones,
-  ownership checks, request limits and basic moderation/reporting.
-- [ ] Shared isometric overworld, stable placements, meaningful paths, inquiry
+- [x] GitHub App owner authentication, stable numeric GitHub owner IDs, distinct
+  registered instance identities, local keys and Atlas-side revocation.
+- [ ] GitHub-side App deauthorization and session invalidation.
+- [x] Explicit publication review, bounded visibility, withdrawal/tombstones,
+  ownership checks, bounded requests, report submission and account blocks.
+- [ ] Report management and representative capacity validation.
+- [x] Shared isometric overworld, stable placements, meaningful paths, inquiry
   selection, Threadwalk entry and exact overworld return.
-- [ ] Public read-only web player and readable mobile view; local import and
+- [x] Public read-only web player and readable view; local import and
   private guide/continuation handoff.
 - [x] Stars associated with verified accounts, a Starred collection, optional
   in-app following, and stable Threadwalk identity across published editions.
 - [x] Offline Capsule preparation, exact excerpts, private keeping/file export,
   inert receipt, private continuation and contextual return preparation.
-- [ ] Shared local/online Capsule intents (invitation, offering, return), reviewed
-  contents/destination, discoverable requests and accepted return connections.
-- [ ] Actual online Capsule launch/return events, overworld launcher history,
+- [x] Shared local/online Capsule intents (invitation, offering, return), reviewed
+  contents/destination, discoverable requests and private acceptance. Shared doors
+  use the separately reviewed full-return flow between public snapshots.
+- [x] Actual online Capsule launch/return events, overworld launcher history,
   witnessed flights and distance-aware sound without taking over the camera.
+- [x] Shared/native exact-source doors, violet contribution arcs and browser-local
+  unvisited/visited cues, with separate contributor/source-owner public consent.
 - [ ] Opt-in coarse activity lights with expiry and a clear off state. Activity
   and newly accepted paths have different visual meanings.
 - [ ] Physical two-PC end-to-end acceptance, local offline behavior, final
   Linux/Windows packages and installer checks, then owner release acceptance.
 
-Build these as working increments in this draft PR. An unchecked item is not
-implemented merely because a design or mockup exists. Do not merge or release
+The checklist records implemented behavior; test success does not replace the
+remaining user acceptance and release gates. The current user instruction is to
+keep the work committed and green, then pause for later testing. Do not merge or release
 the portable part early to satisfy an intermediate checkpoint.
 
 ## Current working increment
