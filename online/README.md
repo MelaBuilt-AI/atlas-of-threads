@@ -107,10 +107,14 @@ measure Worker CPU for larger publications against the account's free allowance.
 Tested: local canonical projection/privacy, Worker runtime with real local D1/R2,
 publication/read/download/deduplication, rejection before writes, ownership,
 withdrawal/tombstones, instance revocation, and mocked GitHub state/PKCE exchange.
-These do not constitute real GitHub login, browser navigation/audio acceptance,
-physical two-PC exchange, performance/load testing or release acceptance.
+Live GitHub App registration and owner sign-in also passed on September 9, 2026:
+the public preview displayed the signed-in owner and D1 retained the verified
+numeric GitHub owner identity. The app requests no repository/account permissions,
+uses an exact callback URL and has webhooks disabled. These checks do not establish
+browser world-navigation/audio acceptance, physical two-PC exchange,
+performance/load testing or release acceptance.
 
-Still required in PR #5: live GitHub connection, device pairing, durable offered
+Still required in PR #5: device pairing, durable offered
 returns and reconnect, accepted doorway links in the shared world, block/report
 management, opt-in activity, complete browser/two-PC checks, and final installers.
 The report endpoint stores authenticated reports; no active moderation service or

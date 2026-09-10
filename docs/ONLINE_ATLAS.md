@@ -66,9 +66,11 @@ public reading/download, and entry into the same Python-authored Threadwalk
 renderer with exact world-camera return. A continuous parent-owned album crosses
 the transition. Personal Atlas can prepare online publication files locally.
 
-GitHub App OAuth and device-revocation endpoints are implemented, but real App
-setup and live sign-in remain pending. Authenticated publication/withdrawal and
-mocked OAuth pass runtime tests; this is not full network or lived-use acceptance.
+GitHub App OAuth and device-revocation endpoints are implemented. Real App
+registration and owner sign-in are now verified on the hosted preview, including
+the numeric GitHub identity and signed-in browser state. Authenticated
+publication/withdrawal and mocked OAuth pass runtime tests; this is not full
+network or lived-use acceptance.
 Durable offered returns, accepted world links, native arrival doors, device pairing,
 block/report management and activity are still to build. See
 [online service](../online/README.md) for setup, tested boundaries and deployment.

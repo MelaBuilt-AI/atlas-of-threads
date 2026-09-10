@@ -100,6 +100,6 @@ visibility or release changes.
 The separate `online/` deployment is a working increment in PR #5. Its initial
 world contains explicitly synthetic publications, reuses the Atlas media library,
 and supports public read/download plus authenticated reviewed publication and
-withdrawal. The GitHub App must be configured before contributions are enabled.
+withdrawal. The GitHub App is configured and live owner sign-in is verified.
 The existing public release and site are unchanged. See `online/README.md` and
 `docs/ONLINE_ATLAS.md` for the incomplete release and acceptance gates.
