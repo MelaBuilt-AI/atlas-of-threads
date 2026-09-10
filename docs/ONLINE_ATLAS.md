@@ -42,6 +42,10 @@ mobile visitors have a readable view alongside the immersive experience.
   selection, Threadwalk entry and exact overworld return.
 - [ ] Public read-only web player and readable mobile view; local import and
   private guide/continuation handoff.
+- [ ] Shared local/online Capsule intents (invitation, offering, return), reviewed
+  contents/destination, discoverable requests and accepted return connections.
+- [ ] Actual online Capsule launch/return events, overworld launcher history,
+  witnessed flights and distance-aware sound without taking over the camera.
 - [ ] Opt-in coarse activity lights with expiry and a clear off state. Activity
   and newly accepted paths have different visual meanings.
 - [ ] Physical two-PC end-to-end acceptance, local offline behavior, final
@@ -80,6 +84,21 @@ network or lived-use acceptance.
 Durable offered returns, accepted world links, native arrival doors, device pairing,
 block/report management and activity are still to build. See
 [online service](../online/README.md) for setup, tested boundaries and deployment.
+
+## Accepted Capsule direction — September 10
+
+The user adopted Capsules as invitations, offerings and returns that carry an
+inquiry beyond its home Threadwalk. Invitations and returns are the first
+end-to-end focus. Launchers are visible outbound ports and expedition histories;
+actual online launches and returns should be witnessed on the overworld with
+animation and distant sound. Personal Atlas adopts the same intent, content
+review and destination model while retaining complete offline use. Existing
+private artifacts keep their meaning. See [Capsule plan](KNOWLEDGE_CAPSULES.md).
+This direction is planned, not implemented by recording it here.
+
+Pending map interactions: selecting a Threadwalk centers the camera and shines
+a spotlight down on it. Overview-road clicks do not move the camera. Follow path
+buttons in the Threadwalk menu retain their existing travel behavior.
 
 ## Roads and future clusters
 

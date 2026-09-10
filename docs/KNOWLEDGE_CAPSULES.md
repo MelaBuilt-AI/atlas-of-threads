@@ -1,8 +1,78 @@
 # Knowledge Capsules
 
-Status: approved local implementation slice
-Authorized by: user
-Date: 2026-09-01
+Status: existing local implementation, with an accepted shared Capsule plan
+Local slice authorized: 2026-09-01
+Shared local/online direction accepted: 2026-09-10
+
+## Accepted plan: Capsules carry inquiries between places
+
+Capsules become deliberate invitations, offerings and returns. An online launcher
+serves as a Threadwalk's outbound port and a visible history of its expeditions.
+Each Capsule has one reviewed payload and one launch; an online port can serve
+successive Capsules. Invitations and returns are the first end-to-end priority.
+This section is an accepted plan, not implemented behavior.
+
+### Intent, contents and destination
+
+The preparation flow separates three decisions:
+
+1. **Intent**: Invite perspectives (a question, challenge or request for evidence),
+   Share a finding (an explanation, method, discovery or useful failed approach),
+   or Return a contribution (a response anchored to an incoming Capsule/inquiry).
+2. **Contents**: select the exact question, thoughts, evidence and interpretation
+   to carry; review the complete payload before it is frozen for launch.
+3. **Destination**: keep it privately in Personal Atlas, export a Capsule file,
+   or send through the connected online Atlas as an open invitation or a directed
+   delivery. Online destinations are offered only when connected and authorized.
+
+Return intent is contextual: it requires an incoming Capsule/inquiry and its
+source reference, including one received offline by file. An unrelated inquiry
+cannot invent a return relationship. Audience and destination are explicit;
+intent alone never publishes content or invokes an agent.
+
+### Personal Atlas and the online Atlas align
+
+Personal Atlas adopts the same intent-bearing Capsule and preparation flow.
+Local-only users can prepare, keep, export, receive and work with Capsules offline,
+including exchanging files with another person or deliberately giving their own
+agent the selected context. Connecting later enables online delivery of reviewed
+Capsules; it does not automatically upload existing local Capsules or launches.
+The readable Markdown remains a useful view alongside the structured portable
+contents rather than being the Capsule's only purpose.
+
+The new flow should build on existing portable inquiries, canonical artifacts
+and returned-path references. Existing manifests, one-shot launch receipts and
+private exports retain their original meaning and remain readable. Do not
+silently reinterpret old launches as online publications. The old earning rule
+is not automatically a prerequisite for a new online invitation: deliberate
+preparation and review supply its purpose. Exact eligibility/lifecycle migration
+is implementation work, not an invented score or popularity requirement.
+
+### Witnessed launch, response and return
+
+A real committed online launch produces one shared event. Current observers see
+its charge, flight and fading trail at the source Threadwalk, with distance/zoom
+attenuating effects and sound; muted and reduced-motion preferences apply. The
+viewer keeps control of their camera. Late arrivals see Capsule state and history
+rather than old launches replayed as present activity. Local-only ceremonies do
+not appear as online events.
+
+Open invitations remain discoverable at their source; directed deliveries await
+the recipient's attention. Another inhabitant can take up a question privately
+and offer an attributed return. The source author reviews and accepts it before
+it becomes an accepted connection. Return flights can be witnessed too. Those
+meaningful contribution connections remain distinct from geographic map roads.
+Launcher history exposes sent, open, returned and accepted expeditions.
+
+Live witnessing, destinations, the shared Capsule format and local alignment are
+planned work within the combined online milestone. Private cluster destinations
+follow the separately deferred group/organization access design.
+
+## Existing local implementation
+
+The remainder documents the currently shipped private local Capsule contract.
+It remains authoritative for old artifacts until an explicit implementation and
+compatibility update delivers the shared plan above.
 
 ## Purpose
 
