@@ -29,3 +29,11 @@ Preserve the read-only imported boundary and exact source identities described
 in [portable inquiries](docs/PORTABLE_INQUIRIES.md).
 
 `viz/dist` is the committed static build. Node/Vite is optional and only needed if you change the scene sources. `ta serve` must work with Python alone.
+
+
+The online preview lives in `online/`; run `npm ci`, `npm run build`, and
+`npm test` there. It compiles the same portable schemas and copies the committed
+Atlas renderer/media. Python prepares chamber semantics; do not implement a
+second fork/veto engine in the Worker. Synthetic fixture generation is explicit
+and never reads a user store. Deployment is separate from tests and requires
+scoped Cloudflare credentials; never commit local deployment configuration.

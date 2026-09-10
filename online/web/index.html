@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <base href="/player/" />
+    <title>The Atlas · Shared world preview</title>
+    <meta
+      name="description"
+      content="Explore published inquiries in the Atlas of Threads."
+    />
+    <link rel="stylesheet" href="/world.css" />
+  </head>
+  <body>
+    <canvas
+      id="world"
+      tabindex="0"
+      aria-label="Shared Atlas: arrow keys move, drag pans, plus and minus zoom"
+    ></canvas>
+    <header class="world-header">
+      <div>
+        <span class="eyebrow">ATLAS OF THREADS</span>
+        <h1>The Atlas <small>world preview</small></h1>
+      </div>
+      <nav>
+        <button id="library-toggle">Inquiries</button
+        ><button id="audio-toggle">Sound & music</button
+        ><button id="publish-open">Publish an inquiry</button
+        ><a id="login" href="/auth/login">Connect with GitHub</a>
+      </nav>
+    </header>
+    <div id="world-status" role="status">Reading the shared Atlas…</div>
+    <aside id="selection" hidden aria-label="Selected inquiry">
+      <button
+        class="close"
+        id="selection-close"
+        aria-label="Close selected inquiry"
+      >
+        ×</button
+      ><span class="eyebrow">PUBLISHED THREADWALK</span>
+      <h2 id="selection-title"></h2>
+      <p id="selection-owner"></p>
+      <p id="selection-description"></p>
+      <p id="selection-counts" class="muted"></p>
+      <div class="actions">
+        <button id="enter" class="primary">Enter Threadwalk ↗</button
+        ><button id="read">Read here</button
+        ><a id="download">Bring into Personal Atlas ↓</a>
+      </div>
+      <small
+        >Downloaded inquiries open through Portable inquiries in your Personal
+        Atlas. Guide conversations stay there.</small
+      >
+    </aside>
+    <section id="library" hidden aria-label="Published inquiries">
+      <header>
+        <h2>Published inquiries</h2>
+        <button id="library-close" aria-label="Close inquiries">×</button>
+      </header>
+      <div id="inquiry-list"></div>
+      <button id="more" hidden>Load more</button>
+    </section>
+    <div class="world-footer">
+      <span>Arrow keys · drag to wander · scroll to approach</span>
+      <div>
+        <button id="zoom-in" aria-label="Zoom in">+</button
+        ><button id="zoom-out" aria-label="Zoom out">−</button
+        ><button id="home">Return to center</button>
+      </div>
+      <a href="/THIRD_PARTY_NOTICES.md">Asset credits</a>
+    </div>
+    <dialog id="publication-dialog">
+      <header>
+        <h2>Publish a reviewed inquiry</h2>
+        <button data-close aria-label="Close publication">×</button>
+      </header>
+      <p>
+        In Personal Atlas, open Portable inquiries, review your Threadwalk, and
+        choose <strong>Save online publication file</strong>. Choose that file
+        here, then review what will become public.
+      </p>
+      <input
+        id="publication-file"
+        type="file"
+        accept=".json,application/json"
+        aria-label="Choose online publication file"
+      />
+      <div id="publication-review"></div>
+      <p id="publication-status" role="status"></p>
+    </dialog>
+    <dialog id="reader">
+      <header>
+        <h2 id="reader-title">Read inquiry</h2>
+        <button data-close aria-label="Close reader">×</button>
+      </header>
+      <div id="reader-content"></div>
+    </dialog>
+    <dialog id="audio-dialog">
+      <header>
+        <h2>Sound & music</h2>
+        <button data-close aria-label="Close audio">×</button>
+      </header>
+      <!-- AUDIO_CONTROLS -->
+    </dialog>
+    <dialog id="account-dialog">
+      <header>
+        <h2>Your publications</h2>
+        <button data-close aria-label="Close account">×</button>
+      </header>
+      <div id="account-content"></div>
+      <button id="logout">Disconnect this browser</button>
+    </dialog>
+    <div id="visit" hidden>
+      <button id="world-return">↙ Return to the Atlas</button
+      ><iframe
+        id="threadwalk"
+        title="Published Atlas Threadwalk"
+        allow="autoplay"
+      ></iframe>
+    </div>
+    <div id="labels" aria-hidden="true"></div>
+    <script src="./three.min.js"></script>
+    <script src="./relic-loader.js"></script>
+    <script src="./sound.js"></script>
+    <script src="./music.js"></script>
+    <script src="/world.js"></script>
+  </body>
+</html>

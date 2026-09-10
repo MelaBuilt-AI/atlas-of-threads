@@ -103,7 +103,16 @@
         commit.textContent='Saved · ready to share';
       }
     }));
-    commit.disabled=true; check.onchange=()=>{commit.disabled=!check.checked;};
+    const online = !importing ? button('Save online publication file', review, () => run(async () => {
+      if(!check.checked) return;
+      const artifact = await api('/api/online/prepare', bundle);
+      const url = URL.createObjectURL(new Blob([JSON.stringify(artifact)], {type:'application/json'}));
+      const link = element('a'); link.href=url; link.download=`inquiry-${info.id.slice(0,12)}.atlas-publication.json`;
+      link.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
+      online.textContent='Saved · upload and review in the online Atlas';
+    })) : null;
+    if(online) online.disabled=true;
+    commit.disabled=true; check.onchange=()=>{commit.disabled=!check.checked; if(online) online.disabled=!check.checked;};
     review.scrollIntoView({block:'start'});
   }
   form.onsubmit = event => { event.preventDefault(); run(async () => {

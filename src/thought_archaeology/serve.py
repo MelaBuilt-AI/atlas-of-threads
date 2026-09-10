@@ -1358,6 +1358,11 @@ class InhabitHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         try:
+            if path == "/api/online/prepare":
+                self._require_local_json_request()
+                from thought_archaeology.online import prepare_publication
+                self._json(200, prepare_publication(self._read_json(max_bytes=portable.MAX_BYTES)))
+                return
             if path.startswith("/api/return-paths/"):
                 self._require_local_json_request()
                 self._return_path_post(path)
