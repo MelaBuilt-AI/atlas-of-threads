@@ -42,6 +42,8 @@ mobile visitors have a readable view alongside the immersive experience.
   selection, Threadwalk entry and exact overworld return.
 - [ ] Public read-only web player and readable mobile view; local import and
   private guide/continuation handoff.
+- [ ] Stars associated with verified accounts, a Starred collection, optional
+  in-app following, and stable Threadwalk identity across published editions.
 - [ ] Shared local/online Capsule intents (invitation, offering, return), reviewed
   contents/destination, discoverable requests and accepted return connections.
 - [ ] Actual online Capsule launch/return events, overworld launcher history,
@@ -71,7 +73,7 @@ records, R2 snapshots, a shared isometric world with the existing terrain/relics
 public reading/download, and entry into the same Python-authored Threadwalk
 renderer with exact world-camera return. A continuous parent-owned album crosses
 the transition. The September 10 visual update follows the owner’s supplied
-Atlas artwork with luminous blue/violet/gold currents, orbital islands and a
+Atlas artwork with luminous blue/violet/gold currents, orbital islands and an
 animated neural background; original relics and terrain appear on approach.
 The static reference backdrop was removed following user feedback. Branches,
 braided currents and traveling light knots now animate within the 3D field. Personal Atlas can prepare online publication files locally.
@@ -99,6 +101,43 @@ This direction is planned, not implemented by recording it here.
 Pending map interactions: selecting a Threadwalk centers the camera and shines
 a spotlight down on it. Overview-road clicks do not move the camera. Follow path
 buttons in the Threadwalk menu retain their existing travel behavior.
+
+## Accepted stars and following — September 10
+
+Users can star a Threadwalk to express appreciation and find it again in their
+Starred collection, with a separate optional Follow updates control. Stars attach
+to the ongoing Threadwalk across published editions; exact published snapshots
+remain preserved. Meaningful updates include new published editions, Capsule
+invitations and accepted returns, with a restrained new-since-last-visit cue.
+
+Stars live in Atlas under its existing verified GitHub owner identity. They do
+not star a GitHub repository and do not require additional GitHub Starring
+permissions. Start with the collection and optional in-app updates. Public counts
+were discussed as a possible interest signal; public stargazer lists, ranking and
+external notification behavior are not specified. Map placement remains stable.
+
+## Next-session implementation order
+
+The user requested saving this plan and beginning the work in the next session.
+No runtime feature in this section is delivered merely by documenting it.
+
+1. Apply node-click centering/spotlight, remove overview-road camera actions,
+   and retain Follow path menu travel.
+2. Establish stable ongoing Threadwalk identity across immutable editions and
+   complete account/device pairing needed by publishing and local-online exchange.
+3. Add stars, Starred collection and optional in-app following.
+4. Build the shared Capsule intent/content/destination flow in Personal Atlas,
+   retaining offline file exchange and compatibility with existing artifacts.
+5. Connect invitations and reviewed returns to durable online delivery/reconnect,
+   explicit acceptance, source references, withdrawal/blocking and revocation.
+6. Add real shared Capsule launch/return events, miniature launcher ports,
+   witnessed animation/distant audio and expedition history; wire followed updates.
+7. Complete native arrival doors/unread behavior, accepted world links, opt-in
+   activity, moderation and the physical two-PC/package/release acceptance gates.
+
+The cluster direction below remains in the staged roadmap. Implement actual
+membership/visibility boundaries before presenting private cluster enclosures or
+routing public roads around them. Rich live co-walking remains later work.
 
 ## Roads and future clusters
 
@@ -149,7 +188,7 @@ Verify attribution and hashes, unchanged source graphs/heads, duplicate delivery
 decline/block/withdrawal behavior and local use during service unavailability.
 User lived-use acceptance must include the world navigation and a useful exchange.
 
-Live co-walking, rich real-time presence, feeds/ranking, automatic semantic
-clustering, federation, communities and monetization are later work. Field Notes
-and Capsule portability remain separately designed extensions; the first online
-release does not implicitly publish them.
+Live co-walking, rich real-time presence, algorithmic feeds/ranking, automatic
+semantic clustering, federation, communities and monetization are later work.
+The accepted Capsule and stars/following scope above extends the earlier roadmap;
+existing private Field Notes and Capsules are never implicitly published.
