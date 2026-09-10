@@ -93,8 +93,9 @@ keeps its device credential private, and supports explicit check/disconnect and
 an explained offline forget option. The account panel revokes devices or all
 Atlas sessions/devices/pending codes. No pairing uploads an inquiry.
 
-Durable offered returns, accepted world links, native arrival doors,
-GitHub-side deauthorization, block/report management and activity are still to build. See
+Connected excerpt Capsule delivery/reconnect, exact-source decisions and blocks
+are implemented. Full returned-path graph transport, accepted world links, native
+arrival doors, GitHub-side deauthorization, report management and activity remain. See
 [online service](../online/README.md) for setup, tested boundaries and deployment.
 
 ## September 10 implementation checkpoint
@@ -109,9 +110,10 @@ rules and the verification boundary.
 Offline shared Capsule preparation and exchange are now implemented, including
 reviewed private continuation and contextual return preparation. Legacy artifacts
 retain their meaning. See [Capsules](KNOWLEDGE_CAPSULES.md) for the format, controls
-and verification limits. No network Capsule launch or acceptance is claimed.
+and verification limits. Connected delivery and private acceptance now follow below.
 
-Resume by connecting invitations and exact-source returns to durable delivery. Add witnessed
+Connected invitations, exact-source return delivery, explicit receipts/decisions,
+withdrawal and blocks are implemented and tested. Resume with witnessed
 launch/return events and ports against actual committed events, followed by native
 doors/unread, moderation/activity and the existing physical two-PC/release gates.
 
@@ -126,7 +128,7 @@ review and destination model while retaining complete offline use. Existing
 private artifacts keep their meaning. See [Capsule plan](KNOWLEDGE_CAPSULES.md).
 This direction is planned, not implemented by recording it here.
 
-Pending map interactions: selecting a Threadwalk centers the camera and shines
+Implemented map interactions: selecting a Threadwalk centers the camera and shines
 a spotlight down on it. Overview-road clicks do not move the camera. Follow path
 buttons in the Threadwalk menu retain their existing travel behavior.
 
@@ -220,3 +222,14 @@ Live co-walking, rich real-time presence, algorithmic feeds/ranking, automatic
 semantic clustering, federation, communities and monetization are later work.
 The accepted Capsule and stars/following scope above extends the earlier roadmap;
 existing private Field Notes and Capsules are never implicitly published.
+
+## Connected Capsule checkpoint
+
+The next delivery increment supports reviewed directed/open Capsules, explicit
+inert receipt, reconnect/retry, exact-source accept/decline, withdrawal and account
+blocks in Personal Atlas and the shared browser. Service and local tests plus a
+synthetic two-store browser loop pass; see [Capsules](KNOWLEDGE_CAPSULES.md).
+Decisions are private: accepting excerpts does not expose them as public content
+or import a full returned Threadwalk. Public contribution links/native doors and
+full `atlas-return-path` graph transport remain incomplete. This is a working
+increment in draft PR #5, not completion of the combined release checklist.

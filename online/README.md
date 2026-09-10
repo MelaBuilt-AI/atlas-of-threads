@@ -215,8 +215,45 @@ stars, optional following, a real new-edition update and marking it seen. Actual
 Worker → local HTTP pairing, saved readback, browser check and disconnect passed.
 The existing Windows-discovery tests now isolate their synthetic home directories.
 
-Still required in PR #5: GitHub-side deauthorization, durable offered
-returns and reconnect, accepted doorway links in the shared world, block/report
-management, opt-in activity, complete browser/two-PC checks, and final installers.
+Still required in PR #5: GitHub-side deauthorization, full returned-path graph
+transport, accepted doorway links in the shared world, report management, witnessed
+Capsule expeditions, opt-in activity, complete browser/two-PC checks, and final installers.
 The report endpoint stores authenticated reports; no active moderation service or
 response-time promise is implied. See `../docs/ONLINE_ATLAS.md` for the full gate.
+
+## Connected Capsule increment
+
+Migration `0003` stores bounded, frozen Capsule deliveries and separate per-account
+receipt/decision records in D1. Personal Atlas explicitly reviews payload/audience,
+then commits one delivery per sender/Capsule hash. Directed recipients are resolved
+from an existing account's GitHub login; public offerings/invitations require the
+sender's matching published home Threadwalk. Canonical Capsule JSON travels as a
+string, preserving Python numbers and checksums. The same schema is compiled by
+the build, and the Worker checks exact selected evidence and return sources.
+
+`GET /api/capsules?view=inbox|sent|public&after=SEQUENCE` is authenticated and returns
+up to 50 summaries plus a next cursor. It never acknowledges a delivery. Exact
+`GET /api/capsules/ID` reads the payload/source review. `POST /api/capsules/review`
+validates without storage; `/send` requires the returned review and explicit
+consent. `/ID/receive`, `/ID/decide`, and `/ID/withdraw` remain separate reviewed
+actions. `/api/blocks` reads/sets account blocks. No authentication bypass exists.
+The browser's **Capsules** panel provides reading, receipt, download, source review,
+accept/decline, sent history, withdrawal and blocks; preparation/sending uses the
+connected Personal Atlas. Credentials never enter its browser responses.
+
+Offline recipients find durable deliveries on their next explicit check. Lost
+send responses reuse the single launch; received content is stored before the
+local acknowledgement, and acknowledgements/decisions are retryable. Accepted
+returns record a private relationship to their exact Capsule or published inquiry
+source; they do not publicly expose the return or create world/native doors yet.
+Withdrawal stops subsequent service access but keeps private records/tombstones;
+prior downloaded copies cannot be recalled. Blocks apply in both directions to
+new exchanges and incoming/open visibility. Sender quota: 200 total deliveries,
+including withdrawn records. D1 rows retain the bounded payload and review; no
+second graph store or new R2 bucket is introduced.
+
+24 online tests and 433 Python tests pass. Synthetic browser A → B → A through a
+real local Worker and two isolated Python HTTP servers passed receipt and explicit
+acceptance with unchanged graphs/heads and no agent call. This is not physical
+Windows/two-PC, production load, or combined release acceptance. See
+[Capsules](../docs/KNOWLEDGE_CAPSULES.md) for offline compatibility and remaining work.

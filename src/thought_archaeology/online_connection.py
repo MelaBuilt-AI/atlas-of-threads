@@ -33,8 +33,15 @@ def _request(path: str, data: dict | None = None, token: str | None = None) -> d
             raise StoreError('This device is no longer connected. Disconnect it here, then pair again.') from None
         if error.code == 403 and path == '/api/pairings/exchange':
             raise StoreError('Pairing code expired or already used. Create a new code in your signed-in Atlas.') from None
-        if error.code == 429:
+        if error.code == 429 and path in {'/api/pairings/exchange', '/api/instances'}:
             raise StoreError('Device limit reached. Disconnect an unused device in your Atlas account.') from None
+        if path.startswith('/api/capsules') or path == '/api/blocks':
+            try:
+                message = json.loads(error.read(4096)).get('error')
+            except (ValueError, OSError):
+                message = None
+            if isinstance(message, str):
+                raise StoreError(message[:500]) from None
         raise StoreError(f'The online Atlas could not complete this action (HTTP {error.code}).') from None
     except (URLError, TimeoutError, OSError, ValueError):
         raise StoreError('The online Atlas is unavailable. Your local inquiries remain available; try connecting again later.') from None

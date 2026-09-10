@@ -8,7 +8,7 @@ part of future releases.
 
 - The development branch now includes offline excerpt Capsule preparation,
   reviewed private work and contextual return files. Existing local Capsules
-  keep their original one-shot contract. Connected delivery, return acceptance,
+  keep their original one-shot contract. Connected delivery and private return acceptance are implemented;
   witnessed expeditions and physical two-PC acceptance remain part of the combined
   milestone; this increment is not a desktop release. See
   [Capsules](KNOWLEDGE_CAPSULES.md).
@@ -115,4 +115,6 @@ The September 10 development continuation adds stable published editions, stars,
 optional in-app following and Personal Atlas device pairing with explicit local
 and account-side revocation. Synthetic browser/service checks pass; this does not
 claim GitHub-side deauthorization, physical two-PC exchange or installer acceptance.
-Shared Capsules, durable returns and the remaining combined milestone stay pending.
+Connected excerpt Capsules now support durable receipt, exact-source decisions,
+withdrawal and blocks. Full returned-path graph delivery, witnessed expeditions,
+shared/native doors and the remaining combined milestone stay pending.

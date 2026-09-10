@@ -119,7 +119,7 @@
         consent('I reviewed this complete payload and want to freeze it.','Freeze reviewed Capsule',async()=>{
           const saved=await api('/api/capsules/freeze',{draft,capsule:result.capsule,reviewed:true,destination:destination.value});
           reset();render(result.capsule);el('p',saved.export?'Frozen and exported locally. Nothing was uploaded.':'Frozen and kept privately. You can export this exact Capsule later.',content);
-          if(saved.export)downloads(saved.capsule.id);button('Open Capsule library',content,()=>run(libraryView));
+          if(saved.export)downloads(saved.capsule.id);button('Read saved Capsule / choose online delivery',content,()=>run(()=>savedView('prepared',saved.capsule.id)));button('Open Capsule library',content,()=>run(libraryView));
         });
         button('Edit contents',content,()=>run(()=>prepareView(reply,draft)));
       });};
@@ -127,6 +127,8 @@
     async function savedView(category,id) {
       const capsule=await api(`/api/capsules/${category}/${id}`);reset();render(capsule);
       if(category==='prepared') {
+        const connection=await api('/api/online/connection');
+        if(connection.connected)button('Choose online destination',content,()=>run(()=>deliveryView(capsule)));
         consent('Export this exact frozen Capsule for sharing.','Export Capsule files',async()=>{await api('/api/capsules/export',{id,reviewed:true});downloads(id);status.textContent='Exported locally. Nothing was uploaded.';});
       } else {
         el('p','Received for private reading. This does not accept a returned contribution or create a shared connection.',content);
@@ -166,6 +168,9 @@
         if(!data[category].length)el('p','None yet.',content);
         for(const c of data[category]){const row=el('section','',content);el('p',`${c.title} · ${intents[c.intent]} · ${c.author} · ${c.thought_count} thoughts`,row);button('Read Capsule',row,()=>run(()=>savedView(category,c.id)));}
       }
+      const localReceipts=await api('/api/capsules/online-receipts');
+      if(localReceipts.deliveries.length){el('h3','Saved online receipts',content);el('p','Last saved delivery state for the currently paired account; available offline. Check Online deliveries for newer service state.',content);
+        for(const d of localReceipts.deliveries){const row=el('section','',content);el('p',`${d.title||JSON.parse(d.review.capsule_json).content.title} · ${d.withdrawn?'withdrawn':d.sent?'sent':d.decision||'received locally'}`,row);exact(d,row);}}
       el('h3','Private work from Capsules',content);
       if(!data.workspaces.length)el('p','Received Capsules can start a separate, reviewed private continuation.',content);
       for(const work of data.workspaces){const row=el('section','',content);link(work.title,work.url,row);button('Read source Capsule',row,()=>run(()=>savedView('received',work.capsule_id)));button('Prepare a return',row,()=>run(()=>prepareView({kind:'capsule',id:work.capsule_id},{session_id:work.session_id})));}
@@ -177,7 +182,84 @@
         }));}
       }
     }
-    button('Prepare',nav,()=>run(()=>prepareView()));button('Library & receive',nav,()=>run(libraryView));
+    const online=(action,body={})=>api('/api/capsules/online-'+action,body);
+    async function deliveryView(capsule) {
+      reset();render(capsule);
+      const conn=await api('/api/online/connection');
+      el('p',`Sending as Atlas account ${conn.device.owner.login}. Choosing a destination does not launch the Capsule.`,content);
+      const dests=await online('destinations'), saved=await api('/api/capsules/online-receipts');
+      const audience=field('Audience','select',content);el('option','Directed to one Atlas account',audience).value='directed';
+      if(capsule.content.intent!=='return')el('option','Open to every signed-in Atlas visitor',audience).value='public';
+      const recipient=field('Recipient GitHub login (must have joined this Atlas)','input',content,'',120);
+      const source=field('Optional published home Threadwalk','select',content);el('option','No public launch location',source).value='';
+      for(const p of dests.publications)if(p.origin_id===capsule.content.origin_id&&p.session_id===capsule.content.home_session_id)el('option',p.title,source).value=p.id;
+      const reply=capsule.content.reply_to;
+      let parent=null, original=null;
+      if(reply?.kind==='capsule') {
+        original=saved.deliveries.find(d=>!d.sent&&d.capsule_id===reply.id);
+        if(original){parent={value:original.id};recipient.value=original.sender.login;el('p',`Returning to ${original.title} from ${original.sender.login}.`,content);}
+        else parent=field('Original online Capsule delivery ID','input',content,'',64);
+      } else if(reply?.kind==='inquiry')parent=field('Exact source publication ID (from its online link)','input',content,'',64);
+      audience.onchange=()=>{recipient.disabled=audience.value==='public';};
+      el('p','Open delivery publishes these excerpts at the chosen home Threadwalk. Directed delivery shares them with one account. Recipients can keep copies. Each frozen Capsule has one online launch.',content);
+      button('Review destination with the online Atlas',content,()=>run(async()=>{
+        const destination={audience:audience.value,recipient_login:recipient.value,source_publication_id:source.value||null,
+          reply_delivery_id:reply?.kind==='capsule'?parent.value:null,reply_publication_id:reply?.kind==='inquiry'?parent.value:null};
+        const result=await online('review',{id:capsule.id,destination});
+        reset();render(capsule);const r=result.review;
+        el('h3','Review online delivery',content);
+        el('p',`Sender: ${r.sender.login}. Audience: ${r.recipient?`${r.recipient.login} · account ${r.recipient.id}${r.recipient.verified?' · GitHub verified':' · synthetic'}`:'All signed-in Atlas visitors'}.`,content);
+        el('p',r.source?`Launch location: ${r.source.title}`:'No public launch location.',content);
+        if(r.reply_source){el('h4','Exact return destination',content);if(r.reply_source.capsule_json)render(JSON.parse(r.reply_source.capsule_json));else exact(r.reply_source,content);}
+        exact(r.destination,content);
+        consent('Send this exact Capsule to the reviewed audience.','Send reviewed Capsule',async()=>{
+          const sent=await online('send',{review:r,reviewed:true});reset();el('p',sent.reused?'Original delivery recovered. No new launch was created.':'Capsule delivered. It awaits deliberate receipt and review.',content);
+          el('pre',sent.id,content);button('Open online deliveries',content,()=>run(()=>onlineView('sent')));
+        });
+        button('Change destination',content,()=>run(()=>deliveryView(capsule)));
+      }));
+      el('p','Review destination sends this displayed payload to the service for validation; only Send commits a delivery.',content);
+    }
+    async function onlineRead(id) {
+      const detail=await online('read',{id}), capsule=JSON.parse(detail.capsule_json);reset();render(capsule);
+      el('p',`Atlas sender: ${detail.sender.login} · account ${detail.sender.id}${detail.sender.verified?' · GitHub verified':' · synthetic'}. Audience: ${detail.audience}.`,content);
+      const conn=await api('/api/online/connection');
+      if(detail.sender.id===conn.device.owner.id) {
+        el('p','Sent Capsules retain one delivery ID across retries. Withdrawal stops future service access; saved copies remain with recipients.',content);
+        consent('Withdraw this delivery from further online access.','Withdraw Capsule',async()=>{await online('withdraw',{id,reviewed:true});await onlineView('sent');});return;
+      }
+      if(detail.source){el('h3','Original source for this return',content);if(detail.source.capsule_json)render(JSON.parse(detail.source.capsule_json));else exact(detail.source,content);}
+      if(detail.decision)el('p',`Source owner decision: ${detail.decision}`,content);
+      consent('Keep this Capsule privately and acknowledge receipt. No collaborator is invoked.','Receive in Personal Atlas',async()=>{
+        await online('receive',{id,reviewed:true});await onlineRead(id);status.textContent='Saved privately and receipt acknowledged.';
+      });
+      if(detail.received_at) {
+        button('Open private Capsule / continue / prepare return',content,()=>run(()=>savedView('received',capsule.id)));
+        if(capsule.content.intent==='return'&&!detail.decision) {
+          el('p','Acceptance records a private contribution relationship to this exact source. It does not publish the returned excerpts or create a world doorway yet.',content);
+          for(const decision of ['accepted','declined'])consent(`I reviewed this return and its original source: ${decision}.`,decision==='accepted'?'Accept contribution':'Decline contribution',async()=>{
+            await online('decide',{id,decision,source:detail.source,capsule_id:capsule.id,reviewed:true});await onlineRead(id);
+          });
+        }
+      }
+      consent(`Block ${detail.sender.login} from further exchanges with this account.`,'Block sender',async()=>{
+        await online('blocks',{owner_id:detail.sender.id,blocked:true,reviewed:true});await onlineView();
+      });
+    }
+    async function onlineView(view='inbox',after=0) {
+      reset();const connection=await api('/api/online/connection');
+      if(!connection.connected){el('p','Use Connect to the Atlas to pair this Personal Atlas. Your offline Capsules remain available in Library & receive.',content);return;}
+      el('p',`Atlas account: ${connection.device.owner.login}. Check deliveries explicitly after reconnecting. No private Capsule is uploaded by connecting or checking.`,content);
+      const tabs=el('nav','',content);for(const [key,label] of [['inbox','Inbox'],['sent','Sent'],['public','Open invitations & offerings']])button(label,tabs,()=>run(()=>onlineView(key)));
+      const data=await online('browse',{view,after});el('h3',view==='public'?'Open Capsules':view==='sent'?'Sent deliveries':'Inbox',content);
+      if(!data.deliveries.length)el('p','No deliveries on this page.',content);
+      for(const d of data.deliveries){const row=el('section','',content);el('p',`${d.title} · ${d.sender.login} · ${d.withdrawn?'withdrawn':d.decision|| (d.received_at?'received':'awaiting receipt')}`,row);if(!d.withdrawn)button('Review delivery',row,()=>run(()=>onlineRead(d.id)));}
+      if(data.next)button('Next page',content,()=>run(()=>onlineView(view,data.next)));
+      const saved=await api('/api/capsules/online-receipts');
+      if(saved.deliveries.length){const details=el('details','',content);el('summary','Saved local delivery receipts',details);for(const d of saved.deliveries)el('p',`${d.id.slice(0,12)} · ${d.sent?'sent':d.decision||'received locally'}`,details);}
+      const blocked=await online('blocks');if(blocked.blocks.length){el('h3','Blocked accounts',content);for(const b of blocked.blocks)button(`Unblock ${b.login}`,content,()=>run(async()=>{await online('blocks',{owner_id:b.id,blocked:false,reviewed:true});await onlineView(view);}));}
+    }
+    button('Prepare',nav,()=>run(()=>prepareView()));button('Library & receive',nav,()=>run(libraryView));button('Online deliveries',nav,()=>run(()=>onlineView()));
     button('Capsules',document.getElementById('portable-bar'),()=>{open();run(libraryView);});
     if(window.TA_INQUIRY_ID)button('Return Capsule',document.getElementById('portable-bar'),()=>run(async()=>{
       const match=location.hash.match(/^#\/g\/([^/]+)\/n\/([^/]+)/);if(!match)throw Error('Choose an imported thought first');

@@ -32,8 +32,14 @@ in [portable inquiries](docs/PORTABLE_INQUIRIES.md).
 
 
 The online preview lives in `online/`; run `npm ci`, `npm run build`, and
-`npm test` there. It compiles the same portable schemas and copies the committed
+`npm test` there. It compiles the same portable and shared Capsule schemas and copies the committed
 Atlas renderer/media. Python prepares chamber semantics; do not implement a
 second fork/veto engine in the Worker. Synthetic fixture generation is explicit
 and never reads a user store. Deployment is separate from tests and requires
 scoped Cloudflare credentials; never commit local deployment configuration.
+
+Connected Capsule tests use synthetic accounts and the real local D1 runtime.
+Keep receipt, explicit source-owner decisions and graph import distinct. Add
+numbered migrations rather than rewriting deployed tables; transport must preserve
+canonical JSON strings and retry the original delivery identity. Never seed real
+Capsules or invoke a real collaborator for a transport test.

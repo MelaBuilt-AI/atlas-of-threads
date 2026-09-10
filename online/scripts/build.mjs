@@ -19,6 +19,8 @@ await build({
   outfile: "dist/validate.js",
   target: "es2022",
 });
+await writeFile("dist/validate-capsule.cjs", standalone(ajv, ajv.getSchema("shared-capsule.schema.json")));
+await build({entryPoints:["dist/validate-capsule.cjs"], bundle:true, format:"esm", outfile:"dist/validate-capsule.js", target:"es2022"});
 await build({
   entryPoints: ["src/worker.js"],
   bundle: true,

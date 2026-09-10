@@ -1,3 +1,4 @@
+import { capsuleGet, capsulePost } from "./capsules.js";
 import { inspect, sha, fail, MAX_BYTES, position } from "./publication.js";
 const now = () => Math.floor(Date.now() / 1000);
 const token = () => crypto.randomUUID() + crypto.randomUUID();
@@ -226,6 +227,8 @@ export default {
         return await auth(r, env, u);
       if (!path.startsWith("/api/")) return env.ASSETS.fetch(r);
       if (r.method === "GET") {
+        if (path.startsWith("/api/capsules") || path === "/api/blocks")
+          return json(await capsuleGet(env, u, await identity(r, env)));
         if (path === "/api/health")
           return json({
             ok: true,
@@ -357,6 +360,8 @@ export default {
         });
       }
       const data = await body(r);
+      if (path.startsWith("/api/capsules") || path === "/api/blocks")
+        return json(await capsulePost(env, path, who, data));
       if (path === "/api/account/revoke") {
         if (who.instance_id) fail("Disconnect all devices from your signed-in browser", 403);
         await env.DB.batch([

@@ -58,7 +58,7 @@ can reproduce the problem.
   does not upload or publish the Capsule.
 
 The separate online preview in `online/` stores only deliberately uploaded
-publication artifacts. Local preparation sends nothing, and hosted content cannot
+publication artifacts and explicitly sent excerpt Capsules. Local preparation sends nothing, and hosted content cannot
 invoke a collaborator or write a local store. A browser review and verified owner
 session/device credential are required to publish. GitHub numeric IDs identify
 owners; publisher-supplied sharing names and synthetic preview accounts are
@@ -86,3 +86,14 @@ Before the online milestone becomes a release, complete live identity/device
 pairing and revocation acceptance, durable returned-path consent, moderation and
 block management, request/CPU limits under representative load, and the two-PC
 release gate in [Online Atlas](docs/ONLINE_ATLAS.md).
+
+Connected excerpt Capsule delivery requires a separate complete audience/payload
+review. A directed recipient is an existing verified account; open delivery needs
+a matching owned publication. The service stores only the reviewed Capsule and
+routing/receipt records. It does not authenticate the author's claims from a
+checksum. Exact-source return acceptance is a private, explicit source-owner
+decision, never an automatic graph import or public disclosure. Account blocks
+prevent further exchanges in either direction; withdrawal stops service reading
+but retains private records for retries/history and cannot erase recipient copies.
+Inbox listing and connection never acknowledge, accept, invoke agents, or upload
+local artifacts. See the detailed contract in `docs/KNOWLEDGE_CAPSULES.md`.

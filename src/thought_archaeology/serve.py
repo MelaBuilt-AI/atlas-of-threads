@@ -14,7 +14,7 @@ from pathlib import Path
 from types import MappingProxyType
 from urllib.parse import parse_qs, urlparse
 
-from thought_archaeology import portable, return_paths, capsules
+from thought_archaeology import portable, return_paths, capsules, capsule_delivery
 from thought_archaeology.agent_spark import (guide_payload, assign_roles, discussion_payload, begin_discussion, clear_discussion)
 from thought_archaeology.adapters.provider_command import (
     command_argv,
@@ -1027,7 +1027,9 @@ class InhabitHandler(BaseHTTPRequestHandler):
         try:
             if path.startswith("/api/capsules/"):
                 resource = path.removeprefix("/api/capsules/")
-                if resource == "library":
+                if resource == "online-receipts":
+                    self._json(200, capsule_delivery.receipts(self.store))
+                elif resource == "library":
                     self._json(200, capsules.library(self.store))
                 elif resource == "graphs":
                     self._json(200, {"graphs":capsules.graph_choices(self.store, (qs.get("session") or [""])[0])})
@@ -1385,9 +1387,37 @@ class InhabitHandler(BaseHTTPRequestHandler):
         try:
             if path.startswith("/api/capsules/"):
                 self._require_local_json_request()
-                body = self._read_json(max_bytes=capsules.MAX_BYTES * 2)
+                body = self._read_json(max_bytes=capsules.MAX_BYTES * 6)
                 action = path.removeprefix("/api/capsules/")
-                if action == "prepare":
+                if action.startswith("online-"):
+                    action = action.removeprefix("online-")
+                    if action == "browse":
+                        result = capsule_delivery.browse(self.store, body.get("view", "inbox"), body.get("after", 0))
+                    elif action == "destinations":
+                        result = capsule_delivery.destinations(self.store)
+                    elif action == "read":
+                        result = capsule_delivery.read(self.store, body.get("id", ""))
+                    elif action == "review":
+                        result = capsule_delivery.review(self.store, body.get("id", ""), body.get("destination"))
+                    elif action == "blocks" and "owner_id" not in body:
+                        result = capsule_delivery.blocks(self.store)
+                    else:
+                        if body.get("reviewed") is not True:
+                            raise StoreError("Review this Capsule and online action first")
+                        if action == "send":
+                            result = capsule_delivery.send(self.store, body.get("review"))
+                        elif action == "receive":
+                            result = capsule_delivery.receive(self.store, body.get("id", ""))
+                        elif action == "decide":
+                            result = capsule_delivery.decide(self.store, body.get("id", ""), body.get("decision"), body.get("source"), body.get("capsule_id"))
+                        elif action == "withdraw":
+                            result = capsule_delivery.withdraw(self.store, body.get("id", ""))
+                        elif action == "blocks":
+                            result = capsule_delivery.blocks(self.store, body.get("owner_id"), body.get("blocked"))
+                        else:
+                            raise StoreError("Unknown online Capsule action")
+                    self._json(200, result)
+                elif action == "prepare":
                     capsule = capsules.prepare(self.store, body)
                     self._json(200, {"capsule":capsule, "summary":capsules.summary(capsule)})
                 elif action == "inspect":
