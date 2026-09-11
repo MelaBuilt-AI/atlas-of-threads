@@ -37,7 +37,8 @@ def _grok_bin() -> ProviderCommand:
         )
     if not isinstance(executable, str):
         return executable
-    return str(Path(executable).resolve())
+    # Preserve argv[0] for launcher shims such as grok -> mise.
+    return str(Path(executable).absolute())
 
 
 def _run_metadata(argv: list[str], *, timeout: float = 30) -> tuple[str, str]:

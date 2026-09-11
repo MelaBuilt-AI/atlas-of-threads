@@ -831,20 +831,41 @@
   setInterval(() => { if (worldReady) pollExpeditions(); },2500);
   setInterval(() => {
     if (worldReady && !document.hidden && $("visit").hidden && !transition)
-      Promise.all([loadWorld(), loadLibrary()]).catch(reportError);
+      Promise.all([loadWorld(), refreshAccountConnection()]).catch(reportError);
   }, 30000);
-  api("/api/me")
-    .then((data) => {
+  function paintAccountConnection(connected) {
+    $("login").dataset.connected = String(connected);
+    $("login").title = connected ? 'Connected to the Atlas' : 'Disconnected from the Atlas';
+  }
+  let checkingAccount = false;
+  async function refreshAccountConnection() {
+    if (checkingAccount || document.hidden) return;
+    if (!navigator.onLine) { paintAccountConnection(false); return; }
+    checkingAccount = true;
+    try {
+      const data = await api("/api/me");
       owner = data.owner;
+      paintAccountConnection(!!owner && navigator.onLine);
       if (owner) {
-        loadLibrary().catch(reportError);
+        await loadLibrary();
         $("login").textContent = "@" + owner.login;
         $("login").href = "#account";
         $("login").onclick = (e) => {
           e.preventDefault();
           account();
         };
+      } else {
+        $("login").textContent = "Connect with GitHub";
+        $("login").href = "/auth/login";
+        $("login").onclick = null;
+        libraryData = {publications:[],subscriptions:[],updates:[]};
+        paintSubscription(); renderLibrary();
       }
-    })
-    .catch(reportError);
+    } catch (error) { paintAccountConnection(false); reportError(error); }
+    finally { checkingAccount = false; }
+  }
+  addEventListener('offline', () => paintAccountConnection(false));
+  addEventListener('online', refreshAccountConnection);
+  document.addEventListener('visibilitychange', refreshAccountConnection);
+  refreshAccountConnection();
 })();

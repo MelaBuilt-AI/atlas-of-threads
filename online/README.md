@@ -144,6 +144,10 @@ and refresh tokens are not retained. Atlas sessions expire after seven days and
 logout deletes the current session. The device API creates independent random
 bearer credentials, stores only their SHA-256 hashes and supports revocation.
 Personal Atlas now has **Connect to the Atlas** in its toolbar and Workspace.
+The toolbar folds into a glowing neuron/arrow at the top edge. On the online
+overworld, the account control glows green after session verification and red
+when signed out, offline, or verification fails. It refreshes on returning online
+or to the tab, and with the visible overworld's 30-second refresh.
 Open the online account panel and create a code for a named computer, then paste
 it into Personal Atlas. Codes expire after ten minutes, work once, and replace
 that account’s preceding pending code. Creation requires a current browser

@@ -70,9 +70,9 @@ test("road bundles form toward the new locale, retain existing meshes, and dispo
 });
 
 test("open-world refresh discovers arrivals, removes withdrawals and preserves loaded pagination", async () => {
-  const elements = new Map(), intervals = new Map();
+  const elements = new Map(), intervals = new Map(), events = new Map();
   const element = () => ({
-    children: [], hidden: false, textContent: "",
+    children: [], hidden: false, textContent: "", dataset: {},
     addEventListener() {}, setAttribute() {},
     append(child) { child.parent = this; this.children.push(child); },
     remove() { this.parent.children = this.parent.children.filter(child => child !== this); },
@@ -87,15 +87,18 @@ test("open-world refresh discovers arrivals, removes withdrawals and preserves l
     title: `Synthetic ${n}`, owner: { login: "Synthetic publisher", verified: false },
     inquiry_id: "synthetic", thought_count: 1 });
   let published = [entry(1), entry(2), entry(3)];
+  let owner = {login: 'SyntheticTester'};
   const requests = [];
   const ui = vm.createContext({
     console, performance, setInterval: (fn,ms) => intervals.set(ms,fn),
     matchMedia: () => ({ matches: true }),
-    sessionStorage: { getItem: () => null }, addEventListener() {},
-    document: { hidden: false, getElementById: $, createElement: element, querySelectorAll: () => [] },
+    sessionStorage: { getItem: () => null }, addEventListener: (type, fn) => events.set(type, fn),
+    navigator: {onLine: true},
+    document: { hidden: false, getElementById: $, createElement: element, querySelectorAll: () => [], addEventListener: (type, fn) => events.set(type, fn) },
     fetch: async path => {
       requests.push(path);
-      if (path === "/api/me") return { ok: true, json: async () => ({ owner: null }) };
+      if (path === "/api/me") return { ok: true, json: async () => ({ owner }) };
+      if (path === "/api/library") return { ok: true, json: async () => ({publications: [], subscriptions: [], updates: []}) };
       const after = Number(new URL(path, "http://atlas.test").searchParams.get("after")) || 0;
       const page = published.filter(item => item.sequence > after).slice(0, 2);
       return { ok: true, json: async () => ({ publications: page, next: page.length === 2 ? page.at(-1).sequence : null }) };
@@ -106,6 +109,13 @@ test("open-world refresh discovers arrivals, removes withdrawals and preserves l
   const settle = () => new Promise(resolve => setImmediate(resolve));
   const titles = () => $("inquiry-list").children.map(button => button.children[0].textContent);
   await settle();
+  assert.equal($("login").dataset.connected, 'true');
+  assert.equal($("login").textContent, '@SyntheticTester');
+  ui.navigator.onLine = false; events.get('offline')();
+  assert.equal($("login").dataset.connected, 'false');
+  assert.equal($("login").textContent, '@SyntheticTester');
+  ui.navigator.onLine = true; events.get('online')(); await settle();
+  assert.equal($("login").dataset.connected, 'true');
   assert.deepEqual(titles(), ["Synthetic 1", "Synthetic 2"]);
   $("more").onclick(); await settle();
   assert.deepEqual(titles(), ["Synthetic 1", "Synthetic 2", "Synthetic 3"]);
@@ -116,6 +126,11 @@ test("open-world refresh discovers arrivals, removes withdrawals and preserves l
   ui.document.hidden = true;
   intervals.get(30000)(); await settle();
   assert.equal(requests.length, count);
+  owner = null; ui.document.hidden = false;
+  events.get('visibilitychange')(); await settle();
+  assert.equal($("login").dataset.connected, 'false');
+  assert.equal($("login").href, '/auth/login');
+  assert.equal($("login").onclick, null);
 });
 
 test('world terrain readiness waits for texture completion and also settles on load failure', async () => {

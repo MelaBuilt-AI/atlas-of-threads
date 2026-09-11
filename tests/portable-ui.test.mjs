@@ -8,14 +8,14 @@ const inquiryJSON = JSON.parse(readFileSync(new URL('../online/test/fixtures/1.j
 const bundle = JSON.parse(inquiryJSON);
 const summary = {id:bundle.id,title:'Synthetic inquiry',author:'Synthetic publisher',graph_count:1,
   thought_count:3,evidence_count:0,excluded:[],omitted_evidence_count:0,description:'Synthetic import'};
-function setup() {
+function setup({inquiryId=null, privatePath=false}={}) {
   const nodes=[], events=new Map(), intervals=[], calls=[];
   function element(tag='div') {
-    const n={tag,children:[],dataset:{},hidden:false,options:[],files:[],value:'',textContent:'',
+    const n={tag,children:[],dataset:{},hidden:false,options:[],files:[],value:'',textContent:'',classList:{add(){}},
       append(...children){for(const c of children){c.parentElement=this;this.children.push(c);if(c.tag==='option')this.options.push(c);}},
       prepend(c){c.parentElement=this;this.children.unshift(c);},
       replaceChildren(){this.children=[];this.options=[];},
-      setAttribute(k,v){this[k]=v;},addEventListener(k,fn){this[k]=fn;},
+      setAttribute(k,v){this[k]=v;},getAttribute(k){return this[k];},addEventListener(k,fn){this[k]=fn;},focus(){this.focused=true;},
       scrollIntoView(){},showModal(){this.open=true;},close(){this.open=false;},click(){return this.onclick?.();}};
     nodes.push(n);return n;
   }
@@ -38,14 +38,18 @@ function setup() {
     else if(path==='/api/online/prepare'){assert.equal(options.body,inquiryJSON);data={inquiry_json:inquiryJSON};}
     else if(path==='/api/sessions')data={sessions:[]};
     else if(path==='/api/inquiries')data={inquiries:[]};
+    else if(path.startsWith('/api/return-paths/at'))data={arrivals:[],private_path:privatePath?{source:{author:'Synthetic publisher',inquiry_id:'synthetic-inquiry',graph_id:'source-graph',node_id:'source-thought'}}:null};
+    else if(path.endsWith('/info'))data={title:'Synthetic inquiry',author:'Synthetic publisher',description:'Synthetic'};
     return {ok:true,json:async()=>data};
   };
   const blobs=[];
-  const context=vm.createContext({document,fetch,navigator:{onLine:true},MutationObserver:class{observe(){}},
+  const storage=new Map();
+  const context=vm.createContext({document,fetch,navigator:{onLine:true},ResizeObserver:class{observe(){}},
+    sessionStorage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v)},URLSearchParams,
     addEventListener:(k,fn)=>events.set(k,fn),setInterval:fn=>intervals.push(fn),setTimeout:()=>{},
-    location:{assign:url=>state.destination=url},Blob:class{constructor(parts){blobs.push(parts.join(''));}},
+    location:{hash:'#/g/current-graph/n/current-thought',search:'',assign:url=>state.destination=url},Blob:class{constructor(parts){blobs.push(parts.join(''));}},
     URL:{createObjectURL:()=>'/synthetic-blob',revokeObjectURL(){}},console});
-  context.window=context;vm.runInContext(source,context);
+  context.window=context;context.TA_INQUIRY_ID=inquiryId;vm.runInContext(source,context);
   return {nodes,state,events,intervals,calls,context,blobs,find:text=>nodes.find(n=>n.textContent===text),
     settle:()=>new Promise(resolve=>setImmediate(resolve))};
 }
@@ -82,4 +86,25 @@ test('both connection controls follow verification, offline recovery and revocat
   ui.find('You are connected to the Atlas').onclick();await ui.settle();
   await ui.find('Disconnect this Personal Atlas').onclick();
   assert.ok(buttons().every(n=>n.textContent==='Connect to the Atlas'));
+});
+
+test('Atlas menu starts stowed, toggles accessibly, and Escape returns focus to its handle',async()=>{
+  const ui=setup();await ui.settle();
+  const toggle=ui.nodes.find(n=>n.id==='atlas-menu-toggle');
+  const panel=ui.nodes.find(n=>n.className==='atlas-menu-panel');
+  assert.equal(toggle['aria-expanded'],'false');assert.equal(panel.inert,true);
+  toggle.onclick();assert.equal(toggle['aria-expanded'],'true');assert.equal(panel.inert,false);
+  assert.equal(ui.context.sessionStorage.getItem('atlas.menu.expanded.v1'),'true');
+  ui.nodes.find(n=>n.id==='atlas-menu').keydown({key:'Escape',stopPropagation(){}});
+  assert.equal(toggle['aria-expanded'],'false');assert.equal(panel.inert,true);assert.ok(toggle.focused);
+});
+test('private source return is in the stowable menu and the imported destination offers Return to my Atlas',async()=>{
+  const returns=readFileSync(new URL('../viz/dist/return-paths.js',import.meta.url),'utf8');
+  const local=setup({privatePath:true});vm.runInContext(returns,local.context);local.events.get('DOMContentLoaded')();await local.settle();
+  const link=local.find('Return to Source: Synthetic publisher');
+  assert.equal(link.hidden,false);assert.equal(link.parentElement.id,'portable-bar');
+  assert.equal(link.href,'/inquiries/synthetic-inquiry/#/g/source-graph/n/source-thought');
+  assert.equal(local.nodes.find(n=>n.id==='return-path-doors').children.length,0);
+  const imported=setup({inquiryId:'synthetic-inquiry'});await imported.settle();
+  const home=imported.find('Return to my Atlas');assert.equal(home.href,'/');assert.equal(home.parentElement.id,'portable-bar');
 });

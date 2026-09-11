@@ -166,21 +166,24 @@
       const arrival=new URLSearchParams(location.search).get('arrival');
       if(arrival) run(async()=>{
         const offer=(await api('')).offers.find(item=>item.id===arrival && item.status==='accepted' && item.inquiry.id===window.TA_INQUIRY_ID);
-        if(offer) link('Return to source chamber',sourceUrl(offer.source).replace('/#',`/?doorway=${offer.id}#`),bar);
+        if(offer) link(`Return to Source: ${offer.source.author || 'Original publisher'}`,sourceUrl(offer.source).replace('/#',`/?doorway=${offer.id}#`),bar);
       });
     } else {
       button('Returned paths',bar,()=>{open();run(showLibrary);});
     }
     const doors=el('div','',document.body);doors.id='return-path-doors';doors.setAttribute('aria-label','External paths at this chamber');
+    const sourceReturn=link('', '#', bar);sourceReturn.id='return-to-source';sourceReturn.hidden=true;
     async function showDoors() {
-      doors.replaceChildren();if(window.TA_INQUIRY_ID)return;
+      doors.replaceChildren();sourceReturn.hidden=true;if(window.TA_INQUIRY_ID)return;
       const selected=stand();if(!selected)return;
       const route=location.hash;
       const data=await api(`/at?graph=${encodeURIComponent(selected.graph_id)}&node=${encodeURIComponent(selected.node_id)}`);
       if(route!==location.hash)return;
       if(data.private_path) {
         const source=data.private_path.source;
-        link(`Source · ${source.author}`,`/inquiries/${source.inquiry_id}/#/g/${source.graph_id}/n/${source.node_id}`,doors);
+        sourceReturn.textContent=`Return to Source: ${source.author}`;
+        sourceReturn.href=`/inquiries/${source.inquiry_id}/#/g/${source.graph_id}/n/${source.node_id}`;
+        sourceReturn.hidden=false;
       }
       if(!window.TADoorways)for(const offer of data.arrivals) link(`Accepted path · ${offer.inquiry.author}`,visitUrl(offer),doors);
     }

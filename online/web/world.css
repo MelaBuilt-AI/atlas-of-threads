@@ -450,3 +450,6 @@ aside, #library, dialog { background: #060e20ef; border-color: #83b3ee3b; box-sh
 #world-loading[hidden] {display:none;}
 #world-loading p {margin:0;font:clamp(1.6rem,4vw,2.8rem) Georgia,serif;}
 #world-loading small {color:#99aeca;}
+
+#login[data-connected="true"] {color:#a0ffc0;border-color:#63dc98;background:#10291fc9;text-shadow:0 0 8px #64ff9eaa,0 0 18px #64ff9e66;box-shadow:0 0 13px #42e98c45,inset 0 0 8px #42e98c18;}
+#login[data-connected="false"] {color:#ffb0b0;border-color:#df7474;background:#2d141ac9;text-shadow:0 0 8px #ff6262aa,0 0 18px #ff626266;box-shadow:0 0 13px #ef5b6945,inset 0 0 8px #ef5b6918;}

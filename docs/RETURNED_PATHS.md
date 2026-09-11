@@ -12,6 +12,12 @@ selected collaborator. Confirming creates a separate local Threadwalk and queues
 the ordinary local worker. The imported inquiry and existing session heads stay
 unchanged. Use the local Workspace to choose a different collaborator first.
 
+The Atlas menu folds up against the top edge in both local and imported views.
+Use the glowing neuron/arrow to expand it. A private continuation's
+**Return to Source: publisher name** link lives there and returns to its exact
+imported source thought. The imported view then offers **Return to my Atlas**.
+The menu remembers whether it is expanded for this browser tab.
+
 In your own Atlas, **Returned paths** lists private continuations. Once a response
 has completed, enter a sharing name, review every graph and exact JSON, and save
 an `.atlas-return.json` offer. Sharing is a separate action; saving does not send
@@ -21,8 +27,8 @@ not included. As with portable inquiries, review graph prose for private text.
 The original source inhabitant chooses the offer file, inspects its contents,
 and receives it into a pending inbox. **Review path** reopens the saved contents;
 accepting imports the offered snapshot and exposes an entry link at the exact
-source chamber. Declining leaves it inert. Accepted paths offer **Return to source
-chamber**. Repeated receipt/acceptance reuses the same offer and snapshot. A
+source chamber. Declining leaves it inert. Accepted paths offer **Return to Source:
+publisher name** in the Atlas menu. Repeated receipt/acceptance reuses the same offer and snapshot. A
 decision is final for that exact offer in this initial increment.
 
 ## Contract

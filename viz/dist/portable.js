@@ -4,16 +4,6 @@
   const inquiryId = window.TA_INQUIRY_ID;
   const nativeFetch = window.fetch.bind(window);
   const bar = document.createElement('div'); bar.id = 'portable-bar';
-  document.body.append(bar);
-  const onboarding = document.getElementById('onboarding-menu');
-  if (onboarding && !inquiryId) {
-    const placeBar = () => {
-      const parent = onboarding.hidden ? document.body : onboarding.querySelector('.onboarding-panel');
-      if (bar.parentElement !== parent) parent.prepend(bar);
-    };
-    new MutationObserver(placeBar).observe(onboarding, {attributes:true, attributeFilter:['hidden']});
-    placeBar();
-  }
   const element = (tag, text, parent) => {
     const node = document.createElement(tag); if(text) node.textContent = text;
     if(parent) parent.append(node); return node;
@@ -21,6 +11,32 @@
   const button = (text, parent, action) => {
     const node = element('button', text, parent); node.type = 'button'; node.onclick = action; return node;
   };
+  const menu = element('nav', '', document.body); menu.id = 'atlas-menu'; menu.setAttribute('aria-label', 'Atlas menu');
+  const panel = element('div', '', menu); panel.className = 'atlas-menu-panel';
+  const clip = element('div', '', panel); clip.className = 'atlas-menu-clip'; clip.append(bar);
+  const toggle = button('', menu, () => setExpanded(toggle.getAttribute('aria-expanded') !== 'true'));
+  toggle.id = 'atlas-menu-toggle'; toggle.setAttribute('aria-controls', 'portable-bar');
+  const neuron = element('span', '', toggle); neuron.className = 'atlas-menu-neuron'; neuron.setAttribute('aria-hidden', 'true');
+  neuron.innerHTML = '<svg viewBox="0 0 40 40" focusable="false"><path d="M20 20 7 7m13 13L5 25m15-5 8-14m-8 14 15 8m-15-8-3 15M7 7 4 12m24-6 7 1M17 35l7 2"/><circle cx="20" cy="20" r="5"/><circle cx="7" cy="7" r="2"/><circle cx="5" cy="25" r="2"/><circle cx="28" cy="6" r="2"/><circle cx="35" cy="28" r="2"/><circle cx="17" cy="35" r="2"/></svg><i></i><i></i><i></i>';
+  const arrow = element('span', '', toggle); arrow.className = 'atlas-menu-arrow'; arrow.setAttribute('aria-hidden', 'true');
+  function setExpanded(expanded) {
+    menu.dataset.expanded = String(expanded);
+    toggle.setAttribute('aria-expanded', String(expanded));
+    toggle.setAttribute('aria-label', expanded ? 'Collapse Atlas menu' : 'Expand Atlas menu');
+    toggle.title = expanded ? 'Collapse Atlas menu' : 'Expand Atlas menu';
+    arrow.textContent = expanded ? '▴' : '▾';
+    panel.inert = !expanded; panel.setAttribute('aria-hidden', String(!expanded));
+    try { sessionStorage.setItem('atlas.menu.expanded.v1', String(expanded)); } catch {}
+  }
+  let expanded = false;
+  try { expanded = sessionStorage.getItem('atlas.menu.expanded.v1') === 'true'; } catch {}
+  setExpanded(expanded);
+  menu.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && toggle.getAttribute('aria-expanded') === 'true') {
+      event.stopPropagation(); setExpanded(false); toggle.focus();
+    }
+  });
+  new ResizeObserver(() => document.documentElement.style.setProperty('--atlas-menu-height', `${menu.getBoundingClientRect().height}px`)).observe(menu);
   async function api(path, body) {
     const response = await nativeFetch(path, body === undefined ? {} : {
       method:'POST', headers:{'Content-Type':'application/json'}, body:typeof body === 'string' ? body : JSON.stringify(body)
