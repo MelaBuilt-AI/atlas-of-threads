@@ -8,7 +8,7 @@ const inquiryJSON = JSON.parse(readFileSync(new URL('../online/test/fixtures/1.j
 const bundle = JSON.parse(inquiryJSON);
 const summary = {id:bundle.id,title:'Synthetic inquiry',author:'Synthetic publisher',graph_count:1,
   thought_count:3,evidence_count:0,excluded:[],omitted_evidence_count:0,description:'Synthetic import'};
-function setup({inquiryId=null, privatePath=false}={}) {
+function setup({inquiryId=null, privatePath=false, capsuleJSON=null}={}) {
   const nodes=[], events=new Map(), intervals=[], calls=[];
   function element(tag='div') {
     const n={tag,children:[],dataset:{},hidden:false,options:[],files:[],value:'',textContent:'',classList:{add(){}},
@@ -36,6 +36,16 @@ function setup({inquiryId=null, privatePath=false}={}) {
       if(path.endsWith('import')){state.imports++;data={url:'/synthetic-import'};}else data=summary;
     } else if(path==='/api/inquiries/preview')data={bundle,summary,inquiry_json:inquiryJSON};
     else if(path==='/api/online/prepare'){assert.equal(options.body,inquiryJSON);data={inquiry_json:inquiryJSON};}
+    else if(path==='/api/capsules/prepare')data={capsule:JSON.parse(capsuleJSON),capsule_json:capsuleJSON};
+    else if(path==='/api/capsules/freeze'){
+      const body=JSON.parse(options.body);assert.equal(body.capsule,capsuleJSON);assert.equal(body.reviewed,true);
+      data={capsule:{id:'synthetic-capsule'},export:body.destination==='file'};
+    } else if(path==='/api/capsules/inspect')assert.equal(options.body,capsuleJSON);
+    else if(path==='/api/capsules/receive'){
+      const body=JSON.parse(options.body);assert.equal(body.capsule,capsuleJSON);assert.equal(body.reviewed,true);state.imports++;
+    } else if(path==='/api/capsules/library')data={prepared:[],received:[],legacy:[],workspaces:[]};
+    else if(path==='/api/capsules/online-receipts')data={deliveries:[]};
+    else if(path.startsWith('/api/capsules/received/'))data=JSON.parse(capsuleJSON);
     else if(path==='/api/sessions')data={sessions:[]};
     else if(path==='/api/inquiries')data={inquiries:[]};
     else if(path.startsWith('/api/return-paths/at'))data={arrivals:[],private_path:privatePath?{source:{author:'Synthetic publisher',inquiry_id:'synthetic-inquiry',graph_id:'source-graph',node_id:'source-thought'}}:null};
@@ -107,4 +117,26 @@ test('private source return is in the stowable menu and the imported destination
   assert.equal(local.nodes.find(n=>n.id==='return-path-doors').children.length,0);
   const imported=setup({inquiryId:'synthetic-inquiry'});await imported.settle();
   const home=imported.find('Return to my Atlas');assert.equal(home.href,'/');assert.equal(home.parentElement.id,'portable-bar');
+});
+
+
+test('Capsule freeze/download and file inspection/receipt preserve the reviewed canonical numbers',async()=>{
+  const capsuleJSON='{"id":"synthetic-capsule","content":{"title":"Synthetic invitation","intent":"invitation","author":"Synthetic publisher","message":"Test this claim","excerpts":[{"source":{"model":{"name":"Synthetic"}},"thoughts":[{"kind":"claim","status":"accepted","text":"Synthetic claim","confidence":1.0}],"question":null,"answer":null,"evidence":[]}]}}';
+  assert.notEqual(JSON.stringify(JSON.parse(capsuleJSON)),capsuleJSON);
+  const ui=setup({capsuleJSON});
+  vm.runInContext(readFileSync(new URL('../viz/dist/capsules.js',import.meta.url),'utf8'),ui.context);
+  ui.events.get('DOMContentLoaded')();await ui.settle();
+  await ui.find('Prepare').onclick();
+  await ui.find('Review exact Capsule').parentElement.onsubmit({preventDefault(){}});await ui.settle();
+  ui.find('Destination').children[0].value='file';
+  const agree=()=>{const c=ui.nodes.filter(n=>n.type==='checkbox').at(-1);c.checked=true;c.onchange();};
+  assert.equal(ui.find('Freeze reviewed Capsule').disabled,true);agree();
+  await ui.find('Freeze reviewed Capsule').onclick();
+  assert.equal(ui.find('Download Capsule JSON').href,'/api/capsules/download/synthetic-capsule/json');
+  assert.ok(ui.find('Download readable Markdown'));
+  await ui.find('Library & receive').onclick();
+  const file=ui.nodes.filter(n=>n.type==='file').at(-1);file.files=[{size:capsuleJSON.length,text:async()=>capsuleJSON}];
+  await file.onchange();assert.equal(ui.state.imports,0);
+  agree();await ui.find('Receive Capsule').onclick();assert.equal(ui.state.imports,1);
+  assert.ok(ui.find('Continue privately with my collaborator'));
 });

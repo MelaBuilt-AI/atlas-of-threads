@@ -209,3 +209,35 @@ def test_http_review_gates_download_and_foreign_origin(inquiry,tmp_path):
         assert capsules.library(store)['received']==[]
         assert _post(base+'/api/capsules/receive',{'capsule':capsule})[0]==404
     finally:server.shutdown();server.server_close()
+
+
+def test_http_canonical_capsule_text_survives_browser_freeze_and_receive(inquiry):
+    from urllib.request import Request, urlopen
+    store, bundle = inquiry
+    server = make_server(store, port=0, dist=viz_dist_path())
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    base = f'http://127.0.0.1:{server.server_port}'
+    try:
+        draft = draft_for(bundle)
+        code, text = _post(base+'/api/capsules/prepare', draft)
+        assert code == 200
+        prepared = json.loads(text)
+        canonical = prepared['capsule_json']
+        assert canonical == portable.canonical(prepared['capsule']).decode()
+        body = {'draft':draft, 'capsule':canonical, 'destination':'file', 'reviewed':True}
+        code, text = _post(base+'/api/capsules/freeze', body)
+        assert code == 200, text
+        cid = prepared['capsule']['id']
+        assert _get(base+f'/api/capsules/download/{cid}/json')[1] == canonical
+        request = Request(base+'/api/capsules/inspect', canonical.encode(),
+                          headers={'Content-Type':'application/json','Origin':base})
+        with urlopen(request) as response:
+            assert response.status == 200
+        assert capsules.library(store)['received'] == []
+        code, text = _post(base+'/api/capsules/receive', {'capsule':canonical,'reviewed':True})
+        assert code == 200, text
+        assert portable.canonical(capsules.load(store,'received',cid)).decode() == canonical
+        forged = canonical.replace('Synthetic author', 'Forged author')
+        assert _post(base+'/api/capsules/receive', {'capsule':forged,'reviewed':True})[0] != 200
+    finally:
+        server.shutdown(); server.server_close()

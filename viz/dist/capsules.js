@@ -7,7 +7,7 @@
   };
   const button = (text,parent,action) => { const n=el('button',text,parent);n.type='button';n.onclick=action;return n; };
   const api = async (path,body) => {
-    const response=await fetchLocal(path,body === undefined ? {} : {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const response=await fetchLocal(path,body === undefined ? {} : {method:'POST',headers:{'Content-Type':'application/json'},body:typeof body==='string'?body:JSON.stringify(body)});
     const data=await response.json();if(!response.ok) throw Error(data.error || 'Capsule action failed');return data;
   };
   const intents={invitation:'Invite perspectives',offering:'Share a finding',return:'Return a contribution'};
@@ -117,7 +117,7 @@
         el('p','Unselected thoughts, private guide conversations, old Capsule history, local evidence files and credentials are excluded. Review included prose for anything else private.',content);
         const destination=field('Destination','select',content);el('option','Keep privately in Personal Atlas',destination).value='private';el('option','Export Capsule files for deliberate sharing',destination).value='file';
         consent('I reviewed this complete payload and want to freeze it.','Freeze reviewed Capsule',async()=>{
-          const saved=await api('/api/capsules/freeze',{draft,capsule:result.capsule,reviewed:true,destination:destination.value});
+          const saved=await api('/api/capsules/freeze',{draft,capsule:result.capsule_json,reviewed:true,destination:destination.value});
           reset();render(result.capsule);el('p',saved.export?'Frozen and exported locally. Nothing was uploaded.':'Frozen and kept privately. You can export this exact Capsule later.',content);
           if(saved.export)downloads(saved.capsule.id);button('Read saved Capsule / choose online delivery',content,()=>run(()=>savedView('prepared',saved.capsule.id)));button('Open Capsule library',content,()=>run(libraryView));
         });
@@ -160,8 +160,8 @@
       const file=el('input','',content);file.type='file';file.accept='.json,application/json';file.setAttribute('aria-label','Choose Capsule JSON file');
       file.onchange=()=>run(async()=>{
         const selected=file.files[0];if(!selected)return;if(selected.size>256*1024)throw Error('Capsule exceeds 256 KiB');
-        const capsule=JSON.parse(await selected.text());await api('/api/capsules/inspect',capsule);reset();render(capsule);
-        consent('Keep this Capsule in my received collection for private review.','Receive Capsule',async()=>{await api('/api/capsules/receive',{capsule,reviewed:true});await savedView('received',capsule.id);});
+        const capsuleJSON=await selected.text(),capsule=JSON.parse(capsuleJSON);await api('/api/capsules/inspect',capsuleJSON);reset();render(capsule);
+        consent('Keep this Capsule in my received collection for private review.','Receive Capsule',async()=>{await api('/api/capsules/receive',{capsule:capsuleJSON,reviewed:true});await savedView('received',capsule.id);});
       });
       for(const category of ['prepared','received']) {
         el('h3',category==='prepared'?'Prepared Capsules':'Received Capsules',content);

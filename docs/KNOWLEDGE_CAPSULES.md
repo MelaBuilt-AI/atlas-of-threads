@@ -86,6 +86,8 @@ changed payload. Choose private keeping or local export. Export produces canonic
 `.atlas-capsule.json` and readable `.md` files with independent download links.
 Repeated exports reuse the same bytes and receipt; they never consume a legacy
 launcher or claim an online launch. Connecting a device does not upload them.
+Browser preparation and file receipt carry the original JSON text back to Python,
+preserving numeric representations and checksums through review, freeze and import.
 
 The version-1 `atlas-capsule` envelope identifies canonical content by SHA-256.
 Its content includes origin, optional home Threadwalk, intent, attribution,

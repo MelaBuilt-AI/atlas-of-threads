@@ -1408,6 +1408,8 @@ class InhabitHandler(BaseHTTPRequestHandler):
                 self._require_local_json_request()
                 body = self._read_json(max_bytes=capsules.MAX_BYTES * 6)
                 action = path.removeprefix("/api/capsules/")
+                if action in {"freeze", "receive"} and isinstance(body.get("capsule"), str):
+                    body["capsule"] = json.loads(body["capsule"])
                 if action.startswith("online-"):
                     action = action.removeprefix("online-")
                     if action == "browse":
@@ -1438,7 +1440,8 @@ class InhabitHandler(BaseHTTPRequestHandler):
                     self._json(200, result)
                 elif action == "prepare":
                     capsule = capsules.prepare(self.store, body)
-                    self._json(200, {"capsule":capsule, "summary":capsules.summary(capsule)})
+                    self._json(200, {"capsule":capsule, "capsule_json":portable.canonical(capsule).decode("utf-8"),
+                                     "summary":capsules.summary(capsule)})
                 elif action == "inspect":
                     self._json(200, capsules.inspect_incoming(self.store, body))
                 elif action == "work-preview":
