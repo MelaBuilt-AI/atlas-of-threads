@@ -22,3 +22,4 @@
 #capsules-dialog input[type=checkbox] {margin-right:.6rem;}
 #portable-bar {flex-wrap:wrap;justify-content:center;}
 #onboarding-menu #portable-bar {position:static;transform:none;max-width:none;width:auto;margin:0 0 1.5rem;}
+[data-connected="true"] {border-color:#9bd4a2!important;color:#def5dc!important;}

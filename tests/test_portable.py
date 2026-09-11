@@ -161,3 +161,37 @@ def test_cli_export_inspect_import(inquiry,tmp_path):
     recipient=Store(tmp_path/'recipient');recipient.initialize()
     code,out,err=run(['inquiry','import',str(path)],store=recipient.root);assert code==0,err
     assert json.loads(out)['title']==bundle['content']['session']['title']
+
+
+def test_browser_export_and_downloaded_fixture_keep_exact_numeric_checksums(inquiry, tmp_path):
+    from pathlib import Path
+    from urllib.request import Request, urlopen
+    source, bundle = inquiry
+    server = make_server(source, port=0, dist=viz_dist_path())
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    base = f'http://127.0.0.1:{server.server_port}'
+    try:
+        code, text = _post(base+'/api/inquiries/preview', {
+            'session_id':bundle['content']['session']['id'], 'author':'Synthetic publisher'})
+        assert code == 200
+        preview = json.loads(text)
+        portable.validate_bundle(json.loads(preview['inquiry_json']))
+        assert preview['inquiry_json'].encode() == portable.canonical(preview['bundle'])
+        fixture = Path(__file__).parents[1] / 'online/test/fixtures/1.json'
+        raw = json.loads(fixture.read_text())['inquiry_json']
+        original = json.loads(raw)
+        portable.validate_bundle(original)
+        before = files(source.root)
+        for action in ('inspect', 'import'):
+            request = Request(base+'/api/inquiries/'+action, data=raw.encode(),
+                              headers={'Content-Type':'application/json','Origin':base})
+            with urlopen(request) as response:
+                result = json.load(response)
+            assert result['id'] == original['id']
+            if action == 'inspect':
+                assert files(source.root) == before
+        stored, _ = portable.imported_inquiry(source, original['id'])
+        assert portable.canonical(stored) == raw.encode()
+        assert all((source.root/p).read_bytes() == content for p,content in before.items())
+    finally:
+        server.shutdown(); server.server_close()

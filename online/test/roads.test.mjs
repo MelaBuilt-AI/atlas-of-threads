@@ -117,3 +117,18 @@ test("open-world refresh discovers arrivals, removes withdrawals and preserves l
   intervals.get(30000)(); await settle();
   assert.equal(requests.length, count);
 });
+
+test('world terrain readiness waits for texture completion and also settles on load failure', async () => {
+  const T = context.THREE;
+  let loaded, failed;
+  T.TextureLoader.prototype.load = (_url, onLoad, _progress, onError) => {
+    loaded = onLoad; failed = onError; return new T.Texture();
+  };
+  const renderer = { capabilities: { getMaxAnisotropy: () => 4 }, getPixelRatio: () => 1 };
+  const weave = context.AtlasWeave(new T.Scene(), renderer, false);
+  let settled = false; weave.ready.then(() => { settled = true; });
+  await Promise.resolve(); assert.equal(settled, false);
+  loaded(); await weave.ready; assert.equal(settled, true);
+  const fallback = context.AtlasWeave(new T.Scene(), renderer, false);
+  failed(); await fallback.ready;
+});

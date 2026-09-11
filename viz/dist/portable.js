@@ -23,7 +23,7 @@
   };
   async function api(path, body) {
     const response = await nativeFetch(path, body === undefined ? {} : {
-      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+      method:'POST', headers:{'Content-Type':'application/json'}, body:typeof body === 'string' ? body : JSON.stringify(body)
     });
     const data = await response.json(); if(!response.ok) throw Error(data.error || 'Inquiry request failed'); return data;
   }
@@ -53,21 +53,41 @@
   element('p', 'Connecting identifies this Personal Atlas with your verified GitHub account. It does not publish your inquiries, send Capsules or call an agent.', connection);
   const connectionStatus = element('p', '', connection); connectionStatus.setAttribute('role', 'status');
   const connectionControls = element('section', '', connection);
+  const connectionButtons = [];
+  let checkingConnection = false;
+  function paintConnection(online) {
+    for (const control of connectionButtons) {
+      control.textContent = online ? 'You are connected to the Atlas' : 'Connect to the Atlas';
+      control.dataset.connected = String(online);
+    }
+  }
+  async function refreshConnection() {
+    if (checkingConnection || document.hidden) return;
+    if (!navigator.onLine) { paintConnection(false); return; }
+    checkingConnection = true;
+    try {
+      const saved = await api('/api/online/connection');
+      const verified = saved.connected && await api('/api/online/check', {});
+      paintConnection(!!verified?.verified_now && navigator.onLine);
+    } catch { paintConnection(false); }
+    finally { checkingConnection = false; }
+  }
   async function showConnection() {
     connectionControls.replaceChildren();
     const info = await api('/api/online/connection');
     if (info.connected) {
       connectionStatus.textContent = `Saved connection: @${info.device.owner.login} · ${info.device.name}. Check connection to verify it is still active.`;
       button('Check connection', connectionControls, () => connectionAction(async () => {
-        await api('/api/online/check', {}); connectionStatus.textContent = 'Connected and verified now. Your inquiries remain private until you publish them.';
+        const result = await api('/api/online/check', {}); paintConnection(!!result.verified_now && navigator.onLine);
+        connectionStatus.textContent = result.verified_now ? 'Connected and verified now. Your inquiries remain private until you publish them.' : 'This Personal Atlas is no longer connected.';
       }));
       button('Disconnect this Personal Atlas', connectionControls, () => connectionAction(async () => {
-        await api('/api/online/disconnect', {}); await showConnection();
+        await api('/api/online/disconnect', {}); paintConnection(false); await showConnection();
       }));
       const details = element('details', '', connectionControls); element('summary', 'Offline or already revoked?', details);
       element('p', 'Forget the credential on this computer if you cannot reach the service. To revoke any still-active access, open your online Atlas account and disconnect this device there.', details);
       button('Forget local connection', details, () => connectionAction(async () => {
-        await api('/api/online/disconnect', {forget_only:true}); await showConnection();
+        await api('/api/online/disconnect', {forget_only:true}); paintConnection(false); await showConnection();
         connectionStatus.textContent = 'Local credential removed. Disconnect the device in your online account to revoke any remaining access.';
       }));
     } else {
@@ -79,17 +99,17 @@
       const submit = element('button', 'Connect this Personal Atlas', form); submit.type = 'submit';
       form.onsubmit = event => {
         event.preventDefault(); submit.disabled = true;
-        connectionAction(async () => { await api('/api/online/connect', {code:code.value}); code.value=''; await showConnection(); }).finally(() => { submit.disabled=false; });
+        connectionAction(async () => { await api('/api/online/connect', {code:code.value}); paintConnection(navigator.onLine); code.value=''; await showConnection(); }).finally(() => { submit.disabled=false; });
       };
     }
   }
   async function connectionAction(action) {
-    try { await action(); } catch (error) { connectionStatus.textContent = error.message; }
+    try { await action(); } catch (error) { paintConnection(false); connectionStatus.textContent = error.message; }
   }
   connection.addEventListener('keydown', event => event.stopPropagation());
   connection.addEventListener('close', () => connectionControls.replaceChildren());
   const openConnection = () => { connection.showModal(); connectionAction(showConnection); };
-  button('Connect to the Atlas', bar, openConnection);
+  connectionButtons.push(button('Connect to the Atlas', bar, openConnection));
   const dialog = document.createElement('dialog'); dialog.id = 'portable-dialog'; document.body.append(dialog);
   const heading = element('header', '', dialog); element('h2', 'Portable inquiries', heading);
   button('Close', heading, () => dialog.close());
@@ -105,6 +125,7 @@
   const previewButton = element('button', 'Review export', form); previewButton.type = 'submit';
   const importSection = element('section', '', controls); element('h3', 'Open an inquiry file', importSection);
   const file = element('input', '', importSection); file.type='file'; file.accept='.json,application/json'; file.setAttribute('aria-label','Choose Atlas inquiry file');
+  const importStatus = element('p', '', importSection); importStatus.setAttribute('role', 'status');
   const review = element('section', '', dialog); review.hidden = true;
   const library = element('section', '', dialog);
   const run = async action => {
@@ -126,7 +147,7 @@
       element('span',` · ${info.author} · ${info.graph_count} generations`,row);
     }
   }
-  function showReview(bundle, info, importing) {
+  function showReview(bundle, info, importing, inquiryJSON) {
     review.replaceChildren(); review.hidden=false;
     element('h3', `${importing ? 'Review import' : 'Review export'} · ${info.title}`, review);
     element('p',`${info.author} · ${info.graph_count} ${info.graph_count === 1 ? "generation" : "generations"} · ${info.thought_count} thoughts · ${info.evidence_count} web evidence links`,review);
@@ -142,14 +163,14 @@
       for(const node of record.graph.nodes) element('p',`${node.kind} · ${node.text}`,details);
     }
     const exact = element('details','',review); element('summary','Inspect exact file, source references and checksums',exact);
-    element('pre',JSON.stringify(bundle,null,2),exact);
+    element('pre',inquiryJSON,exact);
     const consent = element('label','',review); const check=element('input','',consent); check.type='checkbox';
     consent.append(document.createTextNode(importing ? 'I want to keep this snapshot in my imported inquiries.' : 'I reviewed these contents and want to save this file for sharing.'));
     const commit = button(importing ? 'Import and visit' : 'Save inquiry file',review,() => run(async () => {
       if(!check.checked) return;
-      if(importing) { const result=await api('/api/inquiries/import',bundle); location.assign(result.url); }
+      if(importing) { const result=await api('/api/inquiries/import',inquiryJSON); location.assign(result.url); }
       else {
-        const blob = new Blob([JSON.stringify(bundle)], {type:'application/json'});
+        const blob = new Blob([inquiryJSON], {type:'application/json'});
         const url=URL.createObjectURL(blob); const link=element('a');link.href=url;
         link.download=`inquiry-${info.id.slice(0,12)}.atlas-inquiry.json`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
         commit.textContent='Saved · ready to share';
@@ -157,7 +178,7 @@
     }));
     const online = !importing ? button('Save online publication file', review, () => run(async () => {
       if(!check.checked) return;
-      const artifact = await api('/api/online/prepare', bundle);
+      const artifact = await api('/api/online/prepare', inquiryJSON);
       const url = URL.createObjectURL(new Blob([JSON.stringify(artifact)], {type:'application/json'}));
       const link = element('a'); link.href=url; link.download=`inquiry-${info.id.slice(0,12)}.atlas-publication.json`;
       link.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -169,16 +190,27 @@
   }
   form.onsubmit = event => { event.preventDefault(); run(async () => {
     const result=await api('/api/inquiries/preview',{session_id:select.value,author:author.value,description:description.value});
-    showReview(result.bundle,result.summary,false);
+    showReview(result.bundle,result.summary,false,result.inquiry_json);
   }); };
-  file.onchange = () => run(async () => {
-    review.hidden=true; const selected=file.files[0]; if(!selected) return;
-    if(selected.size > 8*1024*1024) throw Error('Inquiry file exceeds 8 MiB');
-    const bundle=JSON.parse(await selected.text());const info=await api('/api/inquiries/inspect',bundle);showReview(bundle,info,true);
-  });
+  file.onchange = async () => {
+    review.hidden=true; importStatus.textContent=''; const selected=file.files[0]; if(!selected) return;
+    importStatus.textContent='Reading and checking your inquiry…';
+    try {
+      if(selected.size > 8*1024*1024) throw Error('Inquiry file exceeds 8 MiB');
+      const inquiryJSON=await selected.text(), bundle=JSON.parse(inquiryJSON);
+      const info=await api('/api/inquiries/inspect',inquiryJSON);
+      showReview(bundle,info,true,inquiryJSON); importStatus.textContent='Ready to review below.';
+    } catch(error) { importStatus.textContent=error.message; }
+    finally { file.value=''; }
+  };
   dialog.addEventListener('keydown',event=>event.stopPropagation());
   function open() { dialog.showModal(); review.hidden=true; run(refresh); }
   button('Portable inquiries',bar,open);
   const workspace=document.getElementById('workspace-menu');
-  const section=element('section','',workspace);section.className='menu-section';button('Portable inquiries',section,open);button('Connect to the Atlas',section,openConnection);
+  const section=element('section','',workspace);section.className='menu-section';button('Portable inquiries',section,open);connectionButtons.push(button('Connect to the Atlas',section,openConnection));
+  addEventListener('offline', () => paintConnection(false));
+  addEventListener('online', refreshConnection);
+  document.addEventListener('visibilitychange', refreshConnection);
+  setInterval(refreshConnection, 30000);
+  refreshConnection();
 })();

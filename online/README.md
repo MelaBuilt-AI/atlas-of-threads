@@ -151,8 +151,11 @@ session. Exchange atomically issues a device credential and consumes the code;
 only hashes remain in D1. Up to ten active devices are allowed.
 
 Personal Atlas stores the device credential in `online-connection.json` with
-owner-only permissions where supported. Local status reads do not contact the
-network; **Check connection** verifies access explicitly. The credential never
+owner-only permissions where supported. Local status API reads do not contact the network. The visible Personal Atlas
+browser verifies a saved connection at startup, on returning online, and every
+30 seconds while visible. Both connection buttons say **You are connected to the
+Atlas** only after successful verification, and revert when offline, disconnected
+or verification fails. **Check connection** also verifies access immediately. The credential never
 enters browser responses, portable bundles, graph projections or agent calls.
 The client uses verified HTTPS, the existing packaged Linux CA fallback, and
 refuses redirects. Pairing itself sends no inquiry or Capsule.
@@ -311,3 +314,14 @@ network-retry behavior, offline guarantees and acceptance limits.
 436 Python, 33 online and 7 audio tests pass, with synthetic browser checks for the
 contributor/source-owner flow and native/shared 3D entry-return. Full hosted two-account,
 physical two-PC, listening/capacity and combined release acceptance remain open.
+
+
+## First-entry asset readiness
+
+The initial shared world stays behind **Preparing the Atlas…** until its terrain
+texture, nearby Threadwalk relics and initial Capsule-port models settle. Texture
+uploads and shader compilation run before the first complete frame is revealed.
+Later map refreshes retain the current world. If initial world loading fails, the
+reading collection remains available with an error; asset failures retain geometric
+fallbacks. The six existing synthetic fixtures each have one generation and three
+thoughts, so they are limited cross-generation navigation examples.

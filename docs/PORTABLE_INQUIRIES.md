@@ -91,3 +91,9 @@ increment described in [returned paths](RETURNED_PATHS.md). Portable inquiries
 will ship in the [combined online milestone](ONLINE_ATLAS.md), not separately.
 Upload hosting, verified authors and the shared isometric overworld remain in
 that milestone; live co-walking is later work.
+
+
+Browser file review, import, export and online preparation preserve the canonical
+JSON text instead of round-tripping numeric values through JavaScript. Selecting a
+file validates it before showing consent and **Import and visit**; errors appear
+beside the picker and selecting the same file again retries review.

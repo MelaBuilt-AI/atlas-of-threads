@@ -201,7 +201,9 @@
           gl_FragColor = vec4(tint, (halo + center) * (1.0 - smoothstep(.7, 1.0, r))); }`,
     });
     const locales = [];
-    const terrain = new THREE.TextureLoader().load("./assets/terrain/01-neural-basalt-4k.png");
+    let terrainLoaded;
+    const ready = new Promise(resolve => { terrainLoaded = resolve; });
+    const terrain = new THREE.TextureLoader().load("./assets/terrain/01-neural-basalt-4k.png", terrainLoaded, undefined, terrainLoaded);
     terrain.colorSpace = THREE.SRGBColorSpace;
     terrain.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
     function locale(group, sequence) {
@@ -298,7 +300,7 @@
       }
       return roads;
     }
-    return { locale, syncRoads, roads, removeLocale(item) {
+    return { ready, locale, syncRoads, roads, removeLocale(item) {
       const index = locales.indexOf(item);
       if (index >= 0) locales.splice(index, 1);
       item.glow.material.dispose(); item.selection.material.dispose(); item.beacon.material.dispose();

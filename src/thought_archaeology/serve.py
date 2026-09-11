@@ -1293,7 +1293,8 @@ class InhabitHandler(BaseHTTPRequestHandler):
             body = self._read_json()
             bundle = portable.export_inquiry(self.store, body.get("session_id", ""),
                                              author=body.get("author", ""), description=body.get("description", ""))
-            self._json(200, {"summary": portable.summary(bundle), "bundle": bundle})
+            self._json(200, {"summary": portable.summary(bundle), "bundle": bundle,
+                             "inquiry_json": portable.canonical(bundle).decode("utf-8")})
         elif path in {"/api/inquiries/inspect", "/api/inquiries/import"}:
             bundle = self._read_json(max_bytes=portable.MAX_BYTES)
             portable.validate_bundle(bundle)

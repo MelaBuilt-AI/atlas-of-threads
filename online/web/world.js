@@ -33,6 +33,7 @@
     libraryData = { publications: [], subscriptions: [], updates: [] },
     next = null,
     loading = false,
+    worldReady = false,
     scene,
     camera,
     renderer,
@@ -141,7 +142,7 @@
     ];
     item.loadRelic = () => {
       item.loadRelic = null;
-      RelicGLBLoader.load(
+      return RelicGLBLoader.load(
         `./assets/models/${relics[parseInt(item.id.slice(0, 4), 16) % relics.length]}.glb`,
       )
         .then((model) => {
@@ -445,6 +446,7 @@
     );
     addEventListener("keydown", (e) => {
       if (
+        !worldReady ||
         document.querySelector("dialog[open]") ||
         !$("visit").hidden ||
         e.target.closest("input,textarea,select,button,a")
@@ -796,10 +798,39 @@
       "The 3D view is unavailable. Open Inquiries to read and download every Threadwalk.";
     $("library").hidden = false;
   }
-  loadWorld().then(pollExpeditions).catch(reportError);
-  setInterval(pollExpeditions,2500);
+  async function prepareWorld() {
+    try {
+      await loadWorld();
+      await pollExpeditions();
+      if (scene) {
+        const nearby = [...items.values()].filter(item => state.span < 260 && Math.hypot(item.x-state.x,item.z-state.z) < state.span*1.1);
+        await Promise.allSettled([weave.ready, ...nearby.map(item => item.loadRelic?.())]);
+        await RelicGLBLoader.ready();
+        // Warm the first complete frame behind the veil, including GPU texture uploads.
+        scene.updateMatrixWorld(true);
+        const textures = new Set();
+        scene.traverse(object => {
+          for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
+            if (material) for (const value of Object.values(material)) if (value?.isTexture) textures.add(value);
+          }
+        });
+        for (const texture of textures) renderer.initTexture(texture);
+        await renderer.compileAsync(scene, camera);
+        renderer.render(scene, camera);
+        await new Promise(requestAnimationFrame);
+      }
+    } catch (error) {
+      reportError(error);
+      $("library").hidden = false;
+    } finally {
+      worldReady = true;
+      $("world-loading").hidden = true;
+    }
+  }
+  prepareWorld();
+  setInterval(() => { if (worldReady) pollExpeditions(); },2500);
   setInterval(() => {
-    if (!document.hidden && $("visit").hidden && !transition)
+    if (worldReady && !document.hidden && $("visit").hidden && !transition)
       Promise.all([loadWorld(), loadLibrary()]).catch(reportError);
   }, 30000);
   api("/api/me")
