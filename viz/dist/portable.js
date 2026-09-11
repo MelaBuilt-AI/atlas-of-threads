@@ -5,6 +5,15 @@
   const nativeFetch = window.fetch.bind(window);
   const bar = document.createElement('div'); bar.id = 'portable-bar';
   document.body.append(bar);
+  const onboarding = document.getElementById('onboarding-menu');
+  if (onboarding && !inquiryId) {
+    const placeBar = () => {
+      const parent = onboarding.hidden ? document.body : onboarding.querySelector('.onboarding-panel');
+      if (bar.parentElement !== parent) parent.prepend(bar);
+    };
+    new MutationObserver(placeBar).observe(onboarding, {attributes:true, attributeFilter:['hidden']});
+    placeBar();
+  }
   const element = (tag, text, parent) => {
     const node = document.createElement(tag); if(text) node.textContent = text;
     if(parent) parent.append(node); return node;

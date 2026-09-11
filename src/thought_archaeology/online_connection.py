@@ -61,6 +61,7 @@ def status(store: Store) -> dict:
 def connect(store: Store, code: str) -> dict:
     if not isinstance(code, str) or not code.strip() or len(code) > 100:
         raise StoreError('Paste the single-use pairing code from your signed-in Atlas.')
+    store.initialize()
     with store.continuation_inbox_lock():
         if _saved(store):
             raise StoreError('Disconnect the current account before pairing another one.')

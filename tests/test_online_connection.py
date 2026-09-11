@@ -102,8 +102,11 @@ def test_remote_revocation_is_detected_and_can_be_removed(paired_service):
     assert connection.disconnect(store)['connected'] is False
 
 
-def test_local_http_never_returns_credential_and_rejects_foreign_origin(paired_service):
+@pytest.mark.parametrize('fresh_store', [False, True])
+def test_local_http_never_returns_credential_and_rejects_foreign_origin(paired_service, fresh_store):
     store, state = paired_service
+    if fresh_store:
+        store = Store(store.root.parent / 'first-run-atlas')
     server = make_server(store,port=0,dist=viz_dist_path())
     threading.Thread(target=server.serve_forever,daemon=True).start()
     base = f'http://127.0.0.1:{server.server_address[1]}'
@@ -111,12 +114,17 @@ def test_local_http_never_returns_credential_and_rejects_foreign_origin(paired_s
         return urlopen(Request(base+path,json.dumps(data).encode(),
                                headers={'Content-Type':'application/json','Origin':origin}))
     try:
+        with urlopen(base+'/api/online/connection') as response:
+            assert json.load(response)['connected'] is False
+        assert store.exists() is not fresh_store
         with pytest.raises(HTTPError):
             post('/api/online/connect',{'code':'synthetic-single-use-code'},'https://foreign.example')
         assert state['calls'] == []
         with post('/api/online/connect',{'code':'synthetic-single-use-code'}) as response:
             data = json.load(response)
         assert data['connected'] and 'token' not in json.dumps(data)
+        assert store.exists() and list(store.iter_session_ids()) == []
+        assert connection.status(Store(store.root)) == data
         with urlopen(base+'/api/online/connection') as response:
             assert 'synthetic-private-token' not in response.read().decode()
         # The ordinary static server cannot expose store files.

@@ -21,3 +21,4 @@
 #capsules-dialog label {overflow-wrap:anywhere;}
 #capsules-dialog input[type=checkbox] {margin-right:.6rem;}
 #portable-bar {flex-wrap:wrap;justify-content:center;}
+#onboarding-menu #portable-bar {position:static;transform:none;max-width:none;width:auto;margin:0 0 1.5rem;}
