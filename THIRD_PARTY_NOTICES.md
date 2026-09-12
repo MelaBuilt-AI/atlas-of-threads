@@ -36,6 +36,16 @@ locally Lanczos-upscaled from 1254 × 1254 to 4096 × 4096 by Codex at the owner
 request. The supplied PNGs are included unchanged. These are color maps only;
 no measured surface geometry or additional source detail is implied.
 
+## Terrain-matched emergence bases
+
+The ten GLB variants under `viz/dist/assets/models/emergence-bases/` were supplied
+by MelaBuilt AI on 2026-09-12, using the matching generated terrain-base reference
+artwork. Runtime copies preserve their supplied geometry and PBR material channels;
+the existing asset importer resizes embedded maps to 1024 pixels. Original GLBs
+remain in the owner's artwork archive. Each Threadwalk uses the base whose filename
+matches its assigned terrain texture. See the adjacent manifest for source and
+runtime checksums.
+
 ## Cinematic audio
 
 The 33 OGG sound effects and 13 OGG music tracks under `viz/dist/assets/audio/`

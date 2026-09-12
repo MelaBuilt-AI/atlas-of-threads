@@ -3338,14 +3338,39 @@
     lightning.materials[2].opacity = strength * (0.55 + Math.abs(Math.sin(t * 13)) * 0.4);
   }
 
-  function stoneMat(color, opacity) {
-    return new THREE.MeshStandardMaterial({
-      color,
-      roughness: 0.82,
-      metalness: 0.08,
-      transparent: opacity < 1,
-      opacity,
-    });
+  function mountTerrainBase(group, { width, top, ghost = false }) {
+    // Capture this chamber's assigned surface before any asynchronous loading.
+    const name = TATerrain.textureName;
+    const generation = layoutGeneration;
+    group.userData.terrainBase = name;
+    group.userData.terrainBaseReady = false;
+    return RelicGLBLoader.load(`./assets/models/emergence-bases/${name}-base.glb`)
+      .then((object) => {
+        if (group.userData.disposed || !group.parent || generation !== layoutGeneration) {
+          disposeRelicClone(object);
+          return;
+        }
+        object.userData.sharedRelicResources = true;
+        object.name = `terrain-base:${name}`;
+        const box = new THREE.Box3().setFromObject(object);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        const horizontal = width / Math.max(size.x, size.z);
+        // Keep the existing object seating height; bury the rubble skirt in the land.
+        const vertical = (top + 0.22) / size.y;
+        object.scale.set(horizontal, vertical, horizontal);
+        object.position.set(-center.x * horizontal, top - box.max.y * vertical, -center.z * horizontal);
+        if (ghost) object.traverse((part) => {
+          if (!part.material) return;
+          part.material.transparent = true;
+          part.material.opacity *= 0.55;
+          part.material.depthWrite = false;
+        });
+        group.add(object);
+        group.userData.terrainBaseReady = true;
+        if (group.userData.reflecting) reflectMaterials(group, true);
+      })
+      .catch((error) => { group.userData.terrainBaseError = String(error.message || error); });
   }
 
   function labelTexture(title, body) {
@@ -3693,12 +3718,7 @@
       focusScale: 1,
       ghost: false,
     };
-    const terrace = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.72 * scale, 2.05 * scale, 0.64, 12),
-      stoneMat(0x2d2418, 1)
-    );
-    terrace.position.y = 0.32;
-    group.add(terrace);
+    mountTerrainBase(group, { width: 5.4 * scale, top: 0.52 });
     const placeholder = new THREE.Mesh(
       new THREE.OctahedronGeometry(0.58 * scale),
       new THREE.MeshStandardMaterial({
@@ -3834,12 +3854,7 @@
       focusScale: 1,
       ghost: false,
     };
-    const plinth = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.2 * scale, 1.48 * scale, 0.38, 12),
-      stoneMat(0x29231b, 1)
-    );
-    plinth.position.y = 0.19;
-    group.add(plinth);
+    mountTerrainBase(group, { width: 3.9 * scale, top: 0.38 });
     const placeholder = new THREE.Mesh(
       new THREE.OctahedronGeometry(0.52 * scale),
       new THREE.MeshStandardMaterial({
@@ -3918,12 +3933,7 @@
     g.position.set(x, 0, z);
     g.userData = { id: node.id, kind: node.kind, ghost: !!ghost };
 
-    const plinth = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.1 * scale, 1.35 * scale, 0.35, 8),
-      stoneMat(ghost ? 0x3a3238 : 0x2a2620, ghost ? 0.55 : 1)
-    );
-    plinth.position.y = 0.18;
-    g.add(plinth);
+    mountTerrainBase(g, { width: 3.6 * scale, top: 0.42, ghost });
 
     const placeholder = new THREE.Mesh(
       new THREE.OctahedronGeometry(0.48 * scale),
@@ -4131,6 +4141,8 @@
     for (const mesh of reflectChambers) TATerrain.tickEcho(mesh.userData.reflectEcho, reducedMotion.matches ? 0 : t);
     canvas.dataset.terrainTexture = TATerrain.textureName || "";
     canvas.dataset.terrainTextureReady = String(TATerrain.textureReady);
+    canvas.dataset.terrainBase = standingMesh?.userData.terrainBase || "";
+    canvas.dataset.terrainBaseReady = String(!!standingMesh?.userData.terrainBaseReady);
   }
 
   async function travelTo(payload, origin) {
@@ -4650,6 +4662,7 @@
     const group = new THREE.Group();
     group.position.set(x, 0, z);
     group.userData = { portal, ghost: false, audioRole };
+    mountTerrainBase(group, { width: 2.4, top: 0.42 });
     const geo = new THREE.TorusGeometry(0.7, 0.07, 10, 32);
     const mat = new THREE.MeshStandardMaterial({
       color,
