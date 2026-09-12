@@ -70,6 +70,9 @@
   const connectionStatus = element('p', '', connection); connectionStatus.setAttribute('role', 'status');
   const connectionControls = element('section', '', connection);
   const connectionButtons = [];
+  const travel = element('a', 'Travel to the Atlas', bar);
+  travel.target = '_blank'; travel.rel = 'noopener noreferrer'; travel.hidden = true;
+  travel.title = 'Open the shared Atlas in a new tab';
   let checkingConnection = false;
   function paintConnection(online) {
     for (const control of connectionButtons) {
@@ -83,6 +86,7 @@
     checkingConnection = true;
     try {
       const saved = await api('/api/online/connection');
+      travel.href = saved.service; travel.hidden = false;
       const verified = saved.connected && await api('/api/online/check', {});
       paintConnection(!!verified?.verified_now && navigator.onLine);
     } catch { paintConnection(false); }
