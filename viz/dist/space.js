@@ -2337,7 +2337,7 @@
     object.userData.disposed = true;
     const shared = sharedResources || Boolean(object.userData.sharedRelicResources);
     object.children.forEach((child) => disposeAtlasObject(child, shared, textures));
-    if (object.geometry && !shared) object.geometry.dispose();
+    if (object.geometry && (!shared || object.userData.ownedRelicGeometry)) object.geometry.dispose();
     const materials = Array.isArray(object.material)
       ? object.material
       : object.material ? [object.material] : [];
@@ -3350,16 +3350,7 @@
           disposeRelicClone(object);
           return;
         }
-        object.userData.sharedRelicResources = true;
-        object.name = `terrain-base:${name}`;
-        const box = new THREE.Box3().setFromObject(object);
-        const size = box.getSize(new THREE.Vector3());
-        const center = box.getCenter(new THREE.Vector3());
-        const horizontal = width / Math.max(size.x, size.z);
-        // Keep the existing object seating height; bury the rubble skirt in the land.
-        const vertical = (top + 0.22) / size.y;
-        object.scale.set(horizontal, vertical, horizontal);
-        object.position.set(-center.x * horizontal, top - box.max.y * vertical, -center.z * horizontal);
+        object = settleTerrainBase(object, group, width, top);
         if (ghost) object.traverse((part) => {
           if (!part.material) return;
           part.material.transparent = true;
@@ -3367,10 +3358,55 @@
           part.material.depthWrite = false;
         });
         group.add(object);
+        group.userData.terrainBaseObject = object;
+        object.rotation.y = -group.rotation.y;
         group.userData.terrainBaseReady = true;
         if (group.userData.reflecting) reflectMaterials(group, true);
       })
       .catch((error) => { group.userData.terrainBaseError = String(error.message || error); });
+  }
+
+  function settleTerrainBase(source, group, width, top) {
+    const object = new THREE.Group();
+    object.name = `terrain-base:${group.userData.terrainBase}`;
+    object.userData.sharedRelicResources = true;
+    // The supplied variants share a broad surface tilted ~31 degrees in model space.
+    const level = new THREE.Quaternion().setFromUnitVectors(
+      new THREE.Vector3(0.00971, 0.857551, 0.514307).normalize(), new THREE.Vector3(0, 1, 0)
+    );
+    source.updateMatrixWorld(true);
+    source.traverse((part) => {
+      if (!part.isMesh) return;
+      const geometry = part.geometry.clone().applyMatrix4(part.matrixWorld).applyQuaternion(level);
+      const mesh = new THREE.Mesh(geometry, part.material);
+      mesh.userData.ownedRelicGeometry = true;
+      mesh.castShadow = mesh.receiveShadow = true;
+      object.add(mesh);
+    });
+    const box = new THREE.Box3().setFromObject(object);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const horizontal = width / Math.max(size.x, size.z);
+    const vertical = (top + 0.18) / size.y;
+    const ground = TATerrain.height(group.position.x, group.position.z, terrainCenter);
+    for (const mesh of object.children) {
+      const points = mesh.geometry.attributes.position;
+      for (let i = 0; i < points.count; i++) {
+        const x = (points.getX(i) - center.x) * horizontal;
+        const z = (points.getZ(i) - center.z) * horizontal;
+        const relief = TATerrain.height(group.position.x + x, group.position.z + z, terrainCenter) - ground;
+        // Bury the solid lower section. Only a low rubble rim emerges, following
+        // the actual ground across the footprint rather than balancing on one point.
+        const y = top + (points.getY(i) - box.max.y) * vertical + relief;
+        points.setXYZ(i, x, y, z);
+      }
+      points.needsUpdate = true;
+      mesh.geometry.deleteAttribute('tangent');
+      mesh.geometry.computeVertexNormals();
+      mesh.geometry.computeBoundingBox();
+      mesh.geometry.computeBoundingSphere();
+    }
+    return object;
   }
 
   function labelTexture(title, body) {
@@ -3442,7 +3478,7 @@
         const center = box.getCenter(new THREE.Vector3());
         const fit = (2.25 * scale) / Math.max(size.y, size.x * 0.72, size.z * 0.72, 0.001);
         object.scale.setScalar(fit);
-        object.position.set(-center.x * fit, 0.42 - box.min.y * fit, -center.z * fit);
+        object.position.set(-center.x * fit, 0.12 - box.min.y * fit, -center.z * fit);
         object.traverse((part) => {
           if (!part.material) return;
           if (ghost) {
@@ -3485,7 +3521,7 @@
         const fit = (2.55 * scale) /
           Math.max(size.y, size.x * 0.76, size.z * 0.76, 0.001);
         object.scale.setScalar(fit);
-        object.position.set(-center.x * fit, 0.38 - box.min.y * fit, -center.z * fit);
+        object.position.set(-center.x * fit, 0.12 - box.min.y * fit, -center.z * fit);
         object.userData.fieldNoteRestY = object.position.y;
         if (hologram) {
           object.traverse((part) => {
@@ -3533,7 +3569,7 @@
         const fit = (3.35 * scale) /
           Math.max(size.y, size.x * 0.72, size.z * 0.72, 0.001);
         object.scale.setScalar(fit);
-        object.position.set(-center.x * fit, 0.52 - box.min.y * fit, -center.z * fit);
+        object.position.set(-center.x * fit, 0.12 - box.min.y * fit, -center.z * fit);
         object.userData.capsuleRestY = object.position.y;
         if (state === "constructing") {
           object.traverse((part) => {
@@ -3718,7 +3754,7 @@
       focusScale: 1,
       ghost: false,
     };
-    mountTerrainBase(group, { width: 5.4 * scale, top: 0.52 });
+    mountTerrainBase(group, { width: 5.4 * scale, top: 0.12 });
     const placeholder = new THREE.Mesh(
       new THREE.OctahedronGeometry(0.58 * scale),
       new THREE.MeshStandardMaterial({
@@ -3748,7 +3784,7 @@
       })
     );
     ring.rotation.x = Math.PI / 2;
-    ring.position.y = 0.68;
+    ring.position.y = 0.16;
     group.add(ring);
     group.userData.capsuleRing = ring;
     const lantern = new THREE.PointLight(
@@ -3854,7 +3890,7 @@
       focusScale: 1,
       ghost: false,
     };
-    mountTerrainBase(group, { width: 3.9 * scale, top: 0.38 });
+    mountTerrainBase(group, { width: 3.9 * scale, top: 0.12 });
     const placeholder = new THREE.Mesh(
       new THREE.OctahedronGeometry(0.52 * scale),
       new THREE.MeshStandardMaterial({
@@ -3884,7 +3920,7 @@
       })
     );
     ring.rotation.x = Math.PI / 2;
-    ring.position.y = 0.42;
+    ring.position.y = 0.16;
     group.add(ring);
     group.userData.fieldNoteRing = ring;
     const board = new THREE.Mesh(
@@ -3933,7 +3969,7 @@
     g.position.set(x, 0, z);
     g.userData = { id: node.id, kind: node.kind, ghost: !!ghost };
 
-    mountTerrainBase(g, { width: 3.6 * scale, top: 0.42, ghost });
+    mountTerrainBase(g, { width: 3.6 * scale, top: 0.12, ghost });
 
     const placeholder = new THREE.Mesh(
       new THREE.OctahedronGeometry(0.48 * scale),
@@ -3967,7 +4003,7 @@
       })
     );
     ring.rotation.x = Math.PI / 2;
-    ring.position.y = 0.4;
+    ring.position.y = 0.16;
     g.add(ring);
 
     const board = new THREE.Mesh(
@@ -4662,7 +4698,7 @@
     const group = new THREE.Group();
     group.position.set(x, 0, z);
     group.userData = { portal, ghost: false, audioRole };
-    mountTerrainBase(group, { width: 2.4, top: 0.42 });
+    mountTerrainBase(group, { width: 2.4, top: 0.12 });
     const geo = new THREE.TorusGeometry(0.7, 0.07, 10, 32);
     const mat = new THREE.MeshStandardMaterial({
       color,
@@ -5621,7 +5657,11 @@
 
   function updateReflect() {
     const on = walk.reflecting;
-    if (standingMesh && !activeFieldNote && !activeCapsule) standingMesh.rotation.y = on ? Math.PI : 0;
+    if (standingMesh && !activeFieldNote && !activeCapsule) {
+      standingMesh.rotation.y = on ? Math.PI : 0;
+      // The fitted ground stays in place when the standing relic turns to Reflect.
+      if (standingMesh.userData.terrainBaseObject) standingMesh.userData.terrainBaseObject.rotation.y = -standingMesh.rotation.y;
+    }
     elReflect.setAttribute("aria-pressed", String(on));
     elReflect.textContent = on ? "R · Return to departure" : "R · Reflect";
     elReflect.disabled = !view || navigating || Boolean(activeFieldNote || activeCapsule || composing);
