@@ -131,7 +131,11 @@ Capsule invitation and accepted-return updates will be added with those features
 
 ## GitHub owner setup
 
-Register a GitHub App with no repository or account permissions and no webhooks.
+Register a GitHub App with no repository or account permissions. Enable its
+webhook at the deployed origin plus `/api/github/webhook`, with JSON payloads,
+SSL verification enabled, and the same secret provisioned as
+`GITHUB_WEBHOOK_SECRET` on the Worker. The App receives
+`github_app_authorization` automatically; no repository event subscriptions are needed.
 Use the deployed preview origin plus `/auth/callback` as its callback. Public user
 identity is enough; this app does not need repository contents or write access.
 Set `GITHUB_CLIENT_ID` in ignored `wrangler.local.json` and provision
@@ -171,10 +175,14 @@ online account panel can revoke individual devices or **Disconnect all sessions
 and devices**, including pending codes. A device may revoke only itself and may
 not create other devices. Account revocation preserves publications and stars.
 
-GitHub-side App deauthorization webhooks remain a release gate; revoking the
-GitHub App itself does not yet promptly invalidate Atlas sessions. Atlas’s own
-account-wide and per-device revocation is implemented. Browser sessions otherwise
-expire after seven days. Webhooks remain disabled for the preview App.
+Signed GitHub App deauthorization now atomically invalidates that numeric owner's
+sessions, devices, pending pairing codes and activity sharing. In-progress OAuth
+flows begun before revocation cannot issue a new session; a fresh authorization
+can reconnect. Delivery receipts make retries inert after reconnection. HMAC-SHA256
+verification uses the exact bounded request bytes before parsing. GitHub access
+and refresh tokens remain unretained. Publications and saved stars remain intact.
+Live App webhook activation and real revocation/reconnection acceptance must still
+be verified separately; shipping the handler alone does not establish delivery.
 
 ## Deploy to your Cloudflare account
 
@@ -222,8 +230,8 @@ stars, optional following, a real new-edition update and marking it seen. Actual
 Worker → local HTTP pairing, saved readback, browser check and disconnect passed.
 The existing Windows-discovery tests now isolate their synthetic home directories.
 
-Still required in PR #5: GitHub-side deauthorization, report management,
-opt-in activity, complete browser/two-PC checks, and final installers.
+Still required in PR #5: live deauthorization/reconnection acceptance,
+complete browser/two-PC and hosted capacity checks, and final installers.
 The report endpoint stores authenticated reports; no active moderation service or
 response-time promise is implied. See `../docs/ONLINE_ATLAS.md` for the full gate.
 
@@ -333,3 +341,41 @@ Later map refreshes retain the current world. If initial world loading fails, th
 reading collection remains available with an error; asset failures retain geometric
 fallbacks. The six existing synthetic fixtures each have one generation and three
 thoughts, so they are limited cross-generation navigation examples.
+
+
+## Account readiness — September 12
+
+Migration `0006` adds revocation delivery receipts, OAuth start times, moderator
+report decisions and coarse activity leases. Existing saved content is preserved.
+
+**Report management:** `MODERATOR_GITHUB_IDS` is a comma-separated allowlist of
+numeric owner IDs set by the deployment operator. It grants report review only
+through a valid browser session; paired devices and other accounts are denied.
+The account panel exposes **Review reports** only to those moderators. The queue
+pages 50 authenticated reports and filters open/dismissed/withdrawn decisions.
+A moderator records a reason and either dismisses the report or separately
+confirms withdrawal of the exact snapshot. Withdrawal uses the existing tombstone
+and object removal behavior; it also hides dependent shared doors and cannot
+recall downloaded copies. Decisions retain reviewer, time and reason; retries
+preserve the first decision. `GET /api/reports` and `POST /api/reports/review` are
+private. Report submission is available from the selected inquiry; no automatic
+removal or response-time promise is made. Deploy defaults grant nobody moderation.
+
+**Activity:** account-level sharing starts off. A signed-in visitor can explicitly
+turn it on in the account panel. Visible online Atlas tabs renew a 90-second lease;
+hidden/offline tabs stop. Green dots beside the owner's public Threadwalk labels
+and an explicit selection status indicate recent coarse activity. This does not
+expose a location, chamber, conversation, participant list or activity history.
+Gold expedition beacons and violet accepted paths keep their separate meanings.
+Off clears the lease; heartbeat cannot turn sharing back on. Account/GitHub
+revocation also turns it off. Clients expire displayed lights even if a world
+refresh fails. `GET/POST /api/activity` accepts browser-owned settings/heartbeats;
+paired devices cannot enable sharing. A subsequent visible browser visit resumes
+sharing only if the account still opted in.
+
+**Capacity:** `npm run capacity` uses an ephemeral local D1/R2 environment with
+25 synthetic owners at 20 publications each (500 locales), complete 100-row
+pagination and 20 concurrent readers. It never accesses deployed or personal data.
+Record wall time separately from hosted Worker CPU, large-publication validation,
+GPU/frame time and physical mobile behavior; this is a bounded local service check.
+See [release readiness](../docs/ONLINE_READINESS.md) for remaining acceptance.

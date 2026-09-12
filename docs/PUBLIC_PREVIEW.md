@@ -121,3 +121,8 @@ following now obey delivery audiences and preserve camera control. Explicitly
 reviewed full returns between published snapshots now create shared/native doors,
 exact source-return routes and visited cues. The remaining combined release gates
 still apply; private excerpt acceptance never automatically publishes a doorway.
+
+The unreleased online branch includes signed GitHub deauthorization handling,
+moderator report review and optional expiring activity lights. Deployment and
+acceptance status are tracked in [online readiness](ONLINE_READINESS.md). The
+stable desktop release remains v0.3.1 until the combined release is approved.

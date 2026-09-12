@@ -167,7 +167,7 @@ test("unconfigured GitHub sign-in fails closed and bad session has no identity",
         headers: { Cookie: "atlas_session=forged" },
       })
     ).json(),
-    { owner: null },
+    { owner: null, moderator: false },
   );
 });
 test("GitHub callback verifies numeric owner, binds state to browser, and consumes it once", async () => {

@@ -29,6 +29,7 @@
   const reportError = (e) => ($("world-status").textContent = e.message);
   let selected = null,
     owner = null,
+    isModerator = false,
     collection = "all",
     libraryData = { publications: [], subscriptions: [], updates: [] },
     next = null,
@@ -77,6 +78,7 @@
     $("selection-owner").textContent =
       `Published by ${ownerLabel(item)} · snapshot credit: ${item.author}`;
     $("selection-description").textContent = item.description;
+    $("selection-activity").textContent = item.active ? "● Publisher active recently · coarse activity only" : "Activity light off";
     $("selection-counts").textContent =
        `Edition ${item.edition} · ${item.graph_count} ${item.graph_count === 1 ? "generation" : "generations"} · ${item.thought_count} thoughts`;
     $("download").href = `/api/publications/${item.id}/bundle`;
@@ -111,10 +113,10 @@
   function add(item) {
     const existing = items.get(item.threadwalk_id);
     if (existing) {
-      const changed = existing.id !== item.id;
       Object.assign(existing, item);
       if (existing.label) existing.label.textContent = mapTitle(existing);
-      if (changed && selected === existing) choose(existing, false);
+      paintActivity(existing);
+      if (selected === existing) choose(existing, false);
       return;
     }
     items.set(item.threadwalk_id, item);
@@ -165,6 +167,12 @@
     };
     item.label = el("div", mapTitle(item), $("labels"));
     item.label.className = "locale-label";
+    paintActivity(item);
+  }
+  function paintActivity(item) {
+    clearTimeout(item.activityTimer);
+    if(item.active)item.activityTimer=setTimeout(()=>{item.active=false;paintActivity(item);if(selected===item)choose(item,false);},item.activity_expires_in*1000);
+    if (item.label) { item.label.dataset.active=String(item.active); item.label.title=item.active?"Publisher active recently; no location shared":"Activity light off"; }
   }
   function connectedPaths(item) {
     $("connected-paths").replaceChildren();
@@ -190,6 +198,7 @@
     });
   }
   function remove(item) {
+    clearTimeout(item.activityTimer);
     items.delete(item.threadwalk_id); item.label?.remove();
     if (item.group) {
       scene.remove(item.group);
@@ -620,6 +629,8 @@
   async function account() {
     try {
       const [{ publications }, devices] = await Promise.all([api("/api/mine"), api("/api/instances")]);
+      await AtlasReadiness.activityPanel();
+      $("reports-open").hidden=!isModerator;
       $("account-content").replaceChildren();
       $("devices-content").replaceChildren();
       for (const device of devices.results) {
@@ -830,8 +841,9 @@
   prepareWorld();
   setInterval(() => { if (worldReady) pollExpeditions(); },2500);
   setInterval(() => {
+    if (!document.hidden) refreshAccountConnection();
     if (worldReady && !document.hidden && $("visit").hidden && !transition)
-      Promise.all([loadWorld(), refreshAccountConnection()]).catch(reportError);
+      loadWorld().catch(reportError);
   }, 30000);
   function paintAccountConnection(connected) {
     $("login").dataset.connected = String(connected);
@@ -845,6 +857,8 @@
     try {
       const data = await api("/api/me");
       owner = data.owner;
+      isModerator = data.moderator;
+      if(owner) await AtlasReadiness.heartbeat();
       paintAccountConnection(!!owner && navigator.onLine);
       if (owner) {
         await loadLibrary();
@@ -867,5 +881,8 @@
   addEventListener('offline', () => paintAccountConnection(false));
   addEventListener('online', refreshAccountConnection);
   document.addEventListener('visibilitychange', refreshAccountConnection);
+  AtlasReadiness.init(api,()=>loadWorld());
+  $("reports-open").onclick=()=>AtlasReadiness.reports().catch(reportError);
+  $("report-open").onclick=()=>owner?AtlasReadiness.report(selected):location.assign("/auth/login");
   refreshAccountConnection();
 })();

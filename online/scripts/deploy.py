@@ -51,8 +51,9 @@ config['vars']['SITE_ORIGIN'] = f'https://{name}.{subdomain}.workers.dev'
 local = Path('wrangler.local.json')
 if local.exists():
     old = json.loads(local.read_text())
-    if old.get('vars', {}).get('GITHUB_CLIENT_ID'):
-        config['vars']['GITHUB_CLIENT_ID'] = old['vars']['GITHUB_CLIENT_ID']
+    for setting in ('GITHUB_CLIENT_ID', 'MODERATOR_GITHUB_IDS'):
+        if old.get('vars', {}).get(setting):
+            config['vars'][setting] = old['vars'][setting]
 local.write_text(json.dumps(config,indent=2)+'\n')
 query = f'/d1/database/{database["uuid"]}/query'
 api(query, {'sql':'CREATE TABLE IF NOT EXISTS atlas_schema_migrations (name TEXT PRIMARY KEY)'})

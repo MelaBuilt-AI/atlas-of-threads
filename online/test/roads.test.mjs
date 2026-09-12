@@ -90,7 +90,7 @@ test("open-world refresh discovers arrivals, removes withdrawals and preserves l
   let owner = {login: 'SyntheticTester'};
   const requests = [];
   const ui = vm.createContext({
-    console, performance, setInterval: (fn,ms) => intervals.set(ms,fn),
+    console, performance, setTimeout, clearTimeout, setInterval: (fn,ms) => intervals.set(ms,fn),
     matchMedia: () => ({ matches: true }),
     sessionStorage: { getItem: () => null }, addEventListener: (type, fn) => events.set(type, fn),
     navigator: {onLine: true},
@@ -105,6 +105,7 @@ test("open-world refresh discovers arrivals, removes withdrawals and preserves l
     },
   });
   ui.window = ui;
+  vm.runInContext(readFileSync("web/readiness.js", "utf8"), ui);
   vm.runInContext(readFileSync("web/world.js", "utf8"), ui);
   const settle = () => new Promise(resolve => setImmediate(resolve));
   const titles = () => $("inquiry-list").children.map(button => button.children[0].textContent);

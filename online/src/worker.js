@@ -1,3 +1,4 @@
+import {githubWebhook,revokeAccount,moderator,activityGet,activityPost,reportsGet,reportsPost} from './accounts.js';
 import {doorwayGet,doorwayPost} from './doorways.js';
 import {expeditions,expeditionVisible,expeditionBindings} from './expeditions.js';
 import { capsuleGet, capsulePost } from "./capsules.js";
@@ -84,10 +85,11 @@ async function auth(r, env, url) {
       verifier = token();
     await env.DB.batch([
       env.DB.prepare("DELETE FROM auth_states WHERE expires_at<?").bind(now()),
-      env.DB.prepare("INSERT INTO auth_states VALUES(?,?,?)").bind(
+      env.DB.prepare("INSERT INTO auth_states(hash,verifier,expires_at,started_at) VALUES(?,?,?,?)").bind(
         await sha(state),
         verifier,
         now() + 600,
+        Date.now(),
       ),
     ]);
     const challenge = btoa(
@@ -124,7 +126,7 @@ async function auth(r, env, url) {
   if (!state || state !== cookie(r, "atlas_state"))
     fail("Sign-in expired; start again", 403);
   const stored = await env.DB.prepare(
-    "DELETE FROM auth_states WHERE hash=? AND expires_at>? RETURNING verifier",
+    "DELETE FROM auth_states WHERE hash=? AND expires_at>? RETURNING verifier,started_at",
   )
     .bind(await sha(state), now())
     .first();
@@ -154,17 +156,19 @@ async function auth(r, env, url) {
   if (!userResponse.ok || !Number.isSafeInteger(user.id) || !user.login)
     fail("Could not verify GitHub owner", 403);
   const session = token();
-  await env.DB.batch([
+  const issued = await env.DB.batch([
     env.DB.prepare(
       "INSERT INTO owners(id,login,created_at) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET login=excluded.login",
     ).bind(String(user.id), user.login, now()),
     env.DB.prepare("DELETE FROM sessions WHERE expires_at<?").bind(now()),
-    env.DB.prepare("INSERT INTO sessions VALUES(?,?,?)").bind(
+    env.DB.prepare("INSERT INTO sessions SELECT ?,?,? WHERE NOT EXISTS(SELECT 1 FROM github_revocations WHERE owner_id=? AND revoked_at>=?)").bind(
       await sha(session),
       String(user.id),
       now() + 7 * 86400,
+      String(user.id), stored.started_at,
     ),
   ]);
+  if (!issued.at(-1).meta.changes) fail("GitHub access was revoked during sign-in; start again",403);
   // GitHub access/refresh tokens are deliberately not retained; local service sessions are revocable.
   const headers = new Headers({ Location: "/", "Cache-Control": "no-store" });
   headers.append(
@@ -175,6 +179,7 @@ async function auth(r, env, url) {
   return new Response(null, { status: 302, headers });
 }
 const rows = `SELECT p.*,o.login,o.kind,
+  (SELECT expires_at FROM activity a WHERE a.owner_id=p.owner_id AND a.enabled=1) AS activity_expires_at,
   (SELECT min(first.seq) FROM publications first WHERE first.threadwalk_id=p.threadwalk_id) AS world_seq,
   (SELECT count(*) FROM publications prior WHERE prior.threadwalk_id=p.threadwalk_id AND prior.seq<=p.seq) AS edition
   FROM publications p JOIN owners o ON o.id=p.owner_id`;
@@ -198,6 +203,8 @@ const publicRow = (row) => ({
   thought_count: row.thought_count,
   created_at: row.created_at,
   withdrawn: !!row.withdrawn_at,
+  active: !row.withdrawn_at && (row.activity_expires_at || 0)>now(),
+  activity_expires_in: row.withdrawn_at ? 0 : Math.max(0,(row.activity_expires_at || 0)-now()),
   ...position(row.world_seq),
 });
 async function publication(env, id) {
@@ -225,6 +232,7 @@ export default {
     try {
       const u = new URL(r.url),
         path = u.pathname;
+      if (path === "/api/github/webhook") return json(await githubWebhook(r,env));
       if (path === "/auth/login" || path === "/auth/callback")
         return await auth(r, env, u);
       if (!path.startsWith("/api/")) return env.ASSETS.fetch(r);
@@ -234,16 +242,21 @@ export default {
           return json(await expeditions(env,u,await identity(r,env,false)));
         if (path.startsWith("/api/capsules") || path === "/api/blocks")
           return json(await capsuleGet(env, u, await identity(r, env)));
+        if (path === "/api/activity") return json(await activityGet(env,await identity(r,env)));
+        if (path === "/api/reports") return json(await reportsGet(env,await identity(r,env),u));
         if (path === "/api/health")
           return json({
             ok: true,
             mode: "online-preview",
+            github_webhook_configured: !!env.GITHUB_WEBHOOK_SECRET,
             github_configured: !!(
               env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET
             ),
           });
-        if (path === "/api/me")
-          return json({ owner: await identity(r, env, false) });
+        if (path === "/api/me") {
+          const who=await identity(r,env,false);
+          return json({owner:who,moderator:moderator(env,who)});
+        }
         if (path === "/api/world") {
           const cursor = Math.max(
             0,
@@ -368,16 +381,14 @@ export default {
         });
       }
       const data = await body(r);
+      if (path === "/api/activity") return json(await activityPost(env,who,data,await sha(cookie(r,"atlas_session") || "")));
+      if (path === "/api/reports/review") return json(await reportsPost(env,who,data));
       if (path.startsWith("/api/capsules") || path === "/api/blocks")
         return json(await capsulePost(env, path, who, data));
       if(path.startsWith("/api/doorways")) return json(await doorwayPost(env,path,who,data));
       if (path === "/api/account/revoke") {
         if (who.instance_id) fail("Disconnect all devices from your signed-in browser", 403);
-        await env.DB.batch([
-          env.DB.prepare("DELETE FROM sessions WHERE owner_id=?").bind(who.id),
-          env.DB.prepare("DELETE FROM pairings WHERE owner_id=?").bind(who.id),
-          env.DB.prepare("UPDATE instances SET revoked_at=COALESCE(revoked_at,?) WHERE owner_id=?").bind(now(), who.id),
-        ]);
+        await env.DB.batch(revokeAccount(env,who.id));
         return json({ revoked: true });
       }
       if (path === "/api/instances" || path === "/api/pairings") {
@@ -523,7 +534,7 @@ export default {
         )
           fail("Describe what needs review");
         await env.DB.prepare(
-          "INSERT INTO reports VALUES(?,?,?,?) ON CONFLICT DO NOTHING",
+          "INSERT INTO reports(publication_id,owner_id,reason,created_at) VALUES(?,?,?,?) ON CONFLICT DO NOTHING",
         )
           .bind(report[1], who.id, data.reason.trim(), now())
           .run();

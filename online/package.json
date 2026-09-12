@@ -6,6 +6,7 @@
     "build": "node scripts/build.mjs",
     "dev": "wrangler dev --port 7490",
     "test": "node --test test/*.test.mjs ../tests/portable-ui.test.mjs",
+    "capacity": "node scripts/capacity.mjs",
     "deploy": "wrangler deploy"
   },
   "devDependencies": {

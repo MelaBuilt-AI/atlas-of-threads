@@ -54,3 +54,8 @@ Keep contributor publication, connection offering, public acceptance, local impo
 and browser visit state separate. Do not derive links from graph resemblance or
 publish a private Capsule decision as a shared relationship. Exercise the shared
 and native entry-return paths without mutating source graphs or calling real agents.
+
+Online account/readiness changes should run `npm run build`, `npm test`, and
+`npm run capacity` from `online/`. Fixtures and capacity checks must remain
+synthetic and local. See [readiness gates](docs/ONLINE_READINESS.md); automated
+checks do not authorize live account revocation, merge or release.

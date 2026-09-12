@@ -36,10 +36,12 @@ mobile visitors have a readable view alongside the immersive experience.
   reconnect/offline delivery and a disconnect/block action.
 - [x] GitHub App owner authentication, stable numeric GitHub owner IDs, distinct
   registered instance identities, local keys and Atlas-side revocation.
-- [ ] GitHub-side App deauthorization and session invalidation.
+- [x] Signed GitHub-side App deauthorization and session invalidation handler.
+  Live activation/reconnection acceptance remains a release gate.
 - [x] Explicit publication review, bounded visibility, withdrawal/tombstones,
   ownership checks, bounded requests, report submission and account blocks.
-- [ ] Report management and representative capacity validation.
+- [x] Moderator report queue and audited decisions.
+- [ ] Hosted representative capacity validation (local 500-locale check implemented).
 - [x] Shared isometric overworld, stable placements, meaningful paths, inquiry
   selection, Threadwalk entry and exact overworld return.
 - [x] Public read-only web player and readable view; local import and
@@ -55,14 +57,15 @@ mobile visitors have a readable view alongside the immersive experience.
   witnessed flights and distance-aware sound without taking over the camera.
 - [x] Shared/native exact-source doors, violet contribution arcs and browser-local
   unvisited/visited cues, with separate contributor/source-owner public consent.
-- [ ] Opt-in coarse activity lights with expiry and a clear off state. Activity
+- [x] Opt-in coarse activity lights with expiry and a clear off state. Activity
   and newly accepted paths have different visual meanings.
 - [ ] Physical two-PC end-to-end acceptance, local offline behavior, final
   Linux/Windows packages and installer checks, then owner release acceptance.
 
 The checklist records implemented behavior; test success does not replace the
 remaining user acceptance and release gates. The current user instruction is to
-keep the work committed and green, then pause for later testing. Do not merge or release
+implement the remaining readiness steps, keep the work committed and green, and
+coordinate live checks before release review. Do not merge or release
 the portable part early to satisfy an intermediate checkpoint.
 
 ## Current working increment
@@ -245,3 +248,9 @@ public contribution links and shared/native doors between exact published snapsh
 with explicit contributor and source-owner consent. Private full-graph network offers
 without publication are outside this increment. Draft PR #5 still retains the
 remaining combined release checklist.
+
+## September 12 readiness increment
+
+Signed deauthorization, moderator report management and opt-in expiring activity
+are implemented. [The current readiness checklist](ONLINE_READINESS.md) separates
+verified implementation from live account, physical two-PC and release gates.

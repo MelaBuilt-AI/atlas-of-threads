@@ -46,7 +46,7 @@
       ><span class="eyebrow">PUBLISHED THREADWALK</span>
       <h2 id="selection-title"></h2>
       <p id="selection-owner"></p>
-      <p id="selection-description"></p>
+      <p id="selection-description"></p><p id="selection-activity" class="muted"></p>
       <p id="selection-counts" class="muted"></p>
       <div class="actions">
         <button id="enter" class="primary">Enter Threadwalk ↗</button
@@ -57,7 +57,7 @@
         <button id="star" aria-pressed="false">☆ Star</button>
         <label><input id="follow" type="checkbox" /> Follow updates</label>
         <small id="follow-hint"></small>
-        <button id="editions">Published editions</button>
+        <button id="editions">Published editions</button><button id="report-open">Report this inquiry</button>
       </div>
       <button id="expedition-history">Capsule port &amp; expedition history</button>
       <div id="connected-paths" class="actions" aria-label="Connected map paths"></div>
@@ -121,6 +121,8 @@
         <h2>Your Atlas account</h2>
         <button data-close aria-label="Close account">×</button>
       </header>
+      <h3>Activity sharing</h3><div id="activity-content"></div>
+      <button id="reports-open" hidden>Review reports</button>
       <h3>Connected Personal Atlases</h3>
       <div id="devices-content"></div>
       <form id="pairing-form">
@@ -135,6 +137,8 @@
       <button id="revoke-all" disabled>Disconnect all sessions and devices</button>
       <button id="logout">Disconnect this browser</button>
     </dialog>
+    <dialog id="report-dialog"><header><h2>Report an inquiry</h2><button data-close aria-label="Close report">×</button></header><div id="report-content"></div></dialog>
+    <dialog id="reports-dialog"><header><h2>Review reports</h2><button data-close aria-label="Close report review">×</button></header><div id="reports-content"></div></dialog>
     <p id="expedition-status" role="status"></p>
     <dialog id="expedition-dialog"><header><h2 id="expedition-title">Capsule expeditions</h2><button data-close aria-label="Close expeditions">×</button></header><div id="expedition-content"></div></dialog>
     <dialog id="updates-dialog"><header><h2>Followed updates</h2><button data-close aria-label="Close updates">×</button></header><div id="updates-content"></div></dialog>
@@ -156,6 +160,7 @@
     <script src="/weave.js"></script>
     <script src="/expeditions.js"></script>
     <script src="/doorways.js"></script>
+    <script src="/readiness.js"></script>
     <script src="/world.js"></script>
     <script src="/capsules.js"></script>
   </body>
