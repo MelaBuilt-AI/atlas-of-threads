@@ -168,6 +168,7 @@ def test_windows_discovers_the_official_native_codex_install(monkeypatch, tmp_pa
     monkeypatch.setattr(provider_command_module.sys, "platform", "win32")
     monkeypatch.setenv("LOCALAPPDATA", str(local_app_data))
     monkeypatch.setenv("CODEX_HOME", str(tmp_path / "missing-codex-home"))
+    monkeypatch.setattr(provider_command_module.Path, "home", lambda: tmp_path)
     monkeypatch.setattr(provider_command_module.shutil, "which", lambda _name: None)
 
     assert discover_provider_command("codex") == str(codex.absolute())
@@ -237,6 +238,7 @@ def test_windows_untrusted_provider_path_does_not_break_discovery(
     monkeypatch.setattr(provider_command_module.sys, "platform", "win32")
     monkeypatch.setenv("LOCALAPPDATA", str(local_app_data))
     monkeypatch.setenv("CODEX_HOME", str(tmp_path / "missing-codex-home"))
+    monkeypatch.setattr(provider_command_module.Path, "home", lambda: tmp_path)
     monkeypatch.setattr(provider_command_module.shutil, "which", lambda _name: None)
     monkeypatch.setattr(Path, "is_file", guarded_is_file)
 

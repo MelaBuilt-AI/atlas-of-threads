@@ -39,9 +39,11 @@ def test_init_creates_tree_and_modes(tmp_path: Path):
     assert turns.is_file()
     assert turns.stat().st_size == 0
     assert (sdir / "graphs").is_dir()
-    assert oct(sdir.stat().st_mode & 0o777) == oct(0o700)
-    assert oct((sdir / "session.json").stat().st_mode & 0o777) == oct(0o600)
-    assert oct(turns.stat().st_mode & 0o777) == oct(0o600)
+    # Windows stat/chmod do not implement these POSIX permission bits.
+    if os.name == "posix":
+        assert oct(sdir.stat().st_mode & 0o777) == oct(0o700)
+        assert oct((sdir / "session.json").stat().st_mode & 0o777) == oct(0o600)
+        assert oct(turns.stat().st_mode & 0o777) == oct(0o600)
     raw = session.to_dict()
     assert raw["head_graph_id"] is None
     assert raw["head_turn_id"] is None

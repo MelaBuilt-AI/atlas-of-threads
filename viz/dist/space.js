@@ -265,7 +265,7 @@
   let reflectChambers = [];
   const routeFacing = new THREE.Vector3();
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-  const WALK_MEMORY_KEY = "thought-archaeology.walk.v2";
+  const WALK_MEMORY_KEY = "thought-archaeology.walk.v2" + (window.TA_INQUIRY_ID || "");
   const elReflect = document.getElementById("reflect-trigger");
   let overhead = false;
   let manualRelicKey = null;
@@ -298,11 +298,11 @@
   let atlasMapViewport = null;
   let eligibilityKey = null;
   let capsuleEligibilityKey = null;
-  const COMPANION_MEMORY_KEY = "thought-archaeology.companions.v1";
-  const CIRCUIT_MEMORY_KEY = "thought-archaeology.continuation-circuits.v2";
-  const FIELD_NOTE_MEMORY_KEY = "thought-archaeology.field-notes-entered.v1";
-  const CAPSULE_EARNED_MEMORY_KEY = "thought-archaeology.knowledge-capsules-earned.v1";
-  const LAST_STAND_MEMORY_KEY = "thought-archaeology.last-stand.v1";
+  const COMPANION_MEMORY_KEY = "thought-archaeology.companions.v1" + (window.TA_INQUIRY_ID || "");
+  const CIRCUIT_MEMORY_KEY = "thought-archaeology.continuation-circuits.v2" + (window.TA_INQUIRY_ID || "");
+  const FIELD_NOTE_MEMORY_KEY = "thought-archaeology.field-notes-entered.v1" + (window.TA_INQUIRY_ID || "");
+  const CAPSULE_EARNED_MEMORY_KEY = "thought-archaeology.knowledge-capsules-earned.v1" + (window.TA_INQUIRY_ID || "");
+  const LAST_STAND_MEMORY_KEY = "thought-archaeology.last-stand.v1" + (window.TA_INQUIRY_ID || "");
   const knownHeads = new Map();
   const sessionTitles = new Map();
   let liveArrivals = loadCompanionThoughts();
@@ -542,7 +542,7 @@
   }
 
   function visibleArrivals(payload) {
-    let arrivals = liveArrivals.filter(
+    let arrivals = (payload.shared_arrivals || liveArrivals).filter(
       (arrival) =>
         arrival.anchorGraphId === payload.graph_id &&
         arrival.graphId !== payload.graph_id
@@ -2337,7 +2337,7 @@
     object.userData.disposed = true;
     const shared = sharedResources || Boolean(object.userData.sharedRelicResources);
     object.children.forEach((child) => disposeAtlasObject(child, shared, textures));
-    if (object.geometry && !shared) object.geometry.dispose();
+    if (object.geometry && (!shared || object.userData.ownedRelicGeometry)) object.geometry.dispose();
     const materials = Array.isArray(object.material)
       ? object.material
       : object.material ? [object.material] : [];
@@ -3338,14 +3338,75 @@
     lightning.materials[2].opacity = strength * (0.55 + Math.abs(Math.sin(t * 13)) * 0.4);
   }
 
-  function stoneMat(color, opacity) {
-    return new THREE.MeshStandardMaterial({
-      color,
-      roughness: 0.82,
-      metalness: 0.08,
-      transparent: opacity < 1,
-      opacity,
+  function mountTerrainBase(group, { width, top, ghost = false }) {
+    // Capture this chamber's assigned surface before any asynchronous loading.
+    const name = TATerrain.textureName;
+    const generation = layoutGeneration;
+    group.userData.terrainBase = name;
+    group.userData.terrainBaseReady = false;
+    return RelicGLBLoader.load(`./assets/models/emergence-bases/${name}-base.glb`)
+      .then((object) => {
+        if (group.userData.disposed || !group.parent || generation !== layoutGeneration) {
+          disposeRelicClone(object);
+          return;
+        }
+        object = settleTerrainBase(object, group, width, top);
+        if (ghost) object.traverse((part) => {
+          if (!part.material) return;
+          part.material.transparent = true;
+          part.material.opacity *= 0.55;
+          part.material.depthWrite = false;
+        });
+        group.add(object);
+        group.userData.terrainBaseObject = object;
+        object.rotation.y = -group.rotation.y;
+        group.userData.terrainBaseReady = true;
+        if (group.userData.reflecting) reflectMaterials(group, true);
+      })
+      .catch((error) => { group.userData.terrainBaseError = String(error.message || error); });
+  }
+
+  function settleTerrainBase(source, group, width, top) {
+    const object = new THREE.Group();
+    object.name = `terrain-base:${group.userData.terrainBase}`;
+    object.userData.sharedRelicResources = true;
+    // The supplied variants share a broad surface tilted ~31 degrees in model space.
+    const level = new THREE.Quaternion().setFromUnitVectors(
+      new THREE.Vector3(0.00971, 0.857551, 0.514307).normalize(), new THREE.Vector3(0, 1, 0)
+    );
+    source.updateMatrixWorld(true);
+    source.traverse((part) => {
+      if (!part.isMesh) return;
+      const geometry = part.geometry.clone().applyMatrix4(part.matrixWorld).applyQuaternion(level);
+      const mesh = new THREE.Mesh(geometry, part.material);
+      mesh.userData.ownedRelicGeometry = true;
+      mesh.castShadow = mesh.receiveShadow = true;
+      object.add(mesh);
     });
+    const box = new THREE.Box3().setFromObject(object);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const horizontal = width / Math.max(size.x, size.z);
+    const vertical = (top + 0.18) / size.y;
+    const ground = TATerrain.height(group.position.x, group.position.z, terrainCenter);
+    for (const mesh of object.children) {
+      const points = mesh.geometry.attributes.position;
+      for (let i = 0; i < points.count; i++) {
+        const x = (points.getX(i) - center.x) * horizontal;
+        const z = (points.getZ(i) - center.z) * horizontal;
+        const relief = TATerrain.height(group.position.x + x, group.position.z + z, terrainCenter) - ground;
+        // Bury the solid lower section. Only a low rubble rim emerges, following
+        // the actual ground across the footprint rather than balancing on one point.
+        const y = top + (points.getY(i) - box.max.y) * vertical + relief;
+        points.setXYZ(i, x, y, z);
+      }
+      points.needsUpdate = true;
+      mesh.geometry.deleteAttribute('tangent');
+      mesh.geometry.computeVertexNormals();
+      mesh.geometry.computeBoundingBox();
+      mesh.geometry.computeBoundingSphere();
+    }
+    return object;
   }
 
   function labelTexture(title, body) {
@@ -3417,7 +3478,7 @@
         const center = box.getCenter(new THREE.Vector3());
         const fit = (2.25 * scale) / Math.max(size.y, size.x * 0.72, size.z * 0.72, 0.001);
         object.scale.setScalar(fit);
-        object.position.set(-center.x * fit, 0.42 - box.min.y * fit, -center.z * fit);
+        object.position.set(-center.x * fit, 0.12 - box.min.y * fit, -center.z * fit);
         object.traverse((part) => {
           if (!part.material) return;
           if (ghost) {
@@ -3460,7 +3521,7 @@
         const fit = (2.55 * scale) /
           Math.max(size.y, size.x * 0.76, size.z * 0.76, 0.001);
         object.scale.setScalar(fit);
-        object.position.set(-center.x * fit, 0.38 - box.min.y * fit, -center.z * fit);
+        object.position.set(-center.x * fit, 0.12 - box.min.y * fit, -center.z * fit);
         object.userData.fieldNoteRestY = object.position.y;
         if (hologram) {
           object.traverse((part) => {
@@ -3508,7 +3569,7 @@
         const fit = (3.35 * scale) /
           Math.max(size.y, size.x * 0.72, size.z * 0.72, 0.001);
         object.scale.setScalar(fit);
-        object.position.set(-center.x * fit, 0.52 - box.min.y * fit, -center.z * fit);
+        object.position.set(-center.x * fit, 0.12 - box.min.y * fit, -center.z * fit);
         object.userData.capsuleRestY = object.position.y;
         if (state === "constructing") {
           object.traverse((part) => {
@@ -3693,12 +3754,7 @@
       focusScale: 1,
       ghost: false,
     };
-    const terrace = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.72 * scale, 2.05 * scale, 0.64, 12),
-      stoneMat(0x2d2418, 1)
-    );
-    terrace.position.y = 0.32;
-    group.add(terrace);
+    mountTerrainBase(group, { width: 5.4 * scale, top: 0.12 });
     const placeholder = new THREE.Mesh(
       new THREE.OctahedronGeometry(0.58 * scale),
       new THREE.MeshStandardMaterial({
@@ -3728,7 +3784,7 @@
       })
     );
     ring.rotation.x = Math.PI / 2;
-    ring.position.y = 0.68;
+    ring.position.y = 0.16;
     group.add(ring);
     group.userData.capsuleRing = ring;
     const lantern = new THREE.PointLight(
@@ -3834,12 +3890,7 @@
       focusScale: 1,
       ghost: false,
     };
-    const plinth = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.2 * scale, 1.48 * scale, 0.38, 12),
-      stoneMat(0x29231b, 1)
-    );
-    plinth.position.y = 0.19;
-    group.add(plinth);
+    mountTerrainBase(group, { width: 3.9 * scale, top: 0.12 });
     const placeholder = new THREE.Mesh(
       new THREE.OctahedronGeometry(0.52 * scale),
       new THREE.MeshStandardMaterial({
@@ -3869,7 +3920,7 @@
       })
     );
     ring.rotation.x = Math.PI / 2;
-    ring.position.y = 0.42;
+    ring.position.y = 0.16;
     group.add(ring);
     group.userData.fieldNoteRing = ring;
     const board = new THREE.Mesh(
@@ -3918,12 +3969,7 @@
     g.position.set(x, 0, z);
     g.userData = { id: node.id, kind: node.kind, ghost: !!ghost };
 
-    const plinth = new THREE.Mesh(
-      new THREE.CylinderGeometry(1.1 * scale, 1.35 * scale, 0.35, 8),
-      stoneMat(ghost ? 0x3a3238 : 0x2a2620, ghost ? 0.55 : 1)
-    );
-    plinth.position.y = 0.18;
-    g.add(plinth);
+    mountTerrainBase(g, { width: 3.6 * scale, top: 0.12, ghost });
 
     const placeholder = new THREE.Mesh(
       new THREE.OctahedronGeometry(0.48 * scale),
@@ -3957,7 +4003,7 @@
       })
     );
     ring.rotation.x = Math.PI / 2;
-    ring.position.y = 0.4;
+    ring.position.y = 0.16;
     g.add(ring);
 
     const board = new THREE.Mesh(
@@ -4131,6 +4177,8 @@
     for (const mesh of reflectChambers) TATerrain.tickEcho(mesh.userData.reflectEcho, reducedMotion.matches ? 0 : t);
     canvas.dataset.terrainTexture = TATerrain.textureName || "";
     canvas.dataset.terrainTextureReady = String(TATerrain.textureReady);
+    canvas.dataset.terrainBase = standingMesh?.userData.terrainBase || "";
+    canvas.dataset.terrainBaseReady = String(!!standingMesh?.userData.terrainBaseReady);
   }
 
   async function travelTo(payload, origin) {
@@ -4411,7 +4459,7 @@
       autoFocus,
       audioRole,
       arrivalKey: arrivalKey(arrival),
-      walk: () => inhabit(arrival.graphId, arrival.nodeId, arrival.returnOrigin ? "return" : "walk"),
+      walk: () => arrival.href ? window.TADoorways.follow(arrival) : inhabit(arrival.graphId, arrival.nodeId, arrival.returnOrigin ? "return" : "walk"),
     });
     if (rise) markRise(ring, 0.24 + i * 0.08);
     return { autoFocus, choiceIndex: choices.length - 1 };
@@ -4455,7 +4503,7 @@
     const traversal = (payload.read && payload.read.traversal) || {};
     const atOrigin = payload.origin && payload.origin.id === payload.node.id;
     const atThreshold = Boolean(traversal.terminal || atOrigin);
-    const arrivals = atThreshold ? visibleArrivals(payload) : [];
+    const arrivals = [...(atThreshold ? visibleArrivals(payload) : []), ...(window.TADoorways?.arrivals(payload) || [])];
     const storyNodes = forward.map((node) => ({
       node,
       ghost: false,
@@ -4650,6 +4698,7 @@
     const group = new THREE.Group();
     group.position.set(x, 0, z);
     group.userData = { portal, ghost: false, audioRole };
+    mountTerrainBase(group, { width: 2.4, top: 0.12 });
     const geo = new THREE.TorusGeometry(0.7, 0.07, 10, 32);
     const mat = new THREE.MeshStandardMaterial({
       color,
@@ -5579,7 +5628,7 @@
       previous = null;
       try {
         let saved = JSON.parse(sessionStorage.getItem(WALK_MEMORY_KEY) || "null");
-        if (!saved) {
+        if (!saved && !window.TA_INQUIRY_ID) {
           const legacy = JSON.parse(sessionStorage.getItem("thought-archaeology.walk.v1") || "null");
           if (legacy?.sessionId === walkSession && sameStand(legacy.current, next)) {
             const path = [...legacy.trail, next];
@@ -5608,7 +5657,11 @@
 
   function updateReflect() {
     const on = walk.reflecting;
-    if (standingMesh && !activeFieldNote && !activeCapsule) standingMesh.rotation.y = on ? Math.PI : 0;
+    if (standingMesh && !activeFieldNote && !activeCapsule) {
+      standingMesh.rotation.y = on ? Math.PI : 0;
+      // The fitted ground stays in place when the standing relic turns to Reflect.
+      if (standingMesh.userData.terrainBaseObject) standingMesh.userData.terrainBaseObject.rotation.y = -standingMesh.rotation.y;
+    }
     elReflect.setAttribute("aria-pressed", String(on));
     elReflect.textContent = on ? "R · Return to departure" : "R · Reflect";
     elReflect.disabled = !view || navigating || Boolean(activeFieldNote || activeCapsule || composing);
@@ -5805,8 +5858,16 @@
       agentSpark.setWorkspace(workspace);
       const fromHash = parseHash();
       const lastStand = loadLastStand();
+      if (window.TA_INQUIRY_ID) {
+        const destination = fromHash || lastStand || {
+          graphId: workspace.history[0].spawn.graph_id,
+          nodeId: workspace.history[0].spawn.node_id,
+        };
+        await inhabit(destination.graphId, destination.nodeId, "boot");
+        return;
+      }
       const explicitDeepLink = Boolean(
-        fromHash && (!lastStand || fromHash.graphId !== lastStand.graphId ||
+        fromHash && (/^[a-f0-9]{64}$/.test(new URLSearchParams(location.search).get("doorway") || "") || !lastStand || fromHash.graphId !== lastStand.graphId ||
           fromHash.nodeId !== lastStand.nodeId)
       );
       if (explicitDeepLink) {
@@ -6959,7 +7020,11 @@
 
   window.addEventListener("hashchange", () => {
     const h = parseHash();
-    if (!h || !view) return;
+    if (!h) return;
+    if (!view) {
+      if (startupState) chooseStartup(h);
+      return;
+    }
     if (h.nodeId !== view.node.id || h.graphId !== view.graph_id) {
       if (atlasMapMode) closeAtlasMap(false);
       inhabit(h.graphId, h.nodeId, "hash");

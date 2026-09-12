@@ -1,0 +1,90 @@
+{
+  "supplied_by": "MelaBuilt AI",
+  "prepared_by": "Codex",
+  "date": "2026-09-12",
+  "texture_size": 1024,
+  "jpeg_quality": 84,
+  "geometry": "Supplied mesh and non-image buffer views preserved unchanged.",
+  "variants": [
+    {
+      "file": "01-neural-basalt-base.glb",
+      "terrain": "01-neural-basalt",
+      "source_sha256": "73e6b67ec5563beb1b01945d8b23b7d561a8b16745a530c60c525395d2d57c70",
+      "runtime_sha256": "efec4f6fb40e0223ee74366c36c211576c1eadfe193e0ee17fc72bc142b2dae7",
+      "source_bytes": 20939836,
+      "runtime_bytes": 1688216
+    },
+    {
+      "file": "02-memory-silt-base.glb",
+      "terrain": "02-memory-silt",
+      "source_sha256": "c28c1b36e1d83915bab422d6bc15205b6b515992afad95e1e706dffad36c0782",
+      "runtime_sha256": "4fc6b51eeacebbe4145153cfacedcbedabe1ef3a7ab7d00663f4f8a9cb0f398b",
+      "source_bytes": 38360112,
+      "runtime_bytes": 2920724
+    },
+    {
+      "file": "03-amber-palimpsest-base.glb",
+      "terrain": "03-amber-palimpsest",
+      "source_sha256": "ed7a0df1be940c0adc7a720b6cc3fdabe2ae171ed2b933622c475bc486a4462e",
+      "runtime_sha256": "31c046bb6bbd17993b3503317f74168db1b2fd52b84675649d3c823a7e64cfef",
+      "source_bytes": 40070428,
+      "runtime_bytes": 3009388
+    },
+    {
+      "file": "04-verdant-synapse-base.glb",
+      "terrain": "04-verdant-synapse",
+      "source_sha256": "0fee6b5e696c27ebeeb3e960c37aaf2a2d7870f58fbfe93e92a66f580b7889c0",
+      "runtime_sha256": "8846fc62352ecd6571f949f34a793de4f25d24c1e5e4a1c331eca298114d6f2f",
+      "source_bytes": 36190320,
+      "runtime_bytes": 2874408
+    },
+    {
+      "file": "05-violet-schist-base.glb",
+      "terrain": "05-violet-schist",
+      "source_sha256": "9e7f44563e218669c14d67366fbc74faa3a4a1c2b573ac32c4458b3f7aa799e5",
+      "runtime_sha256": "598dc4082b35faf038b246b9e7d39d180d15a8297abdf0f3d9ad97d06c1bc9d7",
+      "source_bytes": 39485676,
+      "runtime_bytes": 3010936
+    },
+    {
+      "file": "06-woven-regolith-base.glb",
+      "terrain": "06-woven-regolith",
+      "source_sha256": "b4339727adf0c5143a5ce248b478da627aa5a38a17cb454597ae62db349cde2b",
+      "runtime_sha256": "3acf0cb9df9fbb13a40dbf6534c3c9a5b98d842cff91a32c2cd70eea645581f9",
+      "source_bytes": 38981340,
+      "runtime_bytes": 2963632
+    },
+    {
+      "file": "07-porcelain-ash-base.glb",
+      "terrain": "07-porcelain-ash",
+      "source_sha256": "40d408efc4dba98ee810d477062727233060f06da342255c0cfe5cbc6c85453a",
+      "runtime_sha256": "42c10bf82bd66171ec71e2f609fdcfec9476b4a19810b5029847273fda9eb935",
+      "source_bytes": 38017272,
+      "runtime_bytes": 2971188
+    },
+    {
+      "file": "08-obsidian-tesserae-base.glb",
+      "terrain": "08-obsidian-tesserae",
+      "source_sha256": "9d950cf01b7204f5cef8cf07216fa73ce521a532514ed1c9ee66343834467c02",
+      "runtime_sha256": "a70fcc4aa2ef8a976b426253449875eed541c4e8d90bc1af427ee6064b7a9cd6",
+      "source_bytes": 39655248,
+      "runtime_bytes": 3011232
+    },
+    {
+      "file": "09-silver-contour-base.glb",
+      "terrain": "09-silver-contour",
+      "source_sha256": "b4d0d99c4bb1620edb53152cef204322c77603334e833dfd34c0f8efe14d7f6c",
+      "runtime_sha256": "94b840afd46f987219a383ba03a7fc41388324c3c262dfaa8f58661bc4b28faa",
+      "source_bytes": 37425068,
+      "runtime_bytes": 2903972
+    },
+    {
+      "file": "10-dreamstone-base.glb",
+      "terrain": "10-dreamstone",
+      "source_sha256": "2f32c438d26a6ad546e4ed6f4a74a37975df3e5a451b9118c008a2594dc31f54",
+      "runtime_sha256": "3534f9c388265ea2891b1aa3d5ac8ad4afe4ac9115467f22b36e384ea7f65d82",
+      "source_bytes": 35301128,
+      "runtime_bytes": 2801340
+    }
+  ]
+}

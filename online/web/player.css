@@ -1,0 +1,28 @@
+#threshold-continue,
+#threshold-ask,
+#threshold-parallel,
+#threshold-ask-box,
+#field-note-eligible,
+#knowledge-capsule-eligible,
+#knowledge-capsule-stored,
+#knowledge-capsule-ready,
+#workspace-menu,
+#workspace-scrim,
+#onboarding-menu,
+#spark-hint,
+#spark-menu,
+#spark-ring,
+#music-controls,
+#sound-controls {
+  display: none !important;
+}
+.publication-error {
+  position: fixed;
+  z-index: 1000;
+  inset: 20% 10% auto;
+  background: #101c24;
+  color: #fff;
+  padding: 2rem;
+  border: 1px solid #c6b386;
+  font: 1rem system-ui;
+}

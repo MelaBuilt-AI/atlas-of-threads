@@ -314,8 +314,7 @@ def test_thread_compass_and_legend_controls_are_chamber_overlays():
     assert 'id="workspace-parallel-form"' in html
     assert 'id="onboarding-menu"' in html
     assert "Start a Threadwalk" in html
-    assert "Online" in html
-    assert "Online collaboration comes later" in html
+    assert "Connect to the Atlas when you choose." in html
     assert 'id="threshold-parallel"' in html
     assert "Activate ${workspaceHarnessName(harness)}" in js
     assert 'refresh.textContent = "↻ Refresh"' in js

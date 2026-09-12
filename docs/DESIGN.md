@@ -12,6 +12,16 @@
 
 ---
 
+## Portable inquiry amendment — 2026-09-09 (Codex)
+
+The approved first online milestone is a reviewed, portable Threadwalk snapshot
+that another Personal Atlas can import, inhabit and discuss with its own guide.
+It uses existing graph schemas and renderer, preserves source identities, and
+lives in a separate imported Store. Guide conversation stays outside that
+snapshot. Hosting, presence and return contribution are later slices. See
+[portable inquiries](PORTABLE_INQUIRIES.md) for the transport and acceptance
+contract.
+
 ## Reflect and curved terrain amendment — 2026-09-07 (Codex)
 
 This development increment supersedes the older recentered grid, 80-stop retrace

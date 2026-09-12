@@ -17,6 +17,24 @@ from tests.test_cli import run
 FAKE_GROK = Path(__file__).with_name("fake_grok_cli.py")
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX executable symlink dispatch")
+def test_grok_metadata_preserves_multicall_launcher_name(monkeypatch, tmp_path):
+    launcher = tmp_path / "mise"
+    launcher.write_text("#!/usr/bin/env python3\n"
+                        "import pathlib, sys\n"
+                        "if pathlib.Path(sys.argv[0]).name != 'grok': sys.exit(1)\n"
+                        "print('grok synthetic-shim' if sys.argv[1] == '--version' else 'Default model: grok-test')\n")
+    launcher.chmod(0o755)
+    shim = tmp_path / "grok"
+    shim.symlink_to(launcher)
+    monkeypatch.setenv("TA_GROK_BIN", str(shim))
+    monkeypatch.delenv("TA_GROK_MODEL", raising=False)
+    command = grok_module._grok_bin()
+    assert command == str(shim)
+    assert grok_module._version(command) == "grok synthetic-shim"
+    assert grok_module._default_model(command) == "grok-test"
+
+
 def _source(store_path: Path) -> tuple[str, str]:
     code, out, err = run(["init", "--title", "Grok adapter test"], store=store_path)
     assert code == 0, err

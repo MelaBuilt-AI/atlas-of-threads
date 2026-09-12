@@ -6,6 +6,19 @@ part of future releases.
 
 ## Publication decisions
 
+- The development branch now includes offline excerpt Capsule preparation,
+  reviewed private work and contextual return files. Existing local Capsules
+  keep their original one-shot contract. Connected delivery and private return acceptance are implemented;
+  witnessed expeditions and physical two-PC acceptance remain part of the combined
+  milestone; this increment is not a desktop release. See
+  [Capsules](KNOWLEDGE_CAPSULES.md).
+
+- Portable inquiries are a development slice after v0.3.1. Release acceptance
+  must include two isolated stores, the physical Windows test PC, and a private
+  guide discussion pinned to an imported source. See [portable inquiries](PORTABLE_INQUIRIES.md).
+- Portable inquiries and the local returned-path increment will ship with the
+  [combined online Atlas milestone](ONLINE_ATLAS.md). Its hosted world and
+  complete exchange must be accepted before a new public release.
 - The historical origin-conversation fixture was replaced with a synthetic
   reference example. Private source material is excluded from rewritten public
   history.
@@ -87,3 +100,29 @@ to the browser's user-interaction policy.
 
 Passing this checklist does not replace an explicit owner decision for future
 visibility or release changes.
+
+
+## Online Atlas draft preview
+
+The separate `online/` deployment is a working increment in PR #5. Its initial
+world contains explicitly synthetic publications, reuses the Atlas media library,
+and supports public read/download plus authenticated reviewed publication and
+withdrawal. The GitHub App is configured and live owner sign-in is verified.
+The existing public release and site are unchanged. See `online/README.md` and
+`docs/ONLINE_ATLAS.md` for the incomplete release and acceptance gates.
+
+The September 10 development continuation adds stable published editions, stars,
+optional in-app following and Personal Atlas device pairing with explicit local
+and account-side revocation. Synthetic browser/service checks pass; this does not
+claim GitHub-side deauthorization, physical two-PC exchange or installer acceptance.
+Connected excerpt Capsules now support durable receipt, exact-source decisions,
+withdrawal and blocks. Witnessed flights, launcher history, beacons and Capsule
+following now obey delivery audiences and preserve camera control. Explicitly
+reviewed full returns between published snapshots now create shared/native doors,
+exact source-return routes and visited cues. The remaining combined release gates
+still apply; private excerpt acceptance never automatically publishes a doorway.
+
+The unreleased online branch includes signed GitHub deauthorization handling,
+moderator report review and optional expiring activity lights. Deployment and
+acceptance status are tracked in [online readiness](ONLINE_READINESS.md). The
+stable desktop release remains v0.3.1 until the combined release is approved.

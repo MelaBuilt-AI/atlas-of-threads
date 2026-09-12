@@ -48,7 +48,7 @@ def _platform_name() -> str | None:
     return None
 
 
-def _open_release(request: Request, *, timeout: int):
+def _ssl_context():
     context = ssl.create_default_context()
     # A Linux package carries its builder's OpenSSL defaults. Use the host's
     # maintained trust bundle if those defaults load no roots (e.g. on Arch).
@@ -67,7 +67,11 @@ def _open_release(request: Request, *, timeout: int):
             if Path(bundle).is_file():
                 context.load_verify_locations(cafile=bundle)
                 break
-    return urlopen(request, timeout=timeout, context=context)
+    return context
+
+
+def _open_release(request: Request, *, timeout: int):
+    return urlopen(request, timeout=timeout, context=_ssl_context())
 
 
 def update_status(*, opener=None) -> dict:
