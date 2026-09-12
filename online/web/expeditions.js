@@ -28,6 +28,42 @@
  window.AtlasExpeditions = (scene,items,height,reduced,openHistory) => {
   const T=THREE, ports=new Map(),flights=[],picks=[],up=new T.Vector3(0,1,0);
   let latest=[],time=0;
+  const glowPixels=new Uint8Array(32*32*4);
+  for(let y=0;y<32;y++)for(let x=0;x<32;x++){
+   const radius=Math.hypot((x-15.5)/15.5,(y-15.5)/15.5),i=(y*32+x)*4;
+   glowPixels[i]=glowPixels[i+1]=glowPixels[i+2]=255;
+   glowPixels[i+3]=Math.round(255*Math.max(0,1-radius)**2);
+  }
+  const glowMap=new T.DataTexture(glowPixels,32,32,T.RGBAFormat);
+  glowMap.magFilter=glowMap.minFilter=T.LinearFilter;glowMap.needsUpdate=true;
+  function neuronSparks(parent) {
+   const points=(count,size,color)=>{
+    const mesh=new T.Points(new T.BufferGeometry().setAttribute('position',new T.BufferAttribute(new Float32Array(count*3),3)),
+     new T.PointsMaterial({map:glowMap,size,color,transparent:true,depthWrite:false,blending:T.AdditiveBlending,toneMapped:false,fog:false}));
+    mesh.frustumCulled=false;parent.add(mesh);return mesh;
+   };
+   const cores=points(4,19,0xfff4ce),tips=points(8,11,0xffce64);
+   const branches=new T.LineSegments(new T.BufferGeometry().setAttribute('position',new T.BufferAttribute(new Float32Array(48),3)),
+    new T.LineBasicMaterial({color:0xffdb81,transparent:true,opacity:.8,depthWrite:false,blending:T.AdditiveBlending,toneMapped:false,fog:false}));
+   branches.frustumCulled=false;parent.add(branches);
+   const halo=new T.Sprite(new T.SpriteMaterial({map:glowMap,color:0xffc45c,transparent:true,opacity:.6,depthWrite:false,blending:T.AdditiveBlending,toneMapped:false,fog:false}));
+   halo.position.y=1.2;halo.scale.set(7,7,1);parent.add(halo);
+   return {cores,tips,branches,halo};
+  }
+  function animateSparks(sparks,now) {
+   const cores=sparks.cores.geometry.attributes.position,tips=sparks.tips.geometry.attributes.position,branches=sparks.branches.geometry.attributes.position;
+   for(let i=0;i<4;i++){
+    const phase=now*.002+i*Math.PI/2,radius=1.8+.4*Math.sin(now*.006+i),x=Math.cos(phase)*radius,y=1.2+Math.sin(phase*1.7)*1.3,z=Math.sin(phase)*radius;
+    cores.setXYZ(i,x,y,z);
+    for(let j=0;j<2;j++){
+     const angle=phase+(j?1:-1)*.8,tx=x+Math.cos(angle)*1.1,ty=y+.6*Math.sin(phase+j*2),tz=z+Math.sin(angle)*1.1,k=i*2+j;
+     tips.setXYZ(k,tx,ty,tz);branches.setXYZ(k*2,x,y,z);branches.setXYZ(k*2+1,tx,ty,tz);
+    }
+   }
+   cores.needsUpdate=tips.needsUpdate=branches.needsUpdate=true;
+   sparks.cores.material.opacity=.85+.15*Math.sin(now*.016);
+   sparks.halo.material.opacity=.5+.15*Math.sin(now*.009);
+  }
   function dispose(group) {
    group.parent?.remove(group);
    group.traverse(o=>{o.userData.disposed=true;if(!o.userData.sharedRelic)o.geometry?.dispose();if(o.material)for(const m of Array.isArray(o.material)?o.material:[o.material])m.dispose();});
@@ -71,11 +107,12 @@
    const group=new T.Group();scene.add(group);group.position.copy(start);
    const capsule=new T.Group();group.add(capsule);mount(capsule,'charged-knowledge-capsule',2.4);
    const core=new T.Mesh(new T.OctahedronGeometry(.35),new T.MeshBasicMaterial({color:0xffe4a1}));group.add(core);
+   const sparks=neuronSparks(group);
    const flame=new T.Mesh(new T.ConeGeometry(.28,2.2,12,1,true),new T.MeshBasicMaterial({color:0xffac45,transparent:true,opacity:.85,depthWrite:false,blending:T.AdditiveBlending,side:T.DoubleSide}));flame.rotation.z=Math.PI;flame.position.y=-1.2;group.add(flame);
    const trail=new T.Points(new T.BufferGeometry().setAttribute('position',new T.BufferAttribute(new Float32Array(96*3),3)),new T.PointsMaterial({color:0xffbd66,size:.85,transparent:true,opacity:.8,depthWrite:false,blending:T.AdditiveBlending}));trail.visible=false;scene.add(trail);
    const charge=new T.Group();scene.add(charge);charge.position.copy(start).add(new T.Vector3(0,-1,0));mount(charge,'knowledge-ark-launcher-hologram',4);
    const halo=new T.Mesh(new T.TorusGeometry(3,.2,8,48),new T.MeshBasicMaterial({color:0xffcf87,transparent:true,opacity:.8,blending:T.AdditiveBlending}));halo.rotation.x=Math.PI/2;charge.add(halo);
-   flights.push({event,group,flame,trail,charge,halo,curve,born:time,launched:false});sound('charge',start,state);
+   flights.push({event,group,sparks,flame,trail,charge,halo,curve,born:time,launched:false});sound('charge',start,state);
   }
   function clearFlights(){for(const f of flights){dispose(f.group);dispose(f.trail);dispose(f.charge);}flights.length=0;}
   function update(now,state) {
@@ -94,11 +131,12 @@
     f.group.visible=age>=1.6&&age<8;f.trail.visible=age>=1.6;
     if(!f.launched){f.halo.scale.setScalar(.7+age*.35);continue;}
     f.group.position.copy(f.curve.getPoint(progress));f.group.quaternion.setFromUnitVectors(up,f.curve.getTangent(progress).normalize());f.flame.scale.y=.8+Math.sin(now*.04)*.2;
+    animateSparks(f.sparks,now);
     const positions=f.trail.geometry.attributes.position;
     for(let j=0;j<96;j++){const u=Math.max(0,progress-j*.003),point=f.curve.getPoint(u),spread=j*.012;point.x+=Math.sin(j*2.17+age)*spread;point.z+=Math.cos(j*1.61+age)*spread;positions.setXYZ(j,point.x,point.y,point.z);}
     positions.needsUpdate=true;f.trail.material.opacity=age>8?.8*(10-age)/2:.8;
    }
   }
-  return {sync,witness,update,clearFlights,picks,ports,flights,history:id=>openHistory(id),dispose:()=>{clearFlights();sync([]);},refresh:()=>sync(latest)};
+  return {sync,witness,update,clearFlights,picks,ports,flights,history:id=>openHistory(id),dispose:()=>{clearFlights();sync([]);glowMap.dispose();},refresh:()=>sync(latest)};
  };
 })();

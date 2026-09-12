@@ -282,6 +282,10 @@ observer polls every 2.5 seconds, resets across hidden/offline/slow gaps and nev
 replays history on arrival. Audio respects existing controls and distance/zoom;
 reduced motion suppresses flights. Accepting a return creates no public doorway.
 
+Flying Capsules carry a compact white-gold neuron spark cluster and soft body
+glow. Branching sparks move with the Capsule, retain visibility against the weave,
+and are disposed with the flight; they do not add ambient world particles.
+
 29 online tests and 433 Python tests pass. Synthetic Chrome/real-local-Worker
 checks cover directed and return flight, launcher history and explicit acceptance.
 Full hosted two-account exchange, listening/load and the existing release gates

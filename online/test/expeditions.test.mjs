@@ -34,8 +34,13 @@ test('renderer uses supplied relics, follows crown-first curves, preserves camer
  renderer.update(4000,state);const f=renderer.flights[0];assert.equal(f.launched,true);assert.ok(f.group.position.y>2);
  assert.ok(new T.Vector3(0,1,0).applyQuaternion(f.group.quaternion).dot(f.curve.getTangent((3-1.6)/6.4))>.999);
  assert.ok(f.trail.geometry.attributes.position.array.every(Number.isFinite));assert.deepEqual(state,saved);
+ const sparkPositions=Array.from(f.sparks.cores.geometry.attributes.position.array);
+ assert.equal(f.sparks.cores.parent,f.group);assert.equal(f.sparks.tips.parent,f.group);assert.equal(f.sparks.branches.parent,f.group);
+ renderer.update(4500,state);assert.notDeepEqual(Array.from(f.sparks.cores.geometry.attributes.position.array),sparkPositions);
+ assert.ok(f.sparks.tips.geometry.attributes.position.array.every(v=>Number.isFinite(v)&&Math.abs(v)<4));
+ let sparksDisposed=false;f.sparks.cores.geometry.addEventListener('dispose',()=>sparksDisposed=true);
  for(let i=0;i<20;i++)renderer.witness({...event,seq:2+i},state);assert.equal(renderer.flights.length,8);
- let disposed=false;f.trail.geometry.addEventListener('dispose',()=>disposed=true);renderer.update(15000,state);assert.ok(disposed);assert.equal(renderer.flights.length,0);
+ let disposed=false;f.trail.geometry.addEventListener('dispose',()=>disposed=true);renderer.update(15000,state);assert.ok(disposed);assert.ok(sparksDisposed);assert.equal(renderer.flights.length,0);
  reduced=true;renderer.witness(event,state);assert.equal(renderer.flights.length,0);
  renderer.sync([]);assert.equal(renderer.ports.size,0);assert.equal(renderer.picks.length,0);
  await Promise.resolve();assert.ok(models.some(m=>m.includes('charged-knowledge-capsule')));assert.ok(models.some(m=>m.includes('knowledge-ark-launcher-hologram')));
