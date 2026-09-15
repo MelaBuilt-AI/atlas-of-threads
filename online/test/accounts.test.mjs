@@ -86,6 +86,7 @@ test('moderation is browser-only and allowlisted; decisions are audited, idempot
  assert.equal((await request('/api/publications/'+id+'/bundle',undefined,null)).status,410);
  assert.equal((await (await request('/api/reports/review',{...data,confirm_withdrawal:true},'7')).json()).reused,true);
  const saved=(await (await request('/api/reports?status=withdrawn',undefined,'7')).json()).reports[0];assert.equal(saved.reviewed_by,'7');assert.equal(saved.review_note,'Synthetic decision');
- assert.equal(await bucket.get((await db.prepare('SELECT object_key FROM publications WHERE id=?').bind(id).first()).object_key),null);
+ const key=(await db.prepare('SELECT object_key FROM publications WHERE id=?').bind(id).first()).object_key;
+ assert.equal((await bucket.list({prefix:key})).objects.length,0);
  const world=await (await request('/api/world',undefined,null)).json();assert.equal(world.publications.length,1);
 });

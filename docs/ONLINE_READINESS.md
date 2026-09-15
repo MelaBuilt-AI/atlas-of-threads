@@ -1,6 +1,6 @@
 # Online release readiness
 
-Updated September 12, 2026. This is the unreleased `feature/online-atlas` work;
+Updated September 15, 2026. This is the unreleased `feature/online-atlas` work;
 public stable remains v0.3.1. No merge, tag or release is authorized.
 
 ## Implemented and checked
@@ -17,7 +17,7 @@ public stable remains v0.3.1. No merge, tag or release is authorized.
 - Mobile navigation now uses one horizontally scrollable row, avoiding overlap
   with the inquiry panel. Readable inquiry view checked at 390 × 844 in Chrome;
   this is viewport testing, not physical-phone performance acceptance.
-- Full Python suite: 441 passes. Online/UI suite: 44 passes. Synthetic browser
+- Full Python suite: 441 passes. Online/UI suite: 48 passes. Synthetic browser
   report → dismiss → decision history, activity on/off and mobile reading pass.
 - `npm run capacity`: 500 synthetic public Threadwalks across 25 owners, 100-row
   pagination without omissions/duplicates, 20 concurrent readers. Local measured
@@ -28,7 +28,46 @@ The previously accepted two-account Capsule round trip, retries/restart,
 witnessed launch/return and shared doorway entry/exact return remain accepted.
 Do not resend or republish those accepted artifacts simply to resume.
 
+## Hosted capacity and publication processing
+
+The owner confirmed Workers Free. An isolated deployment of the actual Worker
+with separate D1/R2 passed 503-publication pagination (six pages, no missing or
+duplicate IDs) and 20 simultaneous 100-row reads. All temporary resources were
+removed after each test; the existing preview's publications were preserved.
+
+Three larger fixtures prepared by the real Python export path contained 30, 200
+and 600 thoughts (185 KB, 1.63 MB and 5.72 MB). Initial uploads and exact retries
+completed, but upload CPU exceeded the documented 10 ms Workers Free budget.
+The first optimization streams stored publication parts on download, eliminates
+redundant envelope serialization and reuses encoded graphs for checksums. The
+same hosted workload still passed with exact inquiry/player downloads:
+
+| Thoughts | Baseline upload CPU median | Updated upload CPU median |
+| --- | ---: | ---: |
+| 30 | 21.214 ms | 19.742 ms |
+| 200 | 111.750 ms | 53.884 ms |
+| 600 | 350.939 ms | 151.652 ms |
+
+Each median uses only three isolated requests, including first publication and
+two retries; these are bounded measurements, not sustained-load guarantees.
+For the largest fixture, download CPU fell from 35.6–41.6 ms to a two-request
+window with median 2.426 ms/p99 3.826 ms. Existing envelope snapshots retain the
+compatibility path; this streaming result applies to newly stored split snapshots.
+
+**Still open:** larger uploads remain above budget, and large Capsule/doorway
+review paths have not been separately capacity-certified. Successful responses
+can use Cloudflare's temporary CPU overrun tolerance; they do not close this gate.
+Keep the current integrity checks and 8 MiB format contract while designing the
+next bounded upload/validation steps. No paid upgrade or lower user-facing limit
+is assumed. See [Cloudflare limits](https://developers.cloudflare.com/workers/platform/limits/)
+and the [storage compatibility notes](../online/README.md#publication-processing-and-storage--september-15).
+
 ## Live account check
+
+Live activation, revocation, browser/device reconnection and inert duplicate
+delivery were accepted September 13. Pending-code rejection retains automated
+coverage only. The procedure below is preserved for future deliberate retesting;
+do not repeat revocation merely to resume.
 
 The existing App uses `/api/github/webhook`, JSON and SSL verification. Its
 existing webhook secret is provisioned as `GITHUB_WEBHOOK_SECRET`. Activate
@@ -54,16 +93,14 @@ mocked OAuth and signed synthetic requests do not close them.
 
 ## Remaining human and deployment checks
 
-- Physical Linux/Windows full exchange, including reconnect and offline reading:
-  use isolated synthetic stores, exact reviewed source chambers, real private
-  agent continuation, explicit return receipt/acceptance and source return.
-  Preserve the two existing test stores and actual private Atlas stores.
+- Physical Linux/Windows exchange and restart passed September 13. Disconnected
+  Windows reload/reading/navigation is deferred until the owner is at that PC;
+  keep its networking enabled. Preserve the existing stores and accepted results.
 - Listen to navigation and departure/return effects with music, mute and volume
   controls. Verify the effects feel useful; automated audio tests cannot do this.
 - Check touch/mobile on a physical device and representative GPU/frame behavior.
-- Measure hosted Worker CPU for representative larger publications and concurrent
-  service use against the actual account allowance. The local read benchmark
-  does not establish this. Keep paid-plan changes separate.
+- Bring publication processing within the confirmed free-tier CPU budget and
+  repeat representative hosted checks; the measured limits above remain open.
 - Build final Linux/Windows packages from the reviewed branch, verify checksums,
   installed CLI/startup, MCP/SSH/discovery/guides and updater behavior. Existing
   user dev binaries are not automatically claimed to match later source.

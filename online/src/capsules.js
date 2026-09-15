@@ -3,6 +3,7 @@ import {launchRecords,acceptanceRecords} from './expeditions.js';
 import validate from '../dist/validate-capsule.js';
 import {parse} from 'lossless-json';
 import {canonical, sha, fail} from './publication.js';
+import {publicationPart} from './publication-storage.js';
 const now = () => Math.floor(Date.now()/1000);
 const hash = /^[a-f0-9]{64}$/;
 const blockedSQL = `NOT EXISTS(SELECT 1 FROM blocks b WHERE
@@ -83,8 +84,7 @@ async function review(env,who,data) {
   } else {
    if(!d.reply_publication_id||d.reply_delivery_id) fail('Choose the exact source publication');
    const p=await publication(env,d.reply_publication_id), s=reply.source;
-   const obj=await env.INQUIRIES.get(p.object_key);if(!obj) fail('Source temporarily unavailable',503);
-   const b=JSON.parse((await obj.json()).inquiry_json), g=b.content.graphs.find(g=>g.graph.id===s.graph_id);
+   const b=await (await publicationPart(env,p.object_key,'bundle')).json(), g=b.content.graphs.find(g=>g.graph.id===s.graph_id);
    if(p.owner_id!==d.recipient_id||p.inquiry_id!==s.inquiry_id||p.origin_id!==s.origin_id||p.session_id!==s.session_id||!g||g.source_sha256!==s.source_sha256||g.shared_sha256!==s.shared_sha256||!g.graph.nodes.some(n=>n.id===s.node_id)||s.author!==b.content.author) fail('Return differs from its exact published source');
    replySource={kind:'inquiry',id:p.id,title:p.title,source:s,thought:g.graph.nodes.find(n=>n.id===s.node_id)};
   }
@@ -130,8 +130,8 @@ export async function capsuleGet(env,u,who) {
   let source=null;
   if(c.content.reply_to) {
    if(r.reply_delivery_id) {const p=await available(env,r.reply_delivery_id,who);source={kind:'capsule',id:p.id,capsule_json:p.capsule_json};}
-   else {const p=await publication(env,r.reply_publication_id),obj=await env.INQUIRIES.get(p.object_key);if(!obj)fail('Source temporarily unavailable',503);
-    const b=JSON.parse((await obj.json()).inquiry_json),s=c.content.reply_to.source;
+   else {const p=await publication(env,r.reply_publication_id);
+    const b=await (await publicationPart(env,p.object_key,'bundle')).json(),s=c.content.reply_to.source;
     source={kind:'inquiry',id:p.id,source:s,thought:b.content.graphs.find(g=>g.graph.id===s.graph_id).graph.nodes.find(n=>n.id===s.node_id)};}
   }
   return {...brief(r),capsule_json:r.capsule_json,source};

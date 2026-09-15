@@ -1,4 +1,5 @@
 import {fail} from './publication.js';
+import {deletePublication} from './publication-storage.js';
 
 const now = () => Math.floor(Date.now()/1000);
 export const moderator = (env, who) => !!who && !who.instance_id &&
@@ -93,7 +94,7 @@ export async function reportsPost(env,who,data) {
   if(!row)fail('Report not found',404);
   if(row.status!=='open'){
     if(row.status!==data.status)fail('This report already has a different decision',409);
-    if(row.status==='withdrawn')await env.INQUIRIES.delete(row.object_key);
+    if(row.status==='withdrawn')await deletePublication(env,row.object_key);
     return {reviewed:true,reused:true};
   }
   const statements=[];
@@ -108,6 +109,6 @@ export async function reportsPost(env,who,data) {
   await env.DB.batch(statements);
   const saved=await env.DB.prepare('SELECT status FROM reports WHERE publication_id=? AND owner_id=?').bind(row.publication_id,row.owner_id).first();
   if(saved.status!==data.status)fail('Another moderator already decided this report',409);
-  if(data.status==='withdrawn')await env.INQUIRIES.delete(row.object_key);
+  if(data.status==='withdrawn')await deletePublication(env,row.object_key);
   return {reviewed:true};
 }

@@ -2,11 +2,12 @@
 // Full graphs remain ordinary reviewed publication objects; no second graph store.
 import {canonical,sha,fail} from './publication.js';
 import {parse} from 'lossless-json';
+import {publicationPart} from './publication-storage.js';
 const hash=/^[a-f0-9]{64}$/;
 const now=()=>Math.floor(Date.now()/1000);
 const live=`d.withdrawn_at IS NULL AND s.withdrawn_at IS NULL AND t.withdrawn_at IS NULL AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.owner_id=d.owner_id AND b.blocked_owner_id=d.recipient_id) OR (b.owner_id=d.recipient_id AND b.blocked_owner_id=d.owner_id))`;
 const rows=`SELECT d.*,s.threadwalk_id AS source_threadwalk_id,t.threadwalk_id AS target_threadwalk_id FROM doorways d JOIN publications s ON s.id=d.source_publication_id JOIN publications t ON t.id=d.target_publication_id`;
-async function publication(env,id){if(!hash.test(id||''))fail('Choose an exact published inquiry');const p=await env.DB.prepare('SELECT * FROM publications WHERE id=? AND withdrawn_at IS NULL').bind(id).first();if(!p)fail('Published inquiry unavailable',404);const object=await env.INQUIRIES.get(p.object_key);if(!object)fail('Published inquiry unavailable',503);return {row:p,bundle:parse((await object.json()).inquiry_json)};}
+async function publication(env,id){if(!hash.test(id||''))fail('Choose an exact published inquiry');const p=await env.DB.prepare('SELECT * FROM publications WHERE id=? AND withdrawn_at IS NULL').bind(id).first();if(!p)fail('Published inquiry unavailable',404);return {row:p,bundle:parse(await (await publicationPart(env,p.object_key,'bundle')).text())};}
 function endpoint(p,graph,node){const record=p.bundle.content.graphs.find(r=>r.graph.id===graph),thought=record?.graph.nodes.find(n=>n.id===node);if(!thought)fail('Choose a chamber in this exact publication');return {publication_id:p.row.id,threadwalk_id:p.row.threadwalk_id,inquiry_id:p.row.inquiry_id,graph_id:graph,node_id:node,title:p.row.title,author:p.row.author,thought:thought.text};}
 async function review(env,who,data){
  const s=data.source;

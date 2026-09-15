@@ -379,3 +379,32 @@ pagination and 20 concurrent readers. It never accesses deployed or personal dat
 Record wall time separately from hosted Worker CPU, large-publication validation,
 GPU/frame time and physical mobile behavior; this is a bounded local service check.
 See [release readiness](../docs/ONLINE_READINESS.md) for remaining acceptance.
+
+## Publication processing and storage — September 15
+
+Publication files and download URLs retain their existing format. New snapshots
+store the exact reviewed `inquiry_json` and `player_json` as two R2 objects under
+`publications-v2/ID/DIGEST/bundle` and `/player`. The existing database `object_key`
+holds their shared prefix. Downloads stream the selected object after the normal
+publication/withdrawal check. The row becomes visible only after both parts have
+been stored; concurrent publication and edition decisions still use the existing
+database transaction. The prefix digest covers both original JSON strings with
+an unambiguous NUL separator; publication IDs and source hashes are unchanged.
+
+Older `publications/` keys retain their original envelope and compatibility read
+path. Existing objects are not migrated or rewritten. Capsule source reviews and
+shared doorways read the inquiry part through the same compatibility helper;
+owner withdrawal and moderation remove both parts for new snapshots or the
+single original object for older snapshots. New split snapshots require this
+reader; do not roll the service back to a build that only understands envelopes.
+
+The HTTP reader still caps the complete request at 8 MiB. Inspection reuses that
+bound rather than serializing the entire artifact again to count bytes. Exact
+number parsing remains in place. Canonical checksum preparation writes directly
+in Python's Unicode key order and reuses each encoded graph for its individual
+digest and the complete inquiry digest. Integrity, source, schema, ownership,
+player-projection and explicit-review checks remain mandatory.
+
+These changes reduce work; they do not by themselves establish that every file
+below 8 MiB fits Workers Free's CPU budget. See the measured limits in
+[release readiness](../docs/ONLINE_READINESS.md).

@@ -12,24 +12,31 @@ export async function sha(value) {
     (x) => x.toString(16).padStart(2, "0"),
   ).join("");
 }
-function sorted(value) {
-  if (!value || typeof value !== "object" || isLosslessNumber(value))
-    return value;
-  if (Array.isArray(value)) return value.map(sorted);
-  return Object.fromEntries(
-    Object.keys(value)
-      .sort((a, b) => {
-        const x = Array.from(a, (c) => c.codePointAt(0)),
-          y = Array.from(b, (c) => c.codePointAt(0));
-        for (let i = 0; i < Math.min(x.length, y.length); i++)
-          if (x[i] !== y[i]) return x[i] - y[i];
-        return x.length - y.length;
-      })
-      .map((k) => [k, sorted(value[k])]),
-  );
+function compareKeys(a, b) {
+  // Python sorts Unicode code points; JS's default sort uses UTF-16 units.
+  for (let i = 0, j = 0; i < a.length && j < b.length;) {
+    const x = a.codePointAt(i), y = b.codePointAt(j);
+    if (x !== y) return x - y;
+    i += x > 0xffff ? 2 : 1;
+    j += y > 0xffff ? 2 : 1;
+  }
+  return a.length - b.length;
 }
-export const canonical = (value) => stringify(sorted(value)) + "\n";
-export async function inspect(artifact) {
+function encodeCanonical(value, graphs) {
+  if (isLosslessNumber(value)) return value.value;
+  if (!value || typeof value !== "object") return stringify(value);
+  if (graphs?.has(value)) return graphs.get(value);
+  if (Array.isArray(value))
+    return "[" + Array.from(value, v => encodeCanonical(v, graphs) ?? "null").join(",") + "]";
+  const entries = [];
+  for (const key of Object.keys(value).sort(compareKeys)) {
+    const encoded = encodeCanonical(value[key], graphs);
+    if (encoded !== undefined) entries.push(JSON.stringify(key) + ":" + encoded);
+  }
+  return "{" + entries.join(",") + "}";
+}
+export const canonical = (value) => encodeCanonical(value) + "\n";
+export async function inspect(artifact, { requestBounded = false } = {}) {
   if (
     artifact?.format !== "atlas-publication" ||
     artifact.version !== 1 ||
@@ -40,7 +47,9 @@ export async function inspect(artifact) {
     )
   )
     fail("Choose an Atlas online publication file");
-  if (new TextEncoder().encode(JSON.stringify(artifact)).length > MAX_BYTES)
+  // The HTTP body reader already bounds the entire request, including the artifact.
+  // Standalone callers still get the same publication-size check.
+  if (!requestBounded && new TextEncoder().encode(JSON.stringify(artifact)).length > MAX_BYTES)
     fail("Publication exceeds 8 MiB", 413);
   let bundle, lossless, player;
   try {
@@ -51,7 +60,9 @@ export async function inspect(artifact) {
     fail("Publication contains invalid JSON");
   }
   if (!validate(bundle)) fail("Inquiry does not match the portable schema");
-  if ((await sha(canonical(lossless.content))) !== bundle.id)
+  // Encode each graph once for both its own digest and the complete inquiry digest.
+  const encodedGraphs = new Map(lossless.content.graphs.map(({ graph }) => [graph, encodeCanonical(graph)]));
+  if ((await sha(encodeCanonical(lossless.content, encodedGraphs) + "\n")) !== bundle.id)
     fail("Inquiry checksum does not match");
   const c = bundle.content,
     graphs = new Map(c.graphs.map((r) => [r.graph.id, r.graph]));
@@ -76,7 +87,7 @@ export async function inspect(artifact) {
     )
       fail("Inquiry contains private or unsupported fields");
     if (
-      (await sha(canonical(lossless.content.graphs[i].graph))) !==
+      (await sha(encodedGraphs.get(lossless.content.graphs[i].graph) + "\n")) !==
       r.shared_sha256
     )
       fail("Graph checksum does not match");

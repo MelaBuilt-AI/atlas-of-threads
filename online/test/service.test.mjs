@@ -268,7 +268,7 @@ test("concurrent duplicate deliveries cannot replace the winning snapshot", asyn
     await (await req("/api/publications/" + id + "/player")).text(),
     saved,
   );
-  assert.equal((await bucket.list()).objects.length, 1);
+  assert.equal((await bucket.list()).objects.length, 2);
 });
 
 async function browser(owner = 'a') {
@@ -346,7 +346,7 @@ test('simultaneous editions choose one successor and one update; stale predecess
   assert.deepEqual(responses.map(r=>r.status).sort(),[201,409]);
   const history = await (await req('/api/threadwalks/'+id)).json();
   assert.equal(history.publications.length,2);
-  assert.equal((await bucket.list()).objects.length,before+1);
+  assert.equal((await bucket.list()).objects.length,before+2);
   assert.equal((await db.prepare('SELECT count(*) AS n FROM updates WHERE threadwalk_id=?').bind(id).first()).n,2);
 });
 

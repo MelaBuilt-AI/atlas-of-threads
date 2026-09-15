@@ -3,6 +3,7 @@ import {doorwayGet,doorwayPost} from './doorways.js';
 import {expeditions,expeditionVisible,expeditionBindings} from './expeditions.js';
 import { capsuleGet, capsulePost } from "./capsules.js";
 import { inspect, sha, fail, MAX_BYTES, position } from "./publication.js";
+import { publicationPart, deletePublication } from './publication-storage.js';
 const now = () => Math.floor(Date.now() / 1000);
 const token = () => crypto.randomUUID() + crypto.randomUUID();
 const json = (value, status = 200) =>
@@ -322,13 +323,9 @@ export default {
         if (match) {
           const row = await publication(env, match[1]);
           if (!match[2]) return json(publicRow(row));
-          const object = await env.INQUIRIES.get(row.object_key);
-          if (!object) fail("Publication is temporarily unavailable", 503);
-          const artifact = await object.json();
+          const part = await publicationPart(env, row.object_key, match[2]);
           return new Response(
-            match[2] === "bundle"
-              ? artifact.inquiry_json
-              : artifact.player_json,
+            part.body,
             {
               headers: {
                 "Content-Type": "application/json; charset=utf-8",
@@ -437,7 +434,7 @@ export default {
       if (path === "/api/publications") {
         if (data.reviewed !== true)
           fail("Review the complete inquiry before publishing");
-        const { bundle } = await inspect(data.artifact),
+        const { bundle } = await inspect(data.artifact, { requestBounded: true }),
           c = bundle.content,
           id = await sha(who.id + ":" + bundle.id);
         const existing = await env.DB.prepare(
@@ -455,13 +452,20 @@ export default {
         if ((data.previous_id || null) !== (previous?.id || null))
           fail("This Threadwalk has a newer edition. Review it before publishing the next one", 409);
         const objectKey =
-          "publications/" +
+          "publications-v2/" +
           id +
           "/" +
-          (await sha(JSON.stringify(data.artifact)));
-        await env.INQUIRIES.put(objectKey, JSON.stringify(data.artifact), {
-          httpMetadata: { contentType: "application/json" },
-        });
+          // Raw NUL cannot occur in either valid JSON text, so this separator
+          // identifies the exact two parts without serializing the envelope again.
+          (await sha(data.artifact.inquiry_json + "\0" + data.artifact.player_json));
+        await Promise.all([
+          env.INQUIRIES.put(objectKey + '/bundle', data.artifact.inquiry_json, {
+            httpMetadata: { contentType: 'application/json' },
+          }),
+          env.INQUIRIES.put(objectKey + '/player', data.artifact.player_json, {
+            httpMetadata: { contentType: 'application/json' },
+          }),
+        ]);
         await env.DB.batch([env.DB.prepare(
           `INSERT INTO publications(id,owner_id,instance_id,inquiry_id,origin_id,session_id,title,author,description,graph_count,thought_count,object_key,created_at,threadwalk_id,previous_id)
     SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,COALESCE((SELECT threadwalk_id FROM publications WHERE owner_id=? AND origin_id=? AND session_id=? ORDER BY seq LIMIT 1),?),?
@@ -493,13 +497,13 @@ export default {
           .bind(id)
           .first();
         if (!saved) {
-          await env.INQUIRIES.delete(objectKey);
+          await deletePublication(env, objectKey);
           const latest = await env.DB.prepare("SELECT id FROM publications WHERE owner_id=? AND origin_id=? AND session_id=? ORDER BY seq DESC LIMIT 1").bind(who.id,c.origin_id,c.session.id).first();
           if ((latest?.id || null) !== (previous?.id || null)) fail("A newer edition arrived; review it before publishing", 409);
           fail("Preview publication limit reached", 429);
         }
         if (saved.object_key !== objectKey || saved.withdrawn_at)
-          await env.INQUIRIES.delete(objectKey);
+          await deletePublication(env, objectKey);
         if (saved.withdrawn_at)
           fail("This snapshot was withdrawn; publish a revised inquiry", 409);
         return json({ id, reused: false }, 201);
@@ -519,7 +523,7 @@ export default {
         )
           .bind(now(), row.id)
           .run();
-        await env.INQUIRIES.delete(row.object_key);
+        await deletePublication(env, row.object_key);
         return json({ withdrawn: true });
       }
       const report = path.match(
