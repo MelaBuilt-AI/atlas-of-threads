@@ -30,7 +30,7 @@ Do not resend or republish those accepted artifacts simply to resume.
 
 ## Hosted capacity and publication processing
 
-The owner confirmed Workers Free. An isolated deployment of the actual Worker
+The initial tests used owner-confirmed Workers Free. An isolated deployment of the actual Worker
 with separate D1/R2 passed 503-publication pagination (six pages, no missing or
 duplicate IDs) and 20 simultaneous 100-row reads. All temporary resources were
 removed after each test; the existing preview's publications were preserved.
@@ -54,12 +54,25 @@ For the largest fixture, download CPU fell from 35.6–41.6 ms to a two-request
 window with median 2.426 ms/p99 3.826 ms. Existing envelope snapshots retain the
 compatibility path; this streaming result applies to newly stored split snapshots.
 
-**Still open:** larger uploads remain above budget, and large Capsule/doorway
-review paths have not been separately capacity-certified. Successful responses
-can use Cloudflare's temporary CPU overrun tolerance; they do not close this gate.
-Keep the current integrity checks and 8 MiB format contract while designing the
-next bounded upload/validation steps. No paid upgrade or lower user-facing limit
-is assumed. See [Cloudflare limits](https://developers.cloudflare.com/workers/platform/limits/)
+**Paid-plan follow-up (September 15):** the owner upgraded to Workers Paid
+($5/month minimum). Cloudflare reports Standard usage for both the account and
+existing preview Worker, with no custom CPU limit. Billing subscription details
+are outside the existing token's permissions; the purchase is owner-confirmed.
+Paid HTTP requests have a documented default CPU allowance of 30 seconds.
+The free-tier staged-upload redesign is no longer a launch requirement.
+
+A fresh isolated deployment of the same e96c92d runtime passed all three large
+publications, two retries each and six byte-exact downloads. Using 600-thought
+snapshots from two synthetic owners, Capsule source review/send/detail and
+shared-doorway review/send/full returned-inquiry retrieval/owner acceptance all
+passed. The returned inquiry and offer checksum were preserved. This bounded
+functional check does not establish sustained load or every possible input.
+All temporary credentials/resources were removed; the original eight preview
+publications, 16 download hashes and accepted public doorway remain unchanged.
+The earlier 503-publication pagination/concurrency result remains applicable;
+that workload was not repeated solely for the account upgrade.
+
+See [Cloudflare limits](https://developers.cloudflare.com/workers/platform/limits/)
 and the [storage compatibility notes](../online/README.md#publication-processing-and-storage--september-15).
 
 ## Live account check
@@ -99,8 +112,6 @@ mocked OAuth and signed synthetic requests do not close them.
 - Listen to navigation and departure/return effects with music, mute and volume
   controls. Verify the effects feel useful; automated audio tests cannot do this.
 - Check touch/mobile on a physical device and representative GPU/frame behavior.
-- Bring publication processing within the confirmed free-tier CPU budget and
-  repeat representative hosted checks; the measured limits above remain open.
 - Build final Linux/Windows packages from the reviewed branch, verify checksums,
   installed CLI/startup, MCP/SSH/discovery/guides and updater behavior. Existing
   user dev binaries are not automatically claimed to match later source.
