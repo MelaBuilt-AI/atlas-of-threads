@@ -126,3 +126,9 @@ The unreleased online branch includes signed GitHub deauthorization handling,
 moderator report review and optional expiring activity lights. Deployment and
 acceptance status are tracked in [online readiness](ONLINE_READINESS.md). The
 stable desktop release remains v0.3.1 until the combined release is approved.
+
+The combined release targets desktop use on Linux and Windows. Mobile support is
+experimental: iPhone Safari runtime/audio has been observed working, but panels
+obscure the scene and keyboard controls need touch equivalents. A separate mobile
+milestone will address controls, reading panels, orientation and device testing
+in the same codebase. See [desktop release scope](ONLINE_READINESS.md#desktop-release-scope).

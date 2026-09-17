@@ -134,6 +134,19 @@ h2 {
   display: flex;
   gap: 0.4rem;
 }
+.mobile-notice {
+  display: none;
+}
+@media (max-width: 760px), (pointer: coarse) {
+  .world-footer .mobile-notice {
+    display: block;
+    max-width: 26rem;
+    font-size: 0.75rem;
+  }
+  .world-footer > span {
+    display: none;
+  }
+}
 .world-footer button {
   min-width: 2.5rem;
 }

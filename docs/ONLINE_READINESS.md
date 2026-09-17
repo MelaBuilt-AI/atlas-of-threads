@@ -142,13 +142,37 @@ This closes the reported audio failures on these tested paths. The same revision
 has 441 Python and 60 online/audio passes, green CI and Linux/Windows packages;
 the updated Windows installation preserves all 20 saved JSON files and its pairing.
 
+The Linux Personal Atlas Dev installation now also runs the verified a3d95d1
+package. Its prior installation and store were backed up; all 42 saved JSON files,
+sessions, Capsule library, online receipts and return paths were preserved. Eight
+served desktop assets match source and its existing online pairing verifies.
+This is installation/runtime verification, not a new physical Linux listening test.
+
+## Desktop release scope
+
+On September 17 the owner accepted a desktop-first release scope. The target is
+Linux and Windows Personal Atlas plus the connected Atlas in desktop browsers.
+The owner also verified runtime and audio on iPhone Safari, but text panels
+obscure the scene and keyboard controls are not usable there. Mobile support is
+experimental; the connected Atlas displays a small desktop recommendation on
+narrow screens and touch devices.
+
+A later mobile milestone in the same codebase will provide touch equivalents for
+essential actions, collapsible reading panels, portrait/landscape layouts and
+physical-device usability/performance acceptance. These mobile changes do not
+block this desktop release. The iPhone observation is not mobile usability signoff.
+
 ## Remaining human and deployment checks
 
 - Live Capsule departure/return cue listening is not included in the latest
   observation. Do not resend previously accepted deliveries merely to test audio.
-- Check touch/mobile on a physical device and representative GPU/frame behavior.
+- Confirm acceptable smoothness on representative desktop hardware; no measured
+  frame-rate or broad GPU compatibility claim has been established.
 - Present the final tested revision and remaining limits for owner release review.
   A future release version/tag and its packages require that separate decision;
   these candidate packages still identify themselves as v0.3.1.
 
 Rich co-walking, private clusters and unrelated features remain later work.
+
+See the [desktop release review](DESKTOP_RELEASE_REVIEW.md) for the decision scope
+and outstanding observations. This preview deployment is not a stable release.
