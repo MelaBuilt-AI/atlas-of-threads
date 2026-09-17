@@ -132,13 +132,20 @@ Earlier UI-only and synthetic-player passes did not establish audible effects.
 The audio repair makes music/effects follow the active tab, preserves explicit
 music pause and position, fixes effects volume input being overwritten during
 activation, retries suspended/interrupted audio on gestures and adds Test effects
-with actual engine readiness. Physical Windows audibility remains to be confirmed
-with the updated candidate before closing listening acceptance.
+with actual engine readiness.
+
+**Owner acceptance, September 17:** on the updated physical Windows candidate
+(a3d95d1), music stays within the active Personal/connected Atlas tab and no longer
+overlaps. Music and effects work in both, and the connected Atlas score continues
+from the overworld into a Threadwalk and back. The owner described this as flawless.
+This closes the reported audio failures on these tested paths. The same revision
+has 441 Python and 60 online/audio passes, green CI and Linux/Windows packages;
+the updated Windows installation preserves all 20 saved JSON files and its pairing.
 
 ## Remaining human and deployment checks
 
-- Listen to navigation and departure/return effects with music, mute and volume
-  controls. Verify the effects feel useful; automated audio tests cannot do this.
+- Live Capsule departure/return cue listening is not included in the latest
+  observation. Do not resend previously accepted deliveries merely to test audio.
 - Check touch/mobile on a physical device and representative GPU/frame behavior.
 - Present the final tested revision and remaining limits for owner release review.
   A future release version/tag and its packages require that separate decision;
