@@ -283,7 +283,8 @@ body[data-atlas-map="true"] #knowledge-capsule-ready {
   font: 0.62rem ui-monospace, Menlo, monospace;
 }
 
-#sound-toggle {
+#sound-toggle,
+#sound-test {
   min-width: 8.5rem;
   border: 1px solid rgba(92, 138, 123, 0.48);
   background: rgba(3, 5, 12, 0.72);
@@ -293,12 +294,15 @@ body[data-atlas-map="true"] #knowledge-capsule-ready {
   cursor: pointer;
 }
 
+#sound-status { flex-basis: 100%; line-height: 1.4; }
+
 #sound-toggle[data-state="on"] {
   border-color: rgba(200, 242, 106, 0.52);
   color: var(--phosphor);
 }
 
 #sound-toggle:focus-visible,
+#sound-test:focus-visible,
 #sound-volume:focus-visible {
   outline: 1px solid var(--phosphor);
   outline-offset: 2px;

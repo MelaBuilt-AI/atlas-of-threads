@@ -124,6 +124,17 @@ passed. The installed dd852b0 candidate has identical desktop source, assets and
 packaging to 1906410; intervening runtime changes are confined to the online Worker.
 No user installation was replaced. Publication is disabled for this workflow run.
 
+## Audio acceptance follow-up
+
+The September 17 physical Windows listening check found overlapping music between
+Personal/connected tabs and silent effects in both surfaces and hosted Threadwalks.
+Earlier UI-only and synthetic-player passes did not establish audible effects.
+The audio repair makes music/effects follow the active tab, preserves explicit
+music pause and position, fixes effects volume input being overwritten during
+activation, retries suspended/interrupted audio on gestures and adds Test effects
+with actual engine readiness. Physical Windows audibility remains to be confirmed
+with the updated candidate before closing listening acceptance.
+
 ## Remaining human and deployment checks
 
 - Listen to navigation and departure/return effects with music, mute and volume

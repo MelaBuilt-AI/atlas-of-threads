@@ -5,6 +5,8 @@
   const toggle = document.getElementById("sound-toggle");
   const volume = document.getElementById("sound-volume");
   const volumeValue = document.getElementById("sound-volume-value");
+  const testButton = document.getElementById("sound-test");
+  const status = document.getElementById("sound-status");
   const STORAGE_KEY = "thought-archaeology.sound.v1";
   const AUDIO_ROOT = "./assets/audio/";
 
@@ -99,6 +101,7 @@
     if (!context) return muted ? "effects paused · s" : "effects ready · interact to awaken";
     if (packState === "loading") return muted ? "effects paused · loading" : "cinematic sound waking…";
     if (packState === "error") return "sound pack unavailable";
+    if (context.state !== "running") return "Start effects · S";
     return muted ? "Resume effects · S" : "Pause effects · S";
   }
 
@@ -118,13 +121,26 @@
     volume.value = String(Math.round(level * 100));
     volume.setAttribute("aria-valuetext", `${Math.round(level * 100)} percent`);
     volume.disabled = !AudioContextClass;
+    if (status) {
+      status.textContent = !AudioContextClass ? "Sound effects are unavailable in this browser."
+        : packState === "error" ? "The sound effects could not load. Reload to try again."
+        : !context || context.state !== "running" ? "Press Test effects to start the sound."
+        : muted || level === 0 ? "Effects are muted."
+        : !activeTab() ? "Effects resume when you return to this tab."
+        : packState === "ready" ? "Effects ready. Test effects plays a navigation sound."
+        : "Loading sound effects…";
+    }
     if (volumeValue) {
       volumeValue.textContent = `${Math.round(level * 100)}%${muted ? " · muted" : ""}`;
     }
   }
 
+  function activeTab() {
+    return !document.hidden && document.hasFocus();
+  }
+
   function audibleLevel() {
-    if (muted || level <= 0) return 0;
+    if (muted || level <= 0 || !activeTab()) return 0;
     return Math.pow(level, 1.3) * 1.15;
   }
 
@@ -267,8 +283,13 @@
       cueBus.connect(master);
       master.connect(compressor).connect(context.destination);
       master.gain.value = 0;
+      context.addEventListener("statechange", renderControl);
     }
-    if (context.state === "suspended") await context.resume();
+    if (context.state !== "running") {
+      try { await context.resume(); }
+      catch (_error) { renderControl(); return false; }
+    }
+    if (context.state !== "running") { renderControl(); return false; }
     applyMaster();
     renderControl();
     await ensurePack();
@@ -415,8 +436,11 @@
       setVolume(Math.round(Math.max(0, Math.min(1, ratio)) * 100));
     };
     volume.addEventListener("input", () => {
+      // awaken renders the controls synchronously when the context is running.
+      // Capture the user's new value before that render restores the old level.
+      const next = volume.value;
       awaken();
-      setVolume(volume.value);
+      setVolume(next);
     });
     volume.addEventListener("keydown", (event) => {
       const steps = {
@@ -450,11 +474,30 @@
       if (volume.hasPointerCapture(event.pointerId)) volume.releasePointerCapture(event.pointerId);
     });
   }
-  window.addEventListener("pointerdown", (event) => {
-    if ((toggle && toggle.contains(event.target)) || (volume && volume.contains(event.target))) return;
-    awaken();
-  }, { once: true, capture: true });
-  window.addEventListener("keydown", awaken, { once: true, capture: true });
+  if (testButton) testButton.addEventListener("click", async () => {
+    if (!await awaken()) return;
+    if (muted || level === 0) {
+      if (status) status.textContent = "Resume effects and raise their volume to hear the test.";
+      return;
+    }
+    playOneShot("cycle");
+    if (status) status.textContent = "Playing the navigation test sound.";
+  });
+  function awakenOnGesture() {
+    if (!context || context.state !== "running") awaken();
+  }
+  // Retry on click as well as pointerdown; touch/autoplay activation can arrive
+  // after pointerdown, and the audio context can be suspended again later.
+  window.addEventListener("pointerdown", awakenOnGesture, { capture: true });
+  window.addEventListener("click", awakenOnGesture, { capture: true });
+  window.addEventListener("keydown", awakenOnGesture, { capture: true });
+  function syncForeground() {
+    applyMaster(true);
+    renderControl();
+  }
+  document.addEventListener("visibilitychange", syncForeground);
+  window.addEventListener("focus", syncForeground);
+  window.addEventListener("blur", syncForeground);
   renderControl();
 
   function spark(kind) {

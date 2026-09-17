@@ -59,9 +59,19 @@
     document.getElementById("music-volume-value").textContent = `${Math.round(audio.volume * 100)}%`;
   }
 
+  // Personal and connected Atlases have different origins; browser focus works
+  // across both without sharing account data or relying on same-origin messages.
+  const activeTab = () => !document.hidden && document.hasFocus();
+
   async function play() {
-    if (paused) return;
     const version = ++playVersion;
+    if (paused || !activeTab()) {
+      audio.autoplay = false;
+      audio.pause();
+      status.textContent = paused ? "Paused" : "Music resumes when you return to this tab.";
+      render();
+      return;
+    }
     try {
       await audio.play();
       if (version !== playVersion) return;
@@ -83,7 +93,7 @@
     ++playVersion;
     audio.pause();
     index = (next + queue.length) % queue.length;
-    audio.autoplay = !paused;
+    audio.autoplay = false;
     audio.src = queue[index].src;
     status.textContent = paused ? "Paused" : "Loading…";
     render();
@@ -217,6 +227,9 @@
     if (paused || !audio.paused || controls.contains(event.target)) return;
     play();
   }
+  document.addEventListener("visibilitychange", play);
+  window.addEventListener("focus", play);
+  window.addEventListener("blur", play);
   // Click works for touch activation too, and retries if pointerdown was too early.
   window.addEventListener("pointerdown", awaken, { capture: true });
   window.addEventListener("click", awaken, { capture: true });
