@@ -1,6 +1,6 @@
 # Online release readiness
 
-Updated September 15, 2026. This is the unreleased `feature/online-atlas` work;
+Updated September 17, 2026. This is the unreleased `feature/online-atlas` work;
 public stable remains v0.3.1. No merge, tag or release is authorized.
 
 ## Implemented and checked
@@ -104,17 +104,33 @@ With the user ready, use only the PCDG-AI test authorization:
 Actual GitHub activation, delivery and live revocation are acceptance gates;
 mocked OAuth and signed synthetic requests do not close them.
 
+## Physical offline acceptance and current packages
+
+Physical Linux/Windows exchange and restart passed September 13. On September
+17 the owner disabled Windows Ethernet, reloaded the local page, returned to the
+last chamber, navigated objects, read saved output and opened the Spark guide
+UI. Reconnected reload also worked. Subsequent checks preserved the exact saved
+response, Capsule library, session heads and accepted return, with the existing
+owner connection verified online. This closes offline reading/navigation on the
+installed dd852b0 candidate; no offline model response was tested.
+
+[Package workflow 35236456383](https://github.com/MelaBuilt-AI/atlas-of-threads/actions/runs/35236456383)
+built candidate 1906410. Linux packaged MCP/SSH/discovery/guides/format-repair and
+startup checks passed. Windows standalone checks, installer build and installed
+MCP/SSH/discovery/guides checks passed. The downloaded Linux package also passed
+checksum verification, isolated CLI/HTTP startup, six source-asset comparisons,
+public stable update-status lookup and clean exit. Thirteen focused updater tests
+passed. The installed dd852b0 candidate has identical desktop source, assets and
+packaging to 1906410; intervening runtime changes are confined to the online Worker.
+No user installation was replaced. Publication is disabled for this workflow run.
+
 ## Remaining human and deployment checks
 
-- Physical Linux/Windows exchange and restart passed September 13. Disconnected
-  Windows reload/reading/navigation is deferred until the owner is at that PC;
-  keep its networking enabled. Preserve the existing stores and accepted results.
 - Listen to navigation and departure/return effects with music, mute and volume
   controls. Verify the effects feel useful; automated audio tests cannot do this.
 - Check touch/mobile on a physical device and representative GPU/frame behavior.
-- Build final Linux/Windows packages from the reviewed branch, verify checksums,
-  installed CLI/startup, MCP/SSH/discovery/guides and updater behavior. Existing
-  user dev binaries are not automatically claimed to match later source.
 - Present the final tested revision and remaining limits for owner release review.
+  A future release version/tag and its packages require that separate decision;
+  these candidate packages still identify themselves as v0.3.1.
 
 Rich co-walking, private clusters and unrelated features remain later work.
