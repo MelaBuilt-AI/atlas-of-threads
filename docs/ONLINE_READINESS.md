@@ -1,6 +1,6 @@
 # Online release readiness
 
-Updated September 19, 2026. This is the unreleased `feature/online-atlas` work;
+Updated September 19, 2026. This is the v0.4.0 candidate on `feature/online-atlas`;
 public stable remains v0.3.1. No merge, tag or release is authorized.
 
 ## Implemented and checked
@@ -182,9 +182,9 @@ browser preview/renderer signal checks pass. Do not replay accepted deliveries.
 ## Remaining release work
 
 Present the final tested revision for the owner's combined desktop release
-decision. Then select a version, align metadata, build fresh Linux/Windows
+decision. Candidate metadata is aligned to 0.4.0. Build fresh Linux/Windows
 packages containing the updated source and complete full release checks before
-stable publication. Existing installed candidates still identify as v0.3.1.
+stable publication. Existing user test installations still identify as v0.3.1.
 
 Rich co-walking, private clusters and unrelated features remain later work.
 

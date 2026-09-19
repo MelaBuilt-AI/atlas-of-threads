@@ -1,6 +1,6 @@
 # Portable inquiries — first slice
 
-Status: development on top of v0.3.1; not in the released installer yet.
+Status: included in the v0.4.0 release candidate. Stable downloads remain v0.3.1 until publication.
 
 Open **Portable inquiries** in your Atlas window or Workspace. Choose one
 Threadwalk, enter a sharing name and description, and review the export. Expand

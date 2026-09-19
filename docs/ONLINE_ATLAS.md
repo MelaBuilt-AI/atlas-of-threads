@@ -1,6 +1,6 @@
 # Online Atlas milestone
 
-Status: draft implementation, including the accepted portable inquiry work.
+Status: v0.4.0 release preparation, including the accepted portable inquiry work.
 There will be one larger online release; portable inquiries are not scheduled
 for a separate release. Public v0.3.1 remains the current release.
 
@@ -37,11 +37,12 @@ mobile visitors have a readable view alongside the immersive experience.
 - [x] GitHub App owner authentication, stable numeric GitHub owner IDs, distinct
   registered instance identities, local keys and Atlas-side revocation.
 - [x] Signed GitHub-side App deauthorization and session invalidation handler.
-  Live activation/reconnection acceptance remains a release gate.
+  Live activation, revocation and reconnection are accepted.
 - [x] Explicit publication review, bounded visibility, withdrawal/tombstones,
   ownership checks, bounded requests, report submission and account blocks.
 - [x] Moderator report queue and audited decisions.
-- [ ] Hosted representative capacity validation (local 500-locale check implemented).
+- [x] Hosted representative capacity validation: pagination/concurrent reads and
+  large publication/Capsule/doorway paths accepted on Workers Paid.
 - [x] Shared isometric overworld, stable placements, meaningful paths, inquiry
   selection, Threadwalk entry and exact overworld return.
 - [x] Public read-only web player and readable view; local import and
@@ -59,8 +60,14 @@ mobile visitors have a readable view alongside the immersive experience.
   unvisited/visited cues, with separate contributor/source-owner public consent.
 - [x] Opt-in coarse activity lights with expiry and a clear off state. Activity
   and newly accepted paths have different visual meanings.
-- [ ] Physical two-PC end-to-end acceptance, local offline behavior, final
-  Linux/Windows packages and installer checks, then owner release acceptance.
+- [x] Physical two-PC end-to-end exchange, Windows offline reading/navigation,
+  desktop smoothness and live overworld flight audio accepted.
+- [ ] Fresh versioned Linux/Windows packages, final release checks and owner
+  stable-publication decision.
+
+See [current readiness](ONLINE_READINESS.md) for September 19 acceptance and
+remaining package/release work. Later dated implementation sections below preserve
+the earlier development checkpoints.
 
 The checklist records implemented behavior; test success does not replace the
 remaining user acceptance and release gates. The current user instruction is to

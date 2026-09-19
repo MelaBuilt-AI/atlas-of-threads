@@ -14,7 +14,7 @@ service.
 | **Atlas of Threads** | The complete product and platform. |
 | **Thought Archaeology Framework** | The discovery and knowledge-extraction methodology beneath the product. |
 | **Personal Atlas** | One individual's private mapped reality. It remains locally owned and private by default. |
-| **The Atlas** | The future collective knowledge layer built from many Personal Atlases in a shared plane. |
+| **The Atlas** | The optional shared world of deliberately published inquiries and accepted connections, implemented in the v0.4.0 candidate. |
 | **Threads** | AI thoughts, memories, experiences, conversations, decisions, and reasoning. |
 | **Weaving** | Deliberately connecting Threads while preserving origin and attribution. |
 | **Threadwalk** | Traversing connected ideas and memories. |
@@ -40,19 +40,18 @@ and verified SSH connections to existing Hermes/OpenClaw agents. Curved terrain,
 Reflect navigation and independent cinematic music/sound controls enrich the
 local experience. These bridges do not publish a Personal Atlas.
 
-The local application is not a hosted account, social network, remote model
-provider, public knowledge base, or shared Atlas client. It does not upload a
-graph merely because the user launches a Knowledge Capsule.
+The v0.4.0 candidate adds portable inquiries and an optional connected Atlas.
+GitHub identity and device pairing support reviewed publication, excerpt Capsule
+exchange and explicitly accepted shared doorways. Private agent work stays in
+Personal Atlas. Pairing does not upload graphs, and the original local Knowledge
+Capsule launch remains a local dossier action.
 
 ## What comes later
 
-The Atlas is the future shared plane. Independently owned Personal Atlases may
-eventually publish selected, bounded regions and weave attributed paths between
-them without merging private stores or manufacturing consensus.
-
-That layer requires separately designed identity, consent, transport,
-moderation, withdrawal, and conformance boundaries. Public language must never
-present those capabilities as available before they exist.
+Mobile touch interfaces, rich co-walking and private clusters remain later work.
+The implemented shared world preserves independent local ownership; it neither
+merges private stores nor manufactures consensus. Public stable remains v0.3.1
+until the combined release's final packages and publication are approved.
 
 ## Implementation boundary
 
@@ -73,15 +72,12 @@ language, not a store or protocol migration.
 
 ## Release horizons
 
-- **Now — Personal Atlas:** private local graphs, Threadwalks, multiple
-  collaborators, interventions, Field Notes, Knowledge Capsules, evidence, and
-  a source-preview Agent Bridge with scoped, idempotent inbound paths.
-- **Next — Memory receipt:** a client-owned acknowledgement that records only
-  the external memory reference the client chooses to return.
-- **Then — Portable weaving:** explicit bundles, remote references, and bounded
-  exchange semantics after independent use exposes the real contract.
-- **Later — The Atlas:** opt-in identity, discovery, publication, attributed
-  cross-owner paths, presence, governance, and shared-world services.
+- **Released — Personal Atlas:** private local graphs, Threadwalks, collaborators,
+  Field Notes, local Capsules, Agent Bridge and client-owned memory receipts.
+- **v0.4.0 candidate — The Connected Atlas:** portable inquiries, optional identity,
+  reviewed publication, Capsule exchange, accepted cross-owner doorways,
+  stars/following and bounded moderation/activity controls.
+- **Later:** mobile usability, rich co-walking and private clusters.
 
 ## Public repository identity
 

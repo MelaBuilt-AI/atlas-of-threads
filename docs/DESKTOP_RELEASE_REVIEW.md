@@ -1,7 +1,8 @@
 # Desktop release review
 
-Updated September 19, 2026. PR #5 remains draft. Stable v0.3.1 remains current;
-no merge, version change, tag or stable publication has occurred.
+Updated September 19, 2026. Candidate source is v0.4.0 — The Connected Atlas.
+PR #5 remains draft; stable v0.3.1 remains current. No merge, tag or stable
+publication has occurred. Fresh candidate package verification is in progress.
 
 ## Proposed release
 
@@ -81,9 +82,8 @@ Desktop smoothness and flight listening observations are complete. Owner review
 of the combined desktop release is next. Mobile remains experimental and Windows
 installers remain unsigned.
 
-After that decision, select the release version, align version metadata and
-prepare fresh Linux/Windows packages at the versioned revision. Complete the
-full release checks, including package/version consistency, before stable
-publication. Current installed candidates still report v0.3.1; they must not be
-presented as the newly versioned stable release. Keep PR #5 draft until the
-owner's release decision.
+Version 0.4.0 metadata and candidate notes are prepared; fresh Linux/Windows
+packages and full release checks must pass before publication. Existing user test
+installations still report v0.3.1 and remain separate from these new packages.
+The final owner decision covers merging PR #5, publishing the stable tag/release
+and updating public download aliases. Keep PR #5 draft until that decision.

@@ -56,41 +56,33 @@ explanation is a neural trace. The graph is the inspectable story of the answer.
 When causal evidence exists, it occupies a separate evidence layer with an
 explicitly bounded claim.
 
-## v0.3.1 — Bring Your Own Agent
+## v0.4.0 candidate — The Connected Atlas
 
-The current release creates a private **Personal Atlas** on your computer.
-Bring an existing agent into that Atlas, choose who builds the next path and who
-walks beside you, and explore with a new terrain and cinematic soundscape.
+This branch prepares the combined desktop release. Stable downloads remain
+**v0.3.1** while the new packages complete their release checks.
 
-Version 0.3.1 also fixes Linux update checks on distributions whose certificate
-bundle differs from the package builder’s default path. HTTPS verification stays
-enabled and explicit certificate settings remain respected.
+The candidate connects your private **Personal Atlas** to a shared world of
+inquiries you choose to publish. Visitors can explore a Threadwalk, continue an
+exact thought privately with their own collaborator, and offer a reviewed path
+back to its source.
 
-New in this release:
+- **Publish deliberately** — reviewed immutable snapshots, stable locations and
+  editions, browser reading and Threadwalk exploration.
+- **Bring a perspective home** — portable inquiries, private continuations,
+  explicit source-owner acceptance and separately reviewed shared doorways.
+- **Capsules in flight** — invitations, offerings and exact-context returns;
+  reviewed audiences, receipt, expedition history, charging and liftoff sounds.
+- **Find an inquiry again** — stars and optional following across editions.
+- **Connect your devices** — GitHub identity, single-use pairing, revocation,
+  account blocks and optional expiring activity.
+- **Keep your desktop experience** — local offline reading, independent agent
+  roles, terrain, Field Notes and the cinematic score, with active-tab audio and
+  continuous music between the overworld and a Threadwalk.
 
-- **Bring your own agent** — local discovery and MCP setup for Codex, Claude
-  Code, Grok Build, OpenCode, Prime Agent, Hermes, and OpenClaw; explicitly scoped
-  reads and contributions preserve exact source and agent attribution.
-- **Agent Spark** — a floating companion for private discussion of the current
-  thought, with one guide selected independently of up to five collaborators.
-- **Remote agent setup** — connect an existing Hermes or OpenClaw agent through
-  a verified SSH destination, with connection and scoped firewall guidance.
-- **Persistent agent connections** — optional named Codex/OpenCode return routes,
-  resumable conversations, and explicitly approved memory-file projection.
-- **Terrain and Reflect** — ten terrain textures, curved traveled paths,
-  smoother arrivals, exact-thought maps, and a pinned return from reflection.
-  Left/right selection now includes the central standing object.
-- **Music and sound** — all 33 cinematic effects, the main title plus 12 album
-  tracks, independent music/effects controls in `L`, previous/next and track
-  selection, and your own local songs, folders, or playlists.
-- **Welcoming playback** — title music at startup; a random track for each new
-  or explicitly resumed Threadwalk. Browsers that block autoplay start on the
-  first interaction. Moving within a Threadwalk keeps the music flowing.
-- **More reliable continuations** — one bounded repair when a collaborator
-  returns invalid graph formatting, plus packaged Linux launch and Windows
-  bridge improvements.
-
-Read the [detailed release post](docs/releases/v0.3.1.md).
+Desktop Linux and Windows are the target. Mobile remains experimental.
+Read the [candidate release notes](docs/releases/v0.4.0.md) and
+[release review](docs/DESKTOP_RELEASE_REVIEW.md). The previous
+[Bring Your Own Agent release](docs/releases/v0.3.1.md) remains available.
 
 The continuing foundation:
 
@@ -266,10 +258,10 @@ or necessarily quit the local process.
   Capsules live in the user's local store.
 - Provider authentication remains in each provider's own configuration,
   keychain, or login session.
-- Atlas has no account, cloud sync, remote publication, or shared-world service
-  in this release.
-- Knowledge Capsule exports are private local Markdown files. Creating one is
-  not a publication action.
+- Connecting to the Atlas is optional. Pairing does not upload local inquiries;
+  publication and Capsule delivery require explicit content and audience review.
+- Local Knowledge Capsule dossiers remain private files. Shared excerpt Capsules
+  are a separate reviewed exchange, with receipt and acceptance as separate steps.
 - The small release check reads only the anonymous public release manifest.
 
 On Windows, three idle `AtlasOfThreads.exe` processes are normal: the packaged
@@ -283,7 +275,7 @@ application parent and child plus the collaborator worker. Use
 | **Atlas of Threads** | The product and platform. |
 | **Thought Archaeology Framework** | The discovery and knowledge-extraction methodology powering Atlas. |
 | **Personal Atlas** | One person's private mapped reality on their machine. |
-| **The Atlas** | A future shared layer connecting deliberately published paths from independently owned Personal Atlases. It is not part of v0.3.1. |
+| **The Atlas** | The optional shared world of deliberately published inquiries and accepted connections, included in the v0.4.0 candidate. |
 | **Threads** | AI thoughts, memories, conversations, decisions, and reasoning. |
 | **Weaving** | Connecting Threads without erasing their origins. |
 | **Threadwalk** | Traversing connected thoughts and graph generations. |
@@ -431,11 +423,12 @@ CLI exit codes are `0` for success, `1` for validation or strict-policy failure,
 
 ## Current boundary
 
-Atlas of Threads v0.3.1 is a local Personal Atlas, not a hosted knowledge
-network. **The Atlas**—a shared world connecting only what inhabitants
-deliberately publish—is the long-term direction. This repository does not add
-accounts, upload local graphs, infer consensus, or claim that the shared layer
-already exists.
+The v0.4.0 candidate adds the connected Atlas while preserving private local
+ownership. Publication, delivery, private work and acceptance each have their own
+review step. Connecting does not upload a store, and an accepted private excerpt
+does not publish a shared doorway. Mobile interfaces, rich co-walking and private
+clusters remain later work. Public stable downloads stay v0.3.1 until release
+approval and package verification are complete.
 
 ## License
 

@@ -1,13 +1,13 @@
 # Security policy
 
 Atlas of Threads `0.x` is a local-first Personal Atlas powered by the Thought
-Archaeology Framework. The released v0.3.1 desktop is local-first; the combined
-online milestone is a separate development preview with the boundary below.
+Archaeology Framework. Stable downloads remain v0.3.1 while the v0.4.0 desktop candidate
+adds the optional connected Atlas with the boundary below.
 
 ## Supported versions
 
 Security fixes currently target the latest `0.x` release on the default branch.
-There is no long-term-support branch during the Public Local Preview.
+There is no long-term-support branch during the 0.x release series.
 
 ## Reporting a vulnerability
 

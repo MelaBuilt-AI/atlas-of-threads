@@ -6,19 +6,14 @@ part of future releases.
 
 ## Publication decisions
 
-- The development branch now includes offline excerpt Capsule preparation,
-  reviewed private work and contextual return files. Existing local Capsules
-  keep their original one-shot contract. Connected delivery and private return acceptance are implemented;
-  witnessed expeditions and physical two-PC acceptance remain part of the combined
-  milestone; this increment is not a desktop release. See
-  [Capsules](KNOWLEDGE_CAPSULES.md).
-
-- Portable inquiries are a development slice after v0.3.1. Release acceptance
-  must include two isolated stores, the physical Windows test PC, and a private
-  guide discussion pinned to an imported source. See [portable inquiries](PORTABLE_INQUIRIES.md).
-- Portable inquiries and the local returned-path increment will ship with the
-  [combined online Atlas milestone](ONLINE_ATLAS.md). Its hosted world and
-  complete exchange must be accepted before a new public release.
+- The v0.4.0 candidate combines portable inquiries, private returned paths,
+  reviewed Capsule exchange and the connected Atlas in one desktop release.
+  Physical Linux/Windows exchange, Windows offline use, account lifecycle,
+  desktop smoothness and live flight audio are accepted. Fresh versioned packages
+  and the owner's publication decision remain; see [release review](DESKTOP_RELEASE_REVIEW.md).
+- Original local Capsules keep their one-shot private dossier contract. Shared
+  Capsule receipt, private continuation and public doorway acceptance are
+  separate reviewed actions; see [Capsules](KNOWLEDGE_CAPSULES.md).
 - The historical origin-conversation fixture was replaced with a synthetic
   reference example. Private source material is excluded from rewritten public
   history.
@@ -94,41 +89,29 @@ to the browser's user-interaction policy.
 - Python 3.11 and 3.12 are the supported source-install versions.
 - `ta harness service` requires a systemd user session; other platforms use
   the foreground `ta harness watch` path.
-- Accounts and the shared Atlas are future work. The explicit private SSH
-  connection above is an explicit private connection. The current
-  release is a local-first Personal Atlas.
+- Mobile remains experimental; the accepted release scope is desktop Linux and
+  Windows, including the optional connected Atlas. Rich co-walking and private
+  clusters remain later work. Stable downloads stay v0.3.1 until publication.
 
 Passing this checklist does not replace an explicit owner decision for future
 visibility or release changes.
 
 
-## Online Atlas draft preview
+## Connected Atlas v0.4.0 candidate
 
-The separate `online/` deployment is a working increment in PR #5. Its initial
-world contains explicitly synthetic publications, reuses the Atlas media library,
-and supports public read/download plus authenticated reviewed publication and
-withdrawal. The GitHub App is configured and live owner sign-in is verified.
-The existing public release and site are unchanged. See `online/README.md` and
-`docs/ONLINE_ATLAS.md` for the incomplete release and acceptance gates.
+PR #5 remains draft while fresh versioned packages are prepared. The existing
+hosted service is accepted for the desktop milestone: published immutable
+inquiries, private exact-source work and returns, explicit shared doorways,
+GitHub identity/pairing/revocation, Capsule flights, stars/following, report
+review and opt-in expiring activity. Existing public snapshots and accepted
+connections are preserved. Private excerpt acceptance never publishes a doorway.
 
-The September 10 development continuation adds stable published editions, stars,
-optional in-app following and Personal Atlas device pairing with explicit local
-and account-side revocation. Synthetic browser/service checks pass; this does not
-claim GitHub-side deauthorization, physical two-PC exchange or installer acceptance.
-Connected excerpt Capsules now support durable receipt, exact-source decisions,
-withdrawal and blocks. Witnessed flights, launcher history, beacons and Capsule
-following now obey delivery audiences and preserve camera control. Explicitly
-reviewed full returns between published snapshots now create shared/native doors,
-exact source-return routes and visited cues. The remaining combined release gates
-still apply; private excerpt acceptance never automatically publishes a doorway.
+The September 19 source adds accepted charge/blast audio, versioned hosted sound
+loading and a no-send launch preview. Candidate source/package/installer versions
+are aligned to 0.4.0; final CI, package and publication receipts must identify the
+exact versioned source. The public stable release and download aliases remain
+v0.3.1 until the owner approves publication.
 
-The unreleased online branch includes signed GitHub deauthorization handling,
-moderator report review and optional expiring activity lights. Deployment and
-acceptance status are tracked in [online readiness](ONLINE_READINESS.md). The
-stable desktop release remains v0.3.1 until the combined release is approved.
-
-The combined release targets desktop use on Linux and Windows. Mobile support is
-experimental: iPhone Safari runtime/audio has been observed working, but panels
-obscure the scene and keyboard controls need touch equivalents. A separate mobile
-milestone will address controls, reading panels, orientation and device testing
-in the same codebase. See [desktop release scope](ONLINE_READINESS.md#desktop-release-scope).
+Mobile support is experimental: iPhone Safari runtime/audio works, but panels
+and keyboard controls need a dedicated touch-interface milestone. See
+[release readiness](ONLINE_READINESS.md) for exact accepted evidence and limits.
