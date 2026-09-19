@@ -987,6 +987,8 @@ def test_space_sound_field_uses_cinematic_pack_and_is_event_bound():
         "blue-path-complete-splash.ogg",
         "camera-cycle-transition.ogg",
         "charged-capsule-launch.ogg",
+        "expedition-charge.ogg",
+        "expedition-launch-blast.ogg",
         "green-beam-activate.ogg",
         "green-beam-sparks-loop.ogg",
         "field-notes-monument-complete.ogg",

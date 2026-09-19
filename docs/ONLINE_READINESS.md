@@ -1,6 +1,6 @@
 # Online release readiness
 
-Updated September 17, 2026. This is the unreleased `feature/online-atlas` work;
+Updated September 19, 2026. This is the unreleased `feature/online-atlas` work;
 public stable remains v0.3.1. No merge, tag or release is authorized.
 
 ## Implemented and checked
@@ -164,15 +164,29 @@ block this desktop release. The iPhone observation is not mobile usability signo
 
 ## Remaining human and deployment checks
 
-- Live Capsule departure/return cue listening is not included in the latest
-  observation. Do not resend previously accepted deliveries merely to test audio.
-- Confirm acceptable smoothness on representative desktop hardware; no measured
-  frame-rate or broad GPU compatibility claim has been established.
-- Present the final tested revision and remaining limits for owner release review.
-  A future release version/tag and its packages require that separate decision;
-  these candidate packages still identify themselves as v0.3.1.
+**Desktop smoothness accepted, September 19:** the owner reports smooth Atlas
+navigation and transitions into Threadwalks and back with no stuttering on a 2022
+laptop with integrated CPU graphics and a 2022 Windows desktop with a GeForce
+GTX 1650. This closes the representative desktop observation on those machines;
+no measured frame-rate or broader GPU compatibility claim follows.
+
+**Live flight audio accepted, September 19:** after accepting the direct preview,
+the owner heard and accepted the updated charging buildup and liftoff blast on a
+fresh Windows overworld flight. The flying sound retains its accepted level.
+The final source adds dedicated charge/blast accents, versioned hosted audio
+loading and a no-send launch preview. Earlier missing-cue observations remain
+historical; stale cached code was suspected but not proven as the Windows cause.
+Build/61 online-audio tests, two focused Python serving/audio checks and fresh
+browser preview/renderer signal checks pass. Do not replay accepted deliveries.
+
+## Remaining release work
+
+Present the final tested revision for the owner's combined desktop release
+decision. Then select a version, align metadata, build fresh Linux/Windows
+packages containing the updated source and complete full release checks before
+stable publication. Existing installed candidates still identify as v0.3.1.
 
 Rich co-walking, private clusters and unrelated features remain later work.
 
-See the [desktop release review](DESKTOP_RELEASE_REVIEW.md) for the decision scope
-and outstanding observations. This preview deployment is not a stable release.
+See the [desktop release review](DESKTOP_RELEASE_REVIEW.md) for evidence, scope
+and remaining limits. This preview deployment is not a stable release.

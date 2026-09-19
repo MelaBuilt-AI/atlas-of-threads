@@ -58,6 +58,12 @@ new effects replace the earlier procedural sounds. Runtime OGG files are
 included unchanged from the supplied masters. Archival originals, WAV/MP3
 copies, production requests and receipts remain outside the source repository.
 
+The two additional `expedition-charge.ogg` and `expedition-launch-blast.ogg`
+accents were synthesized by Codex for MelaBuilt AI on 2026-09-19 using original
+oscillator/noise synthesis, without external recordings. Their reproducible source
+is `online/scripts/build-expedition-audio.py`. They add an overworld charging rise
+and liftoff blast; the supplied flight recording remains unchanged.
+
 ## Online Atlas visual references
 
 The project's generated Atlas artwork, supplied by the owner on 2026-09-10,

@@ -1,6 +1,6 @@
 # Desktop release review
 
-Prepared September 17, 2026. PR #5 remains draft. Stable v0.3.1 remains current;
+Updated September 19, 2026. PR #5 remains draft. Stable v0.3.1 remains current;
 no merge, version change, tag or stable publication has occurred.
 
 ## Proposed release
@@ -24,11 +24,17 @@ usability did not.
 
 ## Evidence
 
+- On September 19 the owner reported smooth Atlas navigation and transitions into
+  Threadwalks and back, with no stuttering, on a 2022 laptop with integrated CPU
+  graphics and a 2022 Windows desktop with a GeForce GTX 1650. This closes the
+  representative desktop smoothness observation for those two machines; no frame
+  timings or broader GPU compatibility were measured.
 - Desktop runtime/package revision: `a3d95d19def80586351a6a97cae81000ad910fbd`.
   [Candidate package workflow](https://github.com/MelaBuilt-AI/atlas-of-threads/actions/runs/35245324106)
   passed Linux/Windows standalone and installer checks. Both dedicated test
-  installations now run this candidate. The subsequent scope change affects only
-  the connected-world notice and documentation; desktop payloads are unchanged.
+  installations run this candidate. The September 19 flight cues and versioned
+  hosted loading are newer source changes; fresh versioned release packages
+  must include them before publication.
 - 441 Python and 60 online/audio tests passed at the audio revision. The 60 tests
   and online build also pass after the scope change. [Push CI](https://github.com/MelaBuilt-AI/atlas-of-threads/actions/runs/35245312069)
   and [PR CI](https://github.com/MelaBuilt-AI/atlas-of-threads/actions/runs/35245316266)
@@ -48,22 +54,36 @@ usability did not.
   the accepted public doorway. The notice was visually checked at 390 × 844 and
   confirmed hidden at desktop width; this does not close mobile usability work.
 
-## Outstanding observations and release decision
+## Flight audio acceptance
 
-Specific live Capsule departure/return audio has not been physically confirmed
-since the audio repair. Production cue/renderer paths have automated coverage,
-and normal effects have physical acceptance; these are distinct observations.
-Do not resend an accepted delivery to test it. Any further end-to-end audition
-should use a separately agreed new test exchange or isolated synthetic scene.
+On September 19 the owner accepted the live Windows overworld charging buildup,
+liftoff blast and flying sound after accepting the direct audio preview. This
+closes the remaining flight-audio observation. Earlier attempts sounded different;
+stale cached audio code was suspected, but was not independently proven as the
+cause on the owner's tab.
 
-Representative desktop smoothness still needs an explicit owner observation.
-No measured frame-rate or broad GPU compatibility claim is made. The owner should
-either complete these observations or explicitly accept their limits before
-approving release. Windows installers remain unsigned.
+The final sequence uses a 1.6-second rising charge, a short liftoff blast and the
+existing flight recording at its accepted level. It preserves spatial falloff and
+user effects controls. Hosted pages version the sound script by content, and
+Sound & music offers a launch preview that sends no Capsule. Original synthesized
+accents and their generator have documented provenance.
 
-After that review, select the release version, align version metadata and prepare
-fresh Linux/Windows packages at the versioned revision. Complete the documented
-public-release checks, including package/version consistency, before stable
-publication. The current candidate binaries still report v0.3.1; they must not be
-presented as a newly versioned stable release. Keep PR #5 draft until the owner's
-release decision.
+The updated build and 61 online/audio tests pass, including charge/blast layering
+and unchanged flight gain; two focused Python serving/audio checks pass. Fresh
+browser probes confirm decoded layers and output through both preview and
+expedition-renderer paths. The subsequent physical Windows map launch is the
+owner's acceptance evidence. Existing publications, downloads and doorway remain
+preserved. Do not replay accepted deliveries merely to resume.
+
+## Owner release decision
+
+Desktop smoothness and flight listening observations are complete. Owner review
+of the combined desktop release is next. Mobile remains experimental and Windows
+installers remain unsigned.
+
+After that decision, select the release version, align version metadata and
+prepare fresh Linux/Windows packages at the versioned revision. Complete the
+full release checks, including package/version consistency, before stable
+publication. Current installed candidates still report v0.3.1; they must not be
+presented as the newly versioned stable release. Keep PR #5 draft until the
+owner's release decision.

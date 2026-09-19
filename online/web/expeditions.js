@@ -23,7 +23,7 @@
  };
  window.AtlasExpeditionSound = (point,state) => {
   const dx=point.x-state.x,dz=point.z-state.z,distance=Math.hypot(dx,dz);
-  return {gain:Math.max(0,1-distance/140)*Math.min(1,55/state.span)*.7,pan:Math.max(-1,Math.min(1,(dx-dz)/(state.span*1.4)))};
+  return {gain:Math.max(0,1-distance/140)*Math.min(1,55/state.span),pan:Math.max(-1,Math.min(1,(dx-dz)/(state.span*1.4)))};
  };
  window.AtlasExpeditions = (scene,items,height,reduced,openHistory) => {
   const T=THREE, ports=new Map(),flights=[],picks=[],up=new T.Vector3(0,1,0);

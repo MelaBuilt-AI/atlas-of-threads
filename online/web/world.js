@@ -791,6 +791,33 @@
   $("library-close").onclick = () => ($("library").hidden = true);
   $("selection-close").onclick = () => ($("selection").hidden = true);
   $("audio-toggle").onclick = () => $("audio-dialog").showModal();
+  $("capsule-sound-test").onclick = async () => {
+    const button = $("capsule-sound-test"), status = $("capsule-sound-status");
+    button.disabled = true;
+    try {
+      if (!await window.TASound.awaken()) {
+        status.textContent = "Effects could not start. Check the effects status above.";
+        return;
+      }
+      if ($("sound-toggle").dataset.state === "muted" || Number($("sound-volume").value) === 0) {
+        status.textContent = "Enable sound effects and set their volume above zero to preview.";
+        return;
+      }
+      status.textContent = "Charging…";
+      window.TASound.expedition("charge", .55, 0);
+      await new Promise(resolve => setTimeout(resolve, 1600));
+      if (document.hidden || !document.hasFocus() || !$("audio-dialog").open) {
+        status.textContent = "Preview stopped. Keep this tab in front to hear the full launch.";
+        return;
+      }
+      status.textContent = "Liftoff blast and flight…";
+      window.TASound.expedition("launch", .55, 0);
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      status.textContent = "Preview complete. No Capsule was sent.";
+    } finally {
+      button.disabled = false;
+    }
+  };
   $("zoom-in").onclick = () => zoom(0.8);
   $("zoom-out").onclick = () => zoom(1.25);
   $("home").onclick = () => moveTo({ x: 0, z: 0, span: 100 });

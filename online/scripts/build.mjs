@@ -1,4 +1,5 @@
 import { readFile, writeFile, mkdir, cp, readdir, rm } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { build } from "esbuild";
 import Ajv from "ajv/dist/2020.js";
 import standalone from "ajv/dist/standalone/index.js";
@@ -34,13 +35,15 @@ await mkdir("dist/public/player", { recursive: true });
 await cp("../viz/dist", "dist/public/player", { recursive: true });
 await cp("web", "dist/public", { recursive: true });
 const sourceHTML = await readFile("../viz/dist/index.html", "utf8");
+const soundVersion = createHash("sha256").update(await readFile("../viz/dist/sound.js")).digest("hex").slice(0,16);
+const versionSound = html => html.replace('src="./sound.js"', `src="./sound.js?v=${soundVersion}"`);
 let world = await readFile("web/index.html", "utf8");
 const audioStart = sourceHTML.indexOf('      <div id="music-controls">');
 const audioEnd = sourceHTML.indexOf("</section>", audioStart);
 // Reuse the existing album/effect controls, including their complete input set.
 const audioMarkup = sourceHTML.slice(audioStart, audioEnd);
 world = world.replace("<!-- AUDIO_CONTROLS -->", audioMarkup);
-await writeFile("dist/public/index.html", world);
+await writeFile("dist/public/index.html", versionSound(world));
 let shell = await readFile("../viz/dist/index.html", "utf8");
 shell = shell.replace("<head>", '<head><base href="/player/" />');
 shell = shell.replace(
@@ -55,7 +58,7 @@ shell = shell.replace(
   "Inhabit a private Personal Atlas built with the Thought Archaeology Framework.",
   "Explore a published, read-only Atlas Threadwalk.",
 );
-await writeFile("dist/public/player/index.html", shell);
+await writeFile("dist/public/player/index.html", versionSound(shell));
 for (const name of ["LICENSE", "THIRD_PARTY_NOTICES.md"])
   await cp("../" + name, "dist/public/" + name);
 await writeFile(

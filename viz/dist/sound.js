@@ -1,4 +1,4 @@
-/* Thought Archaeology cinematic sound field. Owner-supplied cinematic OGG pack. */
+/* Thought Archaeology cinematic sound field. Supplied OGG pack and expedition accents. */
 (function () {
   if (window.TASound) return; // A hosted chamber can share its parent Atlas audio.
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -46,6 +46,8 @@
     capsuleComplete: { file: "launcher-build-complete.ogg", gain: 0.62 },
     capsuleReady: { file: "launcher-ready-hum-loop.ogg", gain: 0.15, loop: true },
     capsuleLaunch: { file: "charged-capsule-launch.ogg", gain: 0.7 },
+    expeditionCharge: { file: "expedition-charge.ogg", gain: 0.65 },
+    expeditionBlast: { file: "expedition-launch-blast.ogg", gain: 0.75 },
   };
 
   let saved = {};
@@ -508,17 +510,20 @@
   // Live expedition cues are never queued for later playback after loading/reconnect.
   function expedition(phase, attenuation, pan) {
     if (!context || muted || document.hidden || packState !== "ready") return;
-    const key = phase === "charge" ? "capsuleConstruction" : "capsuleLaunch";
-    const buffer = buffers.get(key);
-    if (!buffer) return;
-    const source = context.createBufferSource(), gain = context.createGain();
-    const duration = phase === "charge" ? 1.6 : Math.min(5, buffer.duration);
-    source.buffer = buffer; source.loop = phase === "charge";
-    gain.gain.setValueAtTime(PACK[key].gain * Math.max(0, Math.min(1, attenuation)), context.currentTime);
-    gain.gain.setTargetAtTime(.0001, context.currentTime + duration - .2, .06);
-    source.connect(gain); connectPanned(gain, cueBus, pan);
-    source.start(); source.stop(context.currentTime + duration);
-    source.onended = () => gain.disconnect();
+    const keys = phase === "charge" ? ["expeditionCharge"] : ["capsuleLaunch", "expeditionBlast"];
+    for (const key of keys) {
+      const buffer = buffers.get(key);
+      if (!buffer) continue;
+      const source = context.createBufferSource(), gain = context.createGain();
+      const duration = Math.min(key === "expeditionCharge" ? 1.6 : 5, buffer.duration);
+      source.buffer = buffer;
+      gain.gain.setValueAtTime(PACK[key].gain * Math.max(0, Math.min(1, attenuation)), context.currentTime);
+      const fade = key === "expeditionCharge" ? .035 : .2;
+      gain.gain.setTargetAtTime(.0001, context.currentTime + duration - fade, fade / 3);
+      source.connect(gain); connectPanned(gain, cueBus, pan);
+      source.start(); source.stop(context.currentTime + duration);
+      source.onended = () => gain.disconnect();
+    }
   }
 
   window.TASound = {

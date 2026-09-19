@@ -20,7 +20,7 @@ function effects(saved = {}) {
   document.getElementById = get; document.hidden = false; document.focused = true;
   document.hasFocus = () => document.focused;
   const param = (value = 1) => ({value, cancelScheduledValues(){},
-    setTargetAtTime(v){this.value=v;}, setValueAtTime(v){this.value=v;}, exponentialRampToValueAtTime(v){this.value=v;}});
+    setTargetAtTime(v){this.value=v;}, setValueAtTime(v){this.value=v;this.initial=v;}, exponentialRampToValueAtTime(v){this.value=v;}});
   const node = () => ({connections:[], connect(to){this.connections.push(to);return to;}, disconnect(){}});
   let context;
   class Context extends Events {
@@ -30,12 +30,12 @@ function effects(saved = {}) {
     createGain() { const n={...node(),gain:param()};this.gains.push(n);return n; }
     createStereoPanner() { return {...node(),pan:param(0)}; }
     createDynamicsCompressor() { return {...node(),threshold:param(),knee:param(),ratio:param(),attack:param(),release:param()}; }
-    createBufferSource() { const n={...node(),start(){this.started=true;},stop(){}};this.sources.push(n);return n; }
-    async decodeAudioData() { return {duration:1}; }
+    createBufferSource() { const n={...node(),start(){this.started=true;},stop(time){this.stopTime=time;}};this.sources.push(n);return n; }
+    async decodeAudioData(bytes) { const asset=new TextDecoder().decode(bytes);return {duration:asset.includes('expedition-charge')?1.6:asset.includes('expedition-launch-blast')?1.8:7.4,asset}; }
   }
   const storage = {'thought-archaeology.sound.v1':JSON.stringify(saved)};
   const window = new Events(); Object.assign(window, { AudioContext:Context,
-    fetch:async()=>({ok:true,arrayBuffer:async()=>new ArrayBuffer(2)}),
+    fetch:async asset=>({ok:true,arrayBuffer:async()=>new TextEncoder().encode(asset).buffer}),
     localStorage:{getItem:key=>storage[key],setItem:(key,value)=>{storage[key]=value;}}, console, setTimeout });
   vm.runInNewContext(code, {window,document});
   return {window,document,get,storage,context:()=>context};
@@ -58,6 +58,28 @@ test('effects decode and route a test cue through audible master to destination'
   assert.ok(cue.connections[0].gain.value>0);
   assert.equal(cue.connections[0].connections[0],ctx.gains[2]);
   assert.equal(ctx.gains[2].connections[0],master);
+});
+
+test('expedition charge leads to a distinct blast while retaining flight gain and user controls', async () => {
+  const p=effects({level:.9});await p.window.TASound.awaken();
+  const ctx=p.context(),before=ctx.sources.length,volume=ctx.gains[0].gain.value;
+  p.window.TASound.expedition('charge',.5,0);
+  const charge=ctx.sources.at(-1);
+  assert.match(charge.buffer.asset,/expedition-charge\.ogg$/);
+  assert.equal(charge.stopTime,1.6);assert.ok(!charge.loop);
+  assert.equal(charge.connections[0].gain.initial,.65*.5);
+  p.window.TASound.expedition('launch',.5,0);
+  const [flight,blast]=ctx.sources.slice(-2);
+  assert.match(flight.buffer.asset,/charged-capsule-launch\.ogg$/);
+  assert.equal(flight.connections[0].gain.initial,.7*.5);assert.equal(flight.stopTime,5);
+  assert.match(blast.buffer.asset,/expedition-launch-blast\.ogg$/);
+  assert.equal(blast.stopTime,1.8);assert.equal(blast.connections[0].connections[0],ctx.gains[2]);
+  assert.equal(ctx.sources.length,before+3);assert.equal(ctx.gains[0].gain.value,volume);
+  p.document.hidden=true;p.document.fire('visibilitychange');
+  p.window.TASound.expedition('charge',1,0);assert.equal(ctx.sources.length,before+3);
+  p.document.hidden=false;p.document.fire('visibilitychange');
+  p.window.TASound.toggleMuted();await flush();
+  p.window.TASound.expedition('launch',1,0);assert.equal(ctx.sources.length,before+3);
 });
 
 test('native effects slider input retains the new value after awaken renders controls', async () => {
