@@ -6,6 +6,14 @@ part of future releases.
 
 ## Publication decisions
 
+- Version 0.4.0 combines portable inquiries, private returned paths,
+  reviewed Capsule exchange and the connected Atlas in one desktop release.
+  Physical Linux/Windows exchange, Windows offline use, account lifecycle,
+  desktop smoothness and live flight audio are accepted. Fresh versioned packages
+  pass; the owner authorized unsigned publication on September 19, 2026. See [release review](DESKTOP_RELEASE_REVIEW.md).
+- Original local Capsules keep their one-shot private dossier contract. Shared
+  Capsule receipt, private continuation and public doorway acceptance are
+  separate reviewed actions; see [Capsules](KNOWLEDGE_CAPSULES.md).
 - The historical origin-conversation fixture was replaced with a synthetic
   reference example. Private source material is excluded from rewritten public
   history.
@@ -81,9 +89,30 @@ to the browser's user-interaction policy.
 - Python 3.11 and 3.12 are the supported source-install versions.
 - `ta harness service` requires a systemd user session; other platforms use
   the foreground `ta harness watch` path.
-- Accounts and the shared Atlas are future work. The explicit private SSH
-  connection above is an explicit private connection. The current
-  release is a local-first Personal Atlas.
+- Mobile remains experimental; the accepted release scope is desktop Linux and
+  Windows, including the optional connected Atlas. Rich co-walking and private
+  clusters remain later work.
 
 Passing this checklist does not replace an explicit owner decision for future
 visibility or release changes.
+
+
+## Connected Atlas v0.4.0
+
+PR #5 delivers the verified v0.4.0 desktop release. The existing
+hosted service is accepted for the desktop milestone: published immutable
+inquiries, private exact-source work and returns, explicit shared doorways,
+GitHub identity/pairing/revocation, Capsule flights, stars/following, report
+review and opt-in expiring activity. Existing public snapshots and accepted
+connections are preserved. Private excerpt acceptance never publishes a doorway.
+
+The September 19 source adds accepted charge/blast audio, versioned hosted sound
+loading and a no-send launch preview. Source/package/installer versions
+are aligned to 0.4.0; final CI, package and publication receipts must identify the
+exact versioned source. The owner authorized publishing v0.4.0 and updating the
+stable download aliases on September 19, 2026. SignPath review is pending; this
+release is unsigned.
+
+Mobile support is experimental: iPhone Safari runtime/audio works, but panels
+and keyboard controls need a dedicated touch-interface milestone. See
+[release readiness](ONLINE_READINESS.md) for exact accepted evidence and limits.

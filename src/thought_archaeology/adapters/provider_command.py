@@ -203,6 +203,7 @@ def discover_provider_commands(
     try:
         proc = subprocess.run(
             argv,
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
             shell=False,
@@ -256,6 +257,7 @@ def command_path(command: ProviderCommand, path: str | Path) -> str:
     try:
         proc = subprocess.run(
             argv,
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
             shell=False,
@@ -302,6 +304,7 @@ def read_wsl_config(
     try:
         proc = subprocess.run(
             argv,
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
             shell=False,

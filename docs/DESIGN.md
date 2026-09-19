@@ -12,6 +12,16 @@
 
 ---
 
+## Portable inquiry amendment — 2026-09-09 (Codex)
+
+The approved first online milestone is a reviewed, portable Threadwalk snapshot
+that another Personal Atlas can import, inhabit and discuss with its own guide.
+It uses existing graph schemas and renderer, preserves source identities, and
+lives in a separate imported Store. Guide conversation stays outside that
+snapshot. Hosting, presence and return contribution are later slices. See
+[portable inquiries](PORTABLE_INQUIRIES.md) for the transport and acceptance
+contract.
+
 ## Reflect and curved terrain amendment — 2026-09-07 (Codex)
 
 This development increment supersedes the older recentered grid, 80-stop retrace
@@ -229,7 +239,7 @@ Cut and human no are graph edits, not model edits. The Inhabit Space cut perform
 
 Sound is an inhabitation layer, not evidence. The browser ships 33 owner-supplied cinematic OGG effects, including dedicated evidence open/close, relic/veto inspection, fork/cut, cancellation, Field Note eligibility, and Spark idle/open/close/click cues. These replace the earlier sample pack and procedural tones. The supplied mastering is preserved with full-spectrum cue routing; continuous layers retain bounded fades, conservative gains, and an effects compressor.
 
-The L drawer contains a lightweight music player with independent music and effects pause/volume controls. One HTML audio element streams the main title and twelve companion tracks in album order, repeating after the last track. Previous/next and direct track selection work while playing or paused. Every fresh load starts at the title, including onboarding and collaborator/agent setup, subject to browser autoplay permission; the first click/key retries blocked autoplay. Music pause lasts for the current tab, while its volume persists. Beginning or resuming a Threadwalk chooses a different random starting track from the current album or custom playlist, then continues in playlist order. Moving between chambers or answers within that Threadwalk does not restart music; an explicit pause remains in force on Threadwalk entry. The drawer is reachable above setup without losing form state. Users may load local audio files, a folder, or M3U/M3U8/PLS playlists together with their referenced files; explicitly listed HTTP(S) streams are also playable where supported by the browser. Missing local files are reported. Custom music uses tab-local object URLs, is never uploaded or stored in the graph, and is released on replacement. Reload returns to the Atlas album. Volume and effects preferences alone are browser-local. The local server supports single byte ranges for OGG playback and reads audio in bounded chunks.
+The L drawer contains a lightweight music player with independent music and effects pause/volume controls. One HTML audio element streams the main title and twelve companion tracks in album order, repeating after the last track. Previous/next and direct track selection work while playing or paused. Every fresh load starts at the title, including onboarding and collaborator/agent setup, subject to browser autoplay permission; the first click/key retries blocked autoplay. Music pause lasts for the current tab, while its volume persists. Music and effects follow the active browser tab/window, so a Personal Atlas and connected Atlas do not play over each other across origins. Returning resumes the same music position unless the listener explicitly paused. Effects retry browser audio activation after later gestures; Test effects plays an existing navigation cue and reports loading, muted or activation state. Beginning or resuming a Threadwalk chooses a different random starting track from the current album or custom playlist, then continues in playlist order. Moving between chambers or answers within that Threadwalk does not restart music; an explicit pause remains in force on Threadwalk entry. The drawer is reachable above setup without losing form state. Users may load local audio files, a folder, or M3U/M3U8/PLS playlists together with their referenced files; explicitly listed HTTP(S) streams are also playable where supported by the browser. Missing local files are reported. Custom music uses tab-local object URLs, is never uploaded or stored in the graph, and is released on replacement. Reload returns to the Atlas album. Volume and effects preferences alone are browser-local. The local server supports single byte ranges for OGG playback and reads audio in bounded chunks.
 
 Left/right selection traverses the surrounding objects in angular order and includes the central arrival object once per circuit. Returning to the center restores the standing camera and reading plate without navigating, changing the graph, or adding a Reflect step. Enter/up at the center retains the existing first-forward-thought action.
 

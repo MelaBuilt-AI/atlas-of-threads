@@ -1,0 +1,10 @@
+ALTER TABLE publications ADD COLUMN threadwalk_id TEXT;
+ALTER TABLE publications ADD COLUMN previous_id TEXT;
+UPDATE publications SET threadwalk_id=(SELECT first.id FROM publications first WHERE first.owner_id=publications.owner_id AND first.origin_id=publications.origin_id AND first.session_id=publications.session_id ORDER BY first.seq LIMIT 1), previous_id=(SELECT prior.id FROM publications prior WHERE prior.owner_id=publications.owner_id AND prior.origin_id=publications.origin_id AND prior.session_id=publications.session_id AND prior.seq<publications.seq ORDER BY prior.seq DESC LIMIT 1);
+CREATE INDEX publications_lineage ON publications(owner_id,origin_id,session_id,seq);
+CREATE INDEX publications_threadwalk ON publications(threadwalk_id,seq);
+CREATE TABLE updates (seq INTEGER PRIMARY KEY AUTOINCREMENT, threadwalk_id TEXT NOT NULL REFERENCES publications(id), publication_id TEXT UNIQUE NOT NULL REFERENCES publications(id), kind TEXT NOT NULL, created_at INTEGER NOT NULL);
+INSERT INTO updates(threadwalk_id,publication_id,kind,created_at) SELECT threadwalk_id,id,'edition',created_at FROM publications ORDER BY seq;
+CREATE INDEX updates_threadwalk ON updates(threadwalk_id,seq);
+CREATE TABLE subscriptions (owner_id TEXT NOT NULL REFERENCES owners(id), threadwalk_id TEXT NOT NULL REFERENCES publications(id), starred INTEGER NOT NULL DEFAULT 0, following INTEGER NOT NULL DEFAULT 0, seen_seq INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(owner_id,threadwalk_id));
+CREATE TABLE pairings (code_hash TEXT PRIMARY KEY, owner_id TEXT NOT NULL REFERENCES owners(id), name TEXT NOT NULL, expires_at INTEGER NOT NULL);

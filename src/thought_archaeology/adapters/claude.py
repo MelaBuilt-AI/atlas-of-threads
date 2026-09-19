@@ -46,6 +46,7 @@ def _version(executable: ProviderCommand) -> str:
     try:
         proc = subprocess.run(
             command_argv(executable, "--version"),
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
             shell=False,

@@ -27,12 +27,19 @@ function player(saved = {}) {
   const revoked = [];
   let url = 0;
   const window = new Element();
+  const document = new Element();
+  document.hidden = false;
+  document.focused = true;
+  document.hasFocus = () => document.focused;
+  document.getElementById = get;
+  document.createElement = () => new Element();
+  document.querySelectorAll = () => [];
   vm.runInNewContext(music, {
-    document: {getElementById:get, createElement:() => new Element(), querySelectorAll:() => []}, window,
+    document, window,
     localStorage: {getItem:key => storage[key], setItem:(key,value) => {storage[key]=value;}},
     URL: {createObjectURL:() => `blob:synthetic-${++url}`, revokeObjectURL:url => revoked.push(url)},
   });
-  return {get, window, storage, revoked, audio:get('atlas-music')};
+  return {get, window, document, storage, revoked, audio:get('atlas-music')};
 }
 const song = name => ({name, type:'audio/ogg'});
 const playlist = (name, text) => ({name, type:'', text:async () => text});
@@ -139,4 +146,33 @@ test('Threadwalk music uses the loaded playlist without unpausing it', async () 
   assert.equal(p.audio.paused,true);
   p.get('music-toggle').click(); await flush();
   assert.equal(p.audio.paused,false);
+});
+
+
+test('music follows foreground across independent Atlas origins and preserves position and manual pause', async () => {
+  const personal=player(), connected=player(); await flush();
+  personal.audio.currentTime=42;
+  personal.document.hidden=true;
+  personal.document.focused=false;
+  personal.document.fire('visibilitychange'); await flush();
+  assert.equal(personal.audio.paused,true);
+  assert.equal(connected.audio.paused,false);
+  personal.get('music-next').click(); await flush();
+  assert.equal(personal.audio.paused,true);
+  assert.equal(personal.audio.autoplay,false);
+  // Return without selecting another track resumes from the saved position.
+  personal.audio.currentTime=42;
+  const selected=personal.audio.src;
+  connected.document.focused=false; connected.window.fire('blur');
+  personal.document.hidden=false; personal.document.focused=true;
+  personal.document.fire('visibilitychange'); await flush();
+  assert.equal(connected.audio.paused,true);
+  assert.equal(personal.audio.paused,false);
+  assert.equal(personal.audio.currentTime,42);
+  assert.equal(personal.audio.src,selected);
+  personal.get('music-toggle').click();
+  personal.document.focused=false; personal.window.fire('blur');
+  personal.document.focused=true; personal.window.fire('focus'); await flush();
+  assert.equal(personal.audio.paused,true);
+  assert.equal(personal.get('music-status').textContent,'Paused');
 });

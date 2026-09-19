@@ -1,0 +1,320 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mela.ai/schemas/thought-archaeology/v1/shared-capsule.schema.json",
+  "title": "Reviewed shared Capsule",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "version",
+    "id",
+    "content"
+  ],
+  "properties": {
+    "format": {
+      "const": "atlas-capsule"
+    },
+    "version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "origin_id",
+        "home_session_id",
+        "created_at",
+        "intent",
+        "title",
+        "author",
+        "message",
+        "interpretation",
+        "reply_to",
+        "excerpts"
+      ],
+      "properties": {
+        "origin_id": {
+          "type": "string",
+          "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$"
+        },
+        "home_session_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "intent": {
+          "enum": [
+            "invitation",
+            "offering",
+            "return"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "author": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "interpretation": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 8000
+        },
+        "reply_to": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "id",
+                "origin_id"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "capsule"
+                },
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "origin_id": {
+                  "type": "string",
+                  "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "source"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "inquiry"
+                },
+                "source": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "inquiry_id",
+                    "origin_id",
+                    "session_id",
+                    "graph_id",
+                    "node_id",
+                    "source_sha256",
+                    "shared_sha256",
+                    "author"
+                  ],
+                  "properties": {
+                    "inquiry_id": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "origin_id": {
+                      "type": "string",
+                      "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$"
+                    },
+                    "session_id": {
+                      "type": "string",
+                      "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$"
+                    },
+                    "graph_id": {
+                      "type": "string",
+                      "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$"
+                    },
+                    "node_id": {
+                      "type": "string",
+                      "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$"
+                    },
+                    "source_sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "shared_sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "author": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "excerpts": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source",
+              "thoughts",
+              "answer",
+              "question",
+              "evidence"
+            ],
+            "properties": {
+              "source": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "origin_id",
+                  "session_id",
+                  "graph_id",
+                  "source_sha256",
+                  "shared_sha256",
+                  "model"
+                ],
+                "properties": {
+                  "origin_id": {
+                    "type": "string",
+                    "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$"
+                  },
+                  "session_id": {
+                    "type": "string",
+                    "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$"
+                  },
+                  "graph_id": {
+                    "type": "string",
+                    "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$"
+                  },
+                  "source_sha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "shared_sha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "model": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "provider",
+                      "name",
+                      "compile_mode"
+                    ],
+                    "properties": {
+                      "provider": {
+                        "type": "string",
+                        "enum": [
+                          "none",
+                          "file",
+                          "stdin",
+                          "shell"
+                        ]
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "compile_mode": {
+                        "type": "string",
+                        "enum": [
+                          "structured_emit",
+                          "posthoc"
+                        ]
+                      }
+                    }
+                  }
+                }
+              },
+              "thoughts": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 128,
+                "items": {
+                  "$ref": "thought-node.schema.json"
+                }
+              },
+              "answer": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 131072
+              },
+              "question": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "question",
+                      "graph_id",
+                      "node_id",
+                      "author"
+                    ],
+                    "properties": {
+                      "question": {
+                        "type": "string",
+                        "minLength": 0,
+                        "maxLength": 4000
+                      },
+                      "graph_id": {
+                        "type": "string",
+                        "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$"
+                      },
+                      "node_id": {
+                        "type": "string",
+                        "pattern": "^[0123456789ABCDEFGHJKMNPQRSTVWXYZ]{26}$"
+                      },
+                      "author": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      }
+                    }
+                  }
+                ]
+              },
+              "evidence": {
+                "type": "array",
+                "maxItems": 128,
+                "items": {
+                  "$ref": "evidence-binding.schema.json"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

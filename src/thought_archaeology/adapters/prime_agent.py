@@ -47,6 +47,7 @@ def _version(executable: str) -> str:
     try:
         proc = subprocess.run(
             [executable, "--version"],
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
             shell=False,

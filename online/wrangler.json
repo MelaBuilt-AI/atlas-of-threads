@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "atlas-online-preview",
+  "main": "dist/worker.js",
+  "compatibility_date": "2026-05-15",
+  "workers_dev": true,
+  "assets": {
+    "directory": "dist/public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*", "/auth/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "atlas-online-preview",
+      "database_id": "local-preview",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    { "binding": "INQUIRIES", "bucket_name": "atlas-online-preview" }
+  ],
+  "vars": {
+    "GITHUB_CLIENT_ID": "",
+    "SITE_ORIGIN": "http://localhost:7490",
+    "MAX_PUBLICATIONS_PER_OWNER": "20"
+  }
+}

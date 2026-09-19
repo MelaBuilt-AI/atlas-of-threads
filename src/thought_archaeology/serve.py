@@ -14,6 +14,7 @@ from pathlib import Path
 from types import MappingProxyType
 from urllib.parse import parse_qs, urlparse
 
+from thought_archaeology import portable, return_paths, capsules, capsule_delivery
 from thought_archaeology.agent_spark import (guide_payload, assign_roles, discussion_payload, begin_discussion, clear_discussion)
 from thought_archaeology.adapters.provider_command import (
     command_argv,
@@ -52,7 +53,7 @@ from thought_archaeology.harness_service import (
     resolve_harness_service_path,
     stop_application_worker,
 )
-from thought_archaeology.ids import new_ulid, now_iso
+from thought_archaeology.ids import is_ulid, new_ulid, now_iso
 from thought_archaeology.inhabit import entry_node, inhabit
 from thought_archaeology.knowledge_capsules import (
     active_stored_launcher,
@@ -927,6 +928,78 @@ def thread_payload(
     }
 
 
+def inhabit_payload(store: Store, node_id: str, *, graph_id: str | None = None, session: str | None = None) -> dict:
+    view = inhabit(
+        store, node_id, graph_id=graph_id, session_id=session
+    )
+    payload = view.to_dict()
+    payload["session_title"] = store.load_session(view.graph.session_id).title
+    payload["continuation_harness"] = _harness_by_graph(
+        store
+    ).get(view.graph.id)
+    payload["continuation_source"] = _continuation_source(
+        store, view.graph.id
+    )
+    if view.continuation:
+        payload["continuation_attempt"] = _attempt_by_request(
+            store
+        ).get(view.continuation["id"])
+    else:
+        payload["continuation_attempt"] = None
+    payload["continuation_failure"] = _failure_for_source(
+        store, view.graph.id, view.node.id
+    )
+    payload["parallel_continuation"] = parallel_progress_for_source(
+        store, view.graph.id, view.node.id
+    )
+    payload["parallel_available"] = bool(
+        payload.get("read", {}).get("traversal", {}).get("terminal")
+        and not list(
+            store.iter_continuation_requests(pending=True)
+        )
+    )
+    payload["field_notes"] = field_note_summaries(
+        store, graph_id=view.graph.id, node_id=view.node.id
+    )
+    payload["field_note_eligibility"] = (
+        field_note_eligibility(
+            store,
+            graph_id=view.graph.id,
+            node_id=view.node.id,
+        )
+        if payload.get("read", {}).get("traversal", {}).get("terminal")
+        else None
+    )
+    payload["knowledge_capsules"] = knowledge_capsule_summaries(
+        store,
+        source_graph_id=view.graph.id,
+        source_node_id=view.node.id,
+    )
+    payload["knowledge_capsule_eligibility"] = (
+        knowledge_capsule_eligibility(
+            store,
+            graph_id=view.graph.id,
+            node_id=view.node.id,
+        )
+    )
+    launcher = active_stored_launcher(store)
+    payload["stored_knowledge_capsule_launcher"] = (
+        stored_launcher_read(
+            store, launcher, session_id=view.graph.session_id
+        )
+        if launcher
+        else None
+    )
+    payload["read"]["field_note_line"] = (
+        f"{len(payload['field_notes'])} human Field "
+        f"{'Note' if len(payload['field_notes']) == 1 else 'Notes'} "
+        "\u00b7 inspect in Thread Compass"
+        if payload["field_notes"]
+        else None
+    )
+    return payload
+
+
 class InhabitHandler(BaseHTTPRequestHandler):
     store: Store
     dist: Path
@@ -952,6 +1025,60 @@ class InhabitHandler(BaseHTTPRequestHandler):
         path = parsed.path
         qs = parse_qs(parsed.query)
         try:
+            if path.startswith("/api/capsules/"):
+                resource = path.removeprefix("/api/capsules/")
+                if resource == "online-receipts":
+                    self._json(200, capsule_delivery.receipts(self.store))
+                elif resource == "library":
+                    self._json(200, capsules.library(self.store))
+                elif resource == "graphs":
+                    self._json(200, {"graphs":capsules.graph_choices(self.store, (qs.get("session") or [""])[0])})
+                elif resource == "context":
+                    self._json(200, capsules.context(self.store, (qs.get("graph") or [""])[0]))
+                elif re.fullmatch(r"(prepared|received)/[a-f0-9]{64}", resource):
+                    category, capsule_id = resource.split("/")
+                    self._json(200, capsules.load(self.store, category, capsule_id))
+                elif re.fullmatch(r"download/[a-f0-9]{64}/(json|markdown)", resource):
+                    _, capsule_id, kind = resource.split("/")
+                    capsule = capsules.load(self.store, "prepared", capsule_id)
+                    if not capsules._path(self.store, "exports", capsule_id).exists():
+                        raise StoreError("Export this frozen Capsule first")
+                    body = portable.canonical(capsule) if kind == "json" else capsules.markdown(capsule).encode("utf-8")
+                    self._send(200, body, "application/json; charset=utf-8" if kind == "json" else "text/markdown; charset=utf-8")
+                else:
+                    self._json(404, {"error":"Unknown Capsule resource"})
+                return
+            if path == "/api/online/connection":
+                from thought_archaeology.online_connection import status
+                self._json(200, status(self.store))
+                return
+            if path == "/api/return-paths":
+                self._json(200, {"private_paths": return_paths.private_paths(self.store),
+                                 "offers": return_paths.inbox(self.store)})
+                return
+            if path.startswith("/api/return-paths/offers/"):
+                self._json(200, return_paths.load_offer(self.store, path.removeprefix("/api/return-paths/offers/")))
+                return
+            if path == "/api/return-paths/at":
+                graph_id = (qs.get("graph") or [""])[0]
+                node_id = (qs.get("node") or [""])[0]
+                graph = self.store.load_graph(graph_id)
+                own = next((p for p in return_paths.private_paths(self.store) if p['session_id'] == graph.session_id), None)
+                self._json(200, {"private_path": own, "arrivals": return_paths.arrivals(self.store, graph_id, node_id)})
+                return
+            if path == "/api/inquiries":
+                self._json(200, {"inquiries": portable.list_inquiries(self.store)})
+                return
+            if path.startswith("/api/inquiries/"):
+                self._portable_get(path, qs)
+                return
+            if path.startswith("/inquiries/"):
+                inquiry_id = path.split("/")[2]
+                portable.imported_inquiry(self.store, inquiry_id)
+                shell = (self.dist / "index.html").read_text(encoding="utf-8")
+                shell = shell.replace("<head>", '<head><base href="/" /><script>window.TA_INQUIRY_ID="' + inquiry_id + '";</script>', 1)
+                self._send(200, shell.encode("utf-8"), "text/html; charset=utf-8")
+                return
             if path == "/api/health":
                 self._json(200, {"ok": True, "write": True, "bind": "localhost"})
                 return
@@ -1067,77 +1194,14 @@ class InhabitHandler(BaseHTTPRequestHandler):
                 nid = path[len("/api/inhabit/") :].strip("/")
                 session = (qs.get("session") or [None])[0]
                 graph_id = (qs.get("graph") or [None])[0]
-                view = inhabit(
-                    self.store, nid, graph_id=graph_id, session_id=session
-                )
-                payload = view.to_dict()
-                payload["session_title"] = self.store.load_session(view.graph.session_id).title
-                payload["continuation_harness"] = _harness_by_graph(
-                    self.store
-                ).get(view.graph.id)
-                payload["continuation_source"] = _continuation_source(
-                    self.store, view.graph.id
-                )
-                if view.continuation:
-                    payload["continuation_attempt"] = _attempt_by_request(
-                        self.store
-                    ).get(view.continuation["id"])
-                else:
-                    payload["continuation_attempt"] = None
-                payload["continuation_failure"] = _failure_for_source(
-                    self.store, view.graph.id, view.node.id
-                )
-                payload["parallel_continuation"] = parallel_progress_for_source(
-                    self.store, view.graph.id, view.node.id
-                )
-                payload["parallel_available"] = bool(
-                    payload.get("read", {}).get("traversal", {}).get("terminal")
-                    and not list(
-                        self.store.iter_continuation_requests(pending=True)
-                    )
-                )
-                payload["field_notes"] = field_note_summaries(
-                    self.store, graph_id=view.graph.id, node_id=view.node.id
-                )
-                payload["field_note_eligibility"] = (
-                    field_note_eligibility(
-                        self.store,
-                        graph_id=view.graph.id,
-                        node_id=view.node.id,
-                    )
-                    if payload.get("read", {}).get("traversal", {}).get("terminal")
-                    else None
-                )
-                payload["knowledge_capsules"] = knowledge_capsule_summaries(
-                    self.store,
-                    source_graph_id=view.graph.id,
-                    source_node_id=view.node.id,
-                )
-                payload["knowledge_capsule_eligibility"] = (
-                    knowledge_capsule_eligibility(
-                        self.store,
-                        graph_id=view.graph.id,
-                        node_id=view.node.id,
-                    )
-                )
-                launcher = active_stored_launcher(self.store)
-                payload["stored_knowledge_capsule_launcher"] = (
-                    stored_launcher_read(
-                        self.store, launcher, session_id=view.graph.session_id
-                    )
-                    if launcher
-                    else None
-                )
-                payload["read"]["field_note_line"] = (
-                    f"{len(payload['field_notes'])} human Field "
-                    f"{'Note' if len(payload['field_notes']) == 1 else 'Notes'} "
-                    "\u00b7 inspect in Thread Compass"
-                    if payload["field_notes"]
-                    else None
-                )
+                payload = inhabit_payload(self.store, nid, graph_id=graph_id, session=session)
+                from thought_archaeology import doorways
+                payload["external_doors"] = doorways.native(self.store, payload["graph_id"], nid)
                 self._json(200, payload)
                 return
             self._static(path)
+        except ValidationError as exc:
+            self._json(400, {"error": str(exc)})
         except ForkError as exc:
             self._json(404, {"error": str(exc)})
         except StoreError as exc:
@@ -1149,9 +1213,169 @@ class InhabitHandler(BaseHTTPRequestHandler):
         except OSError as exc:
             self._json(500, {"error": str(exc)})
 
-    def _read_json(self) -> dict:
+    def _portable_get(self, path: str, qs: dict) -> None:
+        parts = path.split("/")
+        inquiry_id = parts[3]
+        bundle, imported = portable.imported_inquiry(self.store, inquiry_id)
+        resource = "/".join(parts[4:])
+        info = portable.summary(bundle)
+        graph_id = (qs.get("graph") or [None])[0]
+        graph_ids = {r["graph"]["id"] for r in bundle["content"]["graphs"]}
+        if graph_id is not None and graph_id not in graph_ids:
+            raise StoreError("Graph is not included in this inquiry")
+        if resource in {"", "info"}:
+            self._json(200, info)
+        elif resource == "download":
+            self._json(200, bundle)
+        elif resource == "health":
+            self._json(200, {"ok": True, "write": False, "mode": "imported-inquiry"})
+        elif resource == "application/update":
+            self._json(200, {"supported": False, "available": False})
+        elif resource == "sessions":
+            self._json(200, bootstrap_payload(imported))
+        elif resource == "workspace":
+            self._json(200, {"platform": sys.platform, "active_harness": None, "harnesses": [],
+                "available_harnesses": [], "agent_candidates": [], "guide": guide_payload(), "pending": [],
+                "service": {"installed": False, "enabled": "disabled", "active": "inactive"},
+                "history": [{"id": info["session_id"], "title": info["title"], "graph_count": info["graph_count"],
+                    "created_at": bundle["content"]["session"]["created_at"],
+                    "head_graph_id": bundle["content"]["session"]["head_graph_id"], "spawn": info["spawn"]}]})
+        elif resource == "guide":
+            self._json(200, discussion_payload(Store(self.store.root / "inquiry-discussions" / inquiry_id)))
+        elif resource == "continuations":
+            self._json(200, {"requests": [], "parallel_batches": []})
+        elif resource in {"field-notes", "knowledge-capsules"}:
+            self._json(200, [])
+        elif resource.startswith("thread/"):
+            if resource.split("/")[1] != info["session_id"]:
+                raise StoreError("Threadwalk is not included in this inquiry")
+            payload = thread_payload(imported, info["session_id"], graph_id=(qs.get("graph") or [None])[0])
+            records = {r["graph"]["id"]: r for r in bundle["content"]["graphs"]}
+            for entry in payload["entries"]:
+                source = records[entry["graph_id"]]["source"]
+                if source:
+                    entry.update(kind="continuation", label=source["author"], prompt=source["question"],
+                                 source_graph_id=source["graph_id"], source_node_id=source["node_id"])
+            continued = [entry for entry in payload["entries"] if entry["kind"] == "continuation"]
+            payload["latest_ai_graph_id"] = max(continued, key=lambda entry: (entry["created_at"], entry["graph_id"]))["graph_id"] if continued else None
+            self._json(200, payload)
+        elif resource.startswith("graphs/"):
+            requested = resource.removeprefix("graphs/")
+            if requested not in graph_ids:
+                raise StoreError("Graph is not included in this inquiry")
+            self._json(200, imported.load_graph(requested).to_dict())
+        elif resource.startswith("inhabit/"):
+            node_id = resource.removeprefix("inhabit/")
+            if not is_ulid(node_id):
+                raise StoreError("Invalid shared thought identity")
+            payload = inhabit_payload(imported, node_id, graph_id=graph_id)
+            from thought_archaeology import doorways
+            payload["external_doors"] = doorways.native(self.store, payload["graph_id"], node_id, inquiry_id)
+            payload.update(parallel_available=False, field_note_eligibility=None, knowledge_capsule_eligibility=None,
+                           stored_knowledge_capsule_launcher=None, shared_inquiry=info,
+                           shared_arrivals=portable.arrivals(bundle, payload["graph_id"]))
+            record = next(r for r in bundle["content"]["graphs"] if r["graph"]["id"] == payload["graph_id"])
+            source = record["source"]
+            if source:
+                graph = imported.load_graph(source["graph_id"])
+                node = next(n for n in graph.nodes if n.id == source["node_id"])
+                payload["continuation_harness"] = source["author"]
+                payload["continuation_source"] = {"session_id": info["session_id"], "graph_id": graph.id,
+                    "node_id": node.id, "node": _node_brief(node), "title": info["title"],
+                    "model": graph.model.to_dict(), "prompt": source["question"], "harness": source["author"]}
+            payload["read"]["traversal"]["continuation_line"] = "Shared inquiry · explore or discuss privately with your guide"
+            self._json(200, payload)
+        else:
+            self._json(404, {"error": "Not available in this imported inquiry"})
+
+    def _portable_post(self, path: str) -> None:
+        if path == "/api/inquiries/preview":
+            body = self._read_json()
+            bundle = portable.export_inquiry(self.store, body.get("session_id", ""),
+                                             author=body.get("author", ""), description=body.get("description", ""))
+            self._json(200, {"summary": portable.summary(bundle), "bundle": bundle,
+                             "inquiry_json": portable.canonical(bundle).decode("utf-8")})
+        elif path in {"/api/inquiries/inspect", "/api/inquiries/import"}:
+            bundle = self._read_json(max_bytes=portable.MAX_BYTES)
+            portable.validate_bundle(bundle)
+            self._json(200, portable.summary(bundle) if path.endswith("/inspect") else portable.import_inquiry(self.store, bundle))
+        else:
+            parts = path.split("/")
+            inquiry_id = parts[3]
+            resource = "/".join(parts[4:])
+            if resource not in {"guide/discuss", "guide/clear"}:
+                self._json(403, {"error": "Imported inquiries are read-only. Your private guide discussion is available."})
+                return
+            bundle, imported = portable.imported_inquiry(self.store, inquiry_id)
+            local = Store(self.store.root / "inquiry-discussions" / inquiry_id)
+            body = self._read_json()
+            if resource == "guide/discuss":
+                record = next((r for r in bundle["content"]["graphs"] if r["graph"]["id"] == body.get("graph_id")), None)
+                if record is None:
+                    raise StoreError("Guide source is not in this inquiry")
+                provenance = {"id": inquiry_id, "origin_id": bundle["content"]["origin_id"],
+                    "author": bundle["content"]["author"], "source_sha256": record["source_sha256"],
+                    "shared_sha256": record["shared_sha256"], "attribution": "Publisher-supplied; not independently verified"}
+                self._json(202, begin_discussion(local, body, source_store=imported, provenance=provenance))
+            else:
+                clear_discussion(local)
+                self._json(200, discussion_payload(local))
+
+    def _return_path_post(self, path: str) -> None:
+        body = self._read_json(max_bytes=portable.MAX_BYTES * 3)
+        action = path.removeprefix("/api/return-paths/")
+        if action.startswith("online/"):
+            from thought_archaeology import doorways
+            name = action.removeprefix("online/")
+            if name == "list": result = doorways.browse(self.store, body.get('after', 0))
+            elif name == "prepare": result = doorways.prepare(self.store, body.get('offer'))
+            elif name == "publish": result = doorways.publish(self.store, body.get('offer'), body.get('artifact'))
+            elif name == "review": result = doorways.review(self.store, body.get('offer'), body.get('source_id'), body.get('target_id'))
+            elif name == "send": result = doorways.send(self.store, body.get('review'))
+            elif name == "read": result = doorways.read(self.store, body.get('id'))
+            elif name == "receive": result = doorways.receive(self.store, body.get('id'))
+            elif name == "decide": result = doorways.decide(self.store, body.get('id'), body.get('review'), body.get('decision'), body.get('public_consent', False))
+            elif name == "withdraw": result = doorways.withdraw(self.store, body.get('id'))
+            else: raise StoreError("Unknown online doorway action")
+            self._json(200, result)
+        elif action == "preview":
+            reviewed = return_paths.preview(self.store, body.get('inquiry_id', ''), body.get('graph_id', ''),
+                                            body.get('node_id', ''), body.get('question', ''))
+            self._json(200, {"reviewed": reviewed, "collaborator": HarnessRegistry().get().name})
+        elif action == "begin":
+            registry = HarnessRegistry()
+            spec = registry.get()
+            if body.get('collaborator') != spec.name or not isinstance(body.get('reviewed'), dict):
+                raise StoreError("Collaborator changed; review your question again")
+            # Validation precedes worker startup and request creation.
+            reviewed = body['reviewed']
+            context = reviewed.get('context', {})
+            source = context.get('source', {}) if isinstance(context, dict) else {}
+            if not isinstance(source, dict):
+                raise StoreError("Review the selected source context again")
+            current = return_paths.preview(self.store, source.get('inquiry_id', ''), source.get('graph_id', ''),
+                                           source.get('node_id', ''), reviewed.get('question', ''))
+            if current != reviewed:
+                raise StoreError("Selected context changed; review your question again")
+            unit_path = resolve_harness_service_path()
+            options = harness_service_options(unit_path)
+            ensure_application_worker(self.store, spec, interval=options['interval'], timeout=options['timeout'], path=unit_path)
+            self._json(202, return_paths.begin(self.store, reviewed))
+        elif action == "export":
+            offer = return_paths.export_offer(self.store, body.get('session_id', ''), author=body.get('author', ''))
+            self._json(200, offer)
+        elif action == "inspect":
+            self._json(200, return_paths.inspect_offer(self.store, body))
+        elif action == "receive":
+            self._json(200, return_paths.receive(self.store, body))
+        elif action == "decide":
+            self._json(200, return_paths.decide(self.store, body.get('id', ''), body.get('decision', '')))
+        else:
+            self._json(404, {"error": "Unknown return-path action"})
+
+    def _read_json(self, *, max_bytes: int = 100_000) -> dict:
         length = int(self.headers.get("Content-Length") or 0)
-        if length > 100_000:
+        if length < 0 or length > max_bytes:
             raise ServeError("payload too large")
         raw = self.rfile.read(length) if length else b"{}"
         if not raw:
@@ -1180,6 +1404,103 @@ class InhabitHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         try:
+            if path.startswith("/api/capsules/"):
+                self._require_local_json_request()
+                body = self._read_json(max_bytes=capsules.MAX_BYTES * 6)
+                action = path.removeprefix("/api/capsules/")
+                if action in {"freeze", "receive"} and isinstance(body.get("capsule"), str):
+                    body["capsule"] = json.loads(body["capsule"])
+                if action.startswith("online-"):
+                    action = action.removeprefix("online-")
+                    if action == "browse":
+                        result = capsule_delivery.browse(self.store, body.get("view", "inbox"), body.get("after", 0))
+                    elif action == "destinations":
+                        result = capsule_delivery.destinations(self.store, body.get("recipient"))
+                    elif action == "read":
+                        result = capsule_delivery.read(self.store, body.get("id", ""))
+                    elif action == "review":
+                        result = capsule_delivery.review(self.store, body.get("id", ""), body.get("destination"))
+                    elif action == "blocks" and "owner_id" not in body:
+                        result = capsule_delivery.blocks(self.store)
+                    else:
+                        if body.get("reviewed") is not True:
+                            raise StoreError("Review this Capsule and online action first")
+                        if action == "send":
+                            result = capsule_delivery.send(self.store, body.get("review"))
+                        elif action == "receive":
+                            result = capsule_delivery.receive(self.store, body.get("id", ""))
+                        elif action == "decide":
+                            result = capsule_delivery.decide(self.store, body.get("id", ""), body.get("decision"), body.get("source"), body.get("capsule_id"))
+                        elif action == "withdraw":
+                            result = capsule_delivery.withdraw(self.store, body.get("id", ""))
+                        elif action == "blocks":
+                            result = capsule_delivery.blocks(self.store, body.get("owner_id"), body.get("blocked"))
+                        else:
+                            raise StoreError("Unknown online Capsule action")
+                    self._json(200, result)
+                elif action == "prepare":
+                    capsule = capsules.prepare(self.store, body)
+                    self._json(200, {"capsule":capsule, "capsule_json":portable.canonical(capsule).decode("utf-8"),
+                                     "summary":capsules.summary(capsule)})
+                elif action == "inspect":
+                    self._json(200, capsules.inspect_incoming(self.store, body))
+                elif action == "work-preview":
+                    reviewed = capsules.work_preview(self.store, body.get("id", ""), body.get("question", ""), body.get("excerpts", []))
+                    self._json(200, {"reviewed":reviewed, "collaborator":HarnessRegistry().get().name})
+                else:
+                    if body.get("reviewed") is not True:
+                        raise StoreError("Review the complete Capsule contents before this action")
+                    if action == "freeze":
+                        if body.get("destination") not in {"private", "file"}:
+                            raise StoreError("Choose private keeping or an exported file")
+                        info = capsules.freeze(self.store, body.get("draft"), body.get("capsule"))
+                        exported = capsules.export_files(self.store, info['id']) if body['destination'] == 'file' else None
+                        self._json(200, {"capsule":info,"export":exported})
+                    elif action == "receive":
+                        self._json(200, capsules.receive(self.store, body.get("capsule")))
+                    elif action == "export":
+                        self._json(200, capsules.export_files(self.store, body.get("id", "")))
+                    elif action == "begin-work":
+                        registry = HarnessRegistry()
+                        spec = registry.get()
+                        reviewed = body.get("context")
+                        if not isinstance(reviewed, dict) or not isinstance(reviewed.get("context"), dict) or body.get("collaborator") != spec.name:
+                            raise StoreError("Review the Capsule context and current collaborator again")
+                        current = capsules.work_preview(self.store, reviewed['context'].get('capsule_id',''), reviewed.get('question',''), reviewed.get('excerpt_indices',[]))
+                        if current != reviewed:
+                            raise StoreError("Selected Capsule context changed; review it again")
+                        unit_path = resolve_harness_service_path()
+                        options = harness_service_options(unit_path)
+                        ensure_application_worker(self.store, spec, interval=options['interval'], timeout=options['timeout'], path=unit_path)
+                        self._json(202, capsules.begin_work(self.store, reviewed))
+                    else:
+                        self._json(404, {"error":"Unknown Capsule action"})
+                return
+            if path in {"/api/online/connect", "/api/online/check", "/api/online/disconnect"}:
+                self._require_local_json_request()
+                from thought_archaeology import online_connection
+                data = self._read_json(max_bytes=4096)
+                if path.endswith("/connect"):
+                    result = online_connection.connect(self.store, data.get("code"))
+                elif path.endswith("/check"):
+                    result = online_connection.check(self.store)
+                else:
+                    result = online_connection.disconnect(self.store, forget_only=data.get("forget_only") is True)
+                self._json(200, result)
+                return
+            if path == "/api/online/prepare":
+                self._require_local_json_request()
+                from thought_archaeology.online import prepare_publication
+                self._json(200, prepare_publication(self._read_json(max_bytes=portable.MAX_BYTES)))
+                return
+            if path.startswith("/api/return-paths/"):
+                self._require_local_json_request()
+                self._return_path_post(path)
+                return
+            if path.startswith("/api/inquiries/"):
+                self._require_local_json_request()
+                self._portable_post(path)
+                return
             if path in {"/api/agent/roles", "/api/guide/discuss", "/api/guide/clear"}:
                 self._require_local_json_request()
                 body = self._read_json()

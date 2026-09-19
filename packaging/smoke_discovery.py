@@ -45,7 +45,8 @@ def smoke(command, application=None):
             with urlopen(url+'/sound.js') as r:sound=r.read().decode()
             effects=re.findall(r'file: "([^"]+\.ogg)"',sound)
             songs=re.findall(r'\["(\d{2}-[^"]+)",',music)
-            assert len(effects)==33 and len(songs)==13
+            assert len(effects)==35 and len(songs)==13
+            assert {'expedition-charge.ogg','expedition-launch-blast.ogg'} <= set(effects)
             for name in [*effects, *(f'music/{song}.ogg' for song in songs)]:
                 with urlopen(Request(url+'/assets/audio/'+name,headers={'Range':'bytes=0-63'})) as r:
                     assert r.status==206 and r.headers['Accept-Ranges']=='bytes'
@@ -68,7 +69,7 @@ def smoke(command, application=None):
             if app.poll() is None:
                 app.terminate()
             app.wait(timeout=20)
-    print('PASS: frozen local adapter, discovery UI/API, 33 effects and 13 music tracks with byte ranges, firewall guidance and same-origin protection; no registration or model calls.')
+    print('PASS: frozen local adapter, discovery UI/API, 35 effects and 13 music tracks with byte ranges, firewall guidance and same-origin protection; no registration or model calls.')
 
 
 if __name__=='__main__':

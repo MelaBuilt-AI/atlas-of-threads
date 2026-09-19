@@ -130,7 +130,7 @@
 
       <div class="onboarding-local">
         <strong>Local Personal Atlas</strong>
-        <span>Private on this machine. Online collaboration comes later.</span>
+          <span>Private on this machine. Connect to the Atlas when you choose.</span>
       </div>
 
       <section class="onboarding-step">
@@ -281,6 +281,8 @@
         <button id="sound-toggle" type="button" aria-pressed="false">effects ready · interact to awaken</button>
         <input id="sound-volume" type="range" min="0" max="100" step="1" value="58" aria-label="Sound effects volume" />
         <output id="sound-volume-value" for="sound-volume">58%</output>
+        <button id="sound-test" type="button">Test effects</button>
+        <small id="sound-status" role="status"></small>
       </div>
     </section>
 
@@ -403,6 +405,11 @@
       </article>
     </div>
   </section>
+  <link rel="stylesheet" href="./portable.css" />
+  <link rel="stylesheet" href="./return-paths.css" />
+  <script src="./capsules.js"></script>
+  <script src="./return-paths.js"></script>
+  <script src="./portable.js"></script>
   <script src="./three.min.js"></script>
   <script src="./relic-loader.js"></script>
   <script src="./sound.js"></script>
@@ -411,6 +418,7 @@
   <script src="./agent-connect.js"></script>
   <script src="./walk.js"></script>
   <script src="./terrain.js"></script>
+  <script src="./doorways.js"></script>
   <script src="./space.js"></script>
 </body>
 </html>
