@@ -62,8 +62,8 @@ mobile visitors have a readable view alongside the immersive experience.
   and newly accepted paths have different visual meanings.
 - [x] Physical two-PC end-to-end exchange, Windows offline reading/navigation,
   desktop smoothness and live overworld flight audio accepted.
-- [ ] Fresh versioned Linux/Windows packages, final release checks and owner
-  stable-publication decision.
+- [x] Fresh v0.4.0 Linux/Windows packages and final source/package checks.
+- [ ] Owner stable-publication decision and public release/download updates.
 
 See [current readiness](ONLINE_READINESS.md) for September 19 acceptance and
 remaining package/release work. Later dated implementation sections below preserve

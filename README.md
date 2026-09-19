@@ -59,7 +59,7 @@ explicitly bounded claim.
 ## v0.4.0 candidate — The Connected Atlas
 
 This branch prepares the combined desktop release. Stable downloads remain
-**v0.3.1** while the new packages complete their release checks.
+**v0.3.1** while the verified candidate awaits the owner's release decision.
 
 The candidate connects your private **Personal Atlas** to a shared world of
 inquiries you choose to publish. Visitors can explore a Threadwalk, continue an

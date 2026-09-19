@@ -10,7 +10,7 @@ part of future releases.
   reviewed Capsule exchange and the connected Atlas in one desktop release.
   Physical Linux/Windows exchange, Windows offline use, account lifecycle,
   desktop smoothness and live flight audio are accepted. Fresh versioned packages
-  and the owner's publication decision remain; see [release review](DESKTOP_RELEASE_REVIEW.md).
+  pass; the owner's publication decision remains. See [release review](DESKTOP_RELEASE_REVIEW.md).
 - Original local Capsules keep their one-shot private dossier contract. Shared
   Capsule receipt, private continuation and public doorway acceptance are
   separate reviewed actions; see [Capsules](KNOWLEDGE_CAPSULES.md).
@@ -99,7 +99,7 @@ visibility or release changes.
 
 ## Connected Atlas v0.4.0 candidate
 
-PR #5 remains draft while fresh versioned packages are prepared. The existing
+PR #5 remains draft with verified v0.4.0 candidate packages. The existing
 hosted service is accepted for the desktop milestone: published immutable
 inquiries, private exact-source work and returns, explicit shared doorways,
 GitHub identity/pairing/revocation, Capsule flights, stars/following, report

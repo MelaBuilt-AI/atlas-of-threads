@@ -2,7 +2,7 @@
 
 Updated September 19, 2026. Candidate source is v0.4.0 — The Connected Atlas.
 PR #5 remains draft; stable v0.3.1 remains current. No merge, tag or stable
-publication has occurred. Fresh candidate package verification is in progress.
+publication has occurred. Fresh Linux/Windows candidate packages have passed.
 
 ## Proposed release
 
@@ -25,6 +25,26 @@ usability did not.
 
 ## Evidence
 
+- Versioned candidate source: `44e14e78789a31ac7d82e495d87eae89e9115c7b`.
+  [Package workflow](https://github.com/MelaBuilt-AI/atlas-of-threads/actions/runs/35449056852)
+  passed Linux, Windows executable and Windows installer checks; publication was
+  skipped. Both platforms serve all 35 effects and 13 music tracks with byte ranges,
+  including the charging and launch accents. MCP, SSH, discovery and guide checks
+  pass in the packaged applications and installed Windows application.
+- Full source verification: 441 Python tests and 61 online/audio tests passed,
+  along with the online build and JavaScript syntax checks. Exact-source
+  [push CI](https://github.com/MelaBuilt-AI/atlas-of-threads/actions/runs/35449049949)
+  and [PR CI](https://github.com/MelaBuilt-AI/atlas-of-threads/actions/runs/35449053045)
+  are green on Python 3.11/3.12 and online checks.
+- The downloaded Linux package checksum matches. An isolated launch reports
+  v0.4.0, serves source-identical scripts and both new audio assets, and quits
+  cleanly. Its updater recognizes stable v0.3.1 without offering a downgrade.
+  Existing user test installations were not replaced.
+- Anonymous source clone and 48 relative documentation links pass. Public sites,
+  the connected service and stable download metadata respond successfully.
+  Source/history pattern review found no recognized credentials; the only private
+  path match is a previously public historical README filename citation, without
+  its contents. Tracked fixtures are synthetic and large assets have provenance.
 - On September 19 the owner reported smooth Atlas navigation and transitions into
   Threadwalks and back, with no stuttering, on a 2022 laptop with integrated CPU
   graphics and a 2022 Windows desktop with a GeForce GTX 1650. This closes the
@@ -82,8 +102,9 @@ Desktop smoothness and flight listening observations are complete. Owner review
 of the combined desktop release is next. Mobile remains experimental and Windows
 installers remain unsigned.
 
-Version 0.4.0 metadata and candidate notes are prepared; fresh Linux/Windows
-packages and full release checks must pass before publication. Existing user test
-installations still report v0.3.1 and remain separate from these new packages.
+Version 0.4.0 metadata, candidate notes, fresh Linux/Windows packages and release
+checks are prepared. Existing user test installations still report v0.3.1 and
+remain separate from these new packages. The working connected-service address
+is retained for this candidate; a permanent custom domain is a separate decision.
 The final owner decision covers merging PR #5, publishing the stable tag/release
 and updating public download aliases. Keep PR #5 draft until that decision.

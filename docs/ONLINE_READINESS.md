@@ -182,9 +182,12 @@ browser preview/renderer signal checks pass. Do not replay accepted deliveries.
 ## Remaining release work
 
 Present the final tested revision for the owner's combined desktop release
-decision. Candidate metadata is aligned to 0.4.0. Build fresh Linux/Windows
-packages containing the updated source and complete full release checks before
-stable publication. Existing user test installations still identify as v0.3.1.
+decision. Candidate metadata is aligned to 0.4.0, and fresh Linux/Windows packages
+from `44e14e7` pass their executable and installer checks. Full source checks,
+anonymous clone/link review and isolated Linux version/assets/updater checks pass;
+see [desktop release review](DESKTOP_RELEASE_REVIEW.md) for exact receipts.
+Existing user test installations still identify as v0.3.1. Merge, stable release
+publication and public download updates await the owner's explicit decision.
 
 Rich co-walking, private clusters and unrelated features remain later work.
 
