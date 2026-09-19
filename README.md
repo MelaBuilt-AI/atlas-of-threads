@@ -430,6 +430,13 @@ does not publish a shared doorway. Mobile interfaces, rich co-walking and privat
 clusters remain later work. Public stable downloads stay v0.3.1 until release
 approval and package verification are complete.
 
+## Code signing policy
+
+Windows installers are currently unsigned. We are applying for free signing
+through SignPath Foundation; acceptance and integration are pending. Read the
+[code signing policy](docs/CODE_SIGNING.md) and
+[privacy information](docs/PRIVACY.md).
+
 ## License
 
 [MIT](LICENSE). Atlas of Threads is a project from MelaBuilt AI. See the
