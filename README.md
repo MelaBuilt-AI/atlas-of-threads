@@ -14,7 +14,7 @@
 
 <p align="center">
   <a href="https://github.com/MelaBuilt-AI/atlas-of-threads/actions/workflows/test.yml"><img src="https://github.com/MelaBuilt-AI/atlas-of-threads/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
-  <a href="https://github.com/MelaBuilt-AI/atlas-of-threads/releases/tag/v0.3.1"><img src="https://img.shields.io/badge/release-v0.3.1-35d5e8" alt="Release v0.3.1"></a>
+  <a href="https://github.com/MelaBuilt-AI/atlas-of-threads/releases/tag/v0.4.0"><img src="https://img.shields.io/badge/release-v0.4.0-35d5e8" alt="Release v0.4.0"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-ffb455" alt="MIT license"></a>
 </p>
 
@@ -27,7 +27,7 @@
   ·
   <a href="https://downloads.atlasofthreads.com/releases/latest/AtlasOfThreadsSetup.exe"><strong>Download for Windows</strong></a>
   ·
-  <a href="https://github.com/MelaBuilt-AI/atlas-of-threads/releases/tag/v0.3.1"><strong>Release notes</strong></a>
+  <a href="https://github.com/MelaBuilt-AI/atlas-of-threads/releases/tag/v0.4.0"><strong>Release notes</strong></a>
 </p>
 
 ---
@@ -56,12 +56,9 @@ explanation is a neural trace. The graph is the inspectable story of the answer.
 When causal evidence exists, it occupies a separate evidence layer with an
 explicitly bounded claim.
 
-## v0.4.0 candidate — The Connected Atlas
+## v0.4.0 — The Connected Atlas
 
-This branch prepares the combined desktop release. Stable downloads remain
-**v0.3.1** while the verified candidate awaits the owner's release decision.
-
-The candidate connects your private **Personal Atlas** to a shared world of
+The Connected Atlas is online now. Version **0.4.0** connects your private **Personal Atlas** to a shared world of
 inquiries you choose to publish. Visitors can explore a Threadwalk, continue an
 exact thought privately with their own collaborator, and offer a reviewed path
 back to its source.
@@ -80,7 +77,7 @@ back to its source.
   continuous music between the overworld and a Threadwalk.
 
 Desktop Linux and Windows are the target. Mobile remains experimental.
-Read the [candidate release notes](docs/releases/v0.4.0.md) and
+Read the [release notes](docs/releases/v0.4.0.md) and
 [release review](docs/DESKTOP_RELEASE_REVIEW.md). The previous
 [Bring Your Own Agent release](docs/releases/v0.3.1.md) remains available.
 
@@ -275,7 +272,7 @@ application parent and child plus the collaborator worker. Use
 | **Atlas of Threads** | The product and platform. |
 | **Thought Archaeology Framework** | The discovery and knowledge-extraction methodology powering Atlas. |
 | **Personal Atlas** | One person's private mapped reality on their machine. |
-| **The Atlas** | The optional shared world of deliberately published inquiries and accepted connections, included in the v0.4.0 candidate. |
+| **The Atlas** | The optional shared world of deliberately published inquiries and accepted connections, included in v0.4.0. |
 | **Threads** | AI thoughts, memories, conversations, decisions, and reasoning. |
 | **Weaving** | Connecting Threads without erasing their origins. |
 | **Threadwalk** | Traversing connected thoughts and graph generations. |
@@ -423,17 +420,16 @@ CLI exit codes are `0` for success, `1` for validation or strict-policy failure,
 
 ## Current boundary
 
-The v0.4.0 candidate adds the connected Atlas while preserving private local
+Version 0.4.0 adds the connected Atlas while preserving private local
 ownership. Publication, delivery, private work and acceptance each have their own
 review step. Connecting does not upload a store, and an accepted private excerpt
 does not publish a shared doorway. Mobile interfaces, rich co-walking and private
-clusters remain later work. Public stable downloads stay v0.3.1 until release
-approval and package verification are complete.
+clusters remain later work.
 
 ## Code signing policy
 
-Windows installers are currently unsigned. We are applying for free signing
-through SignPath Foundation; acceptance and integration are pending. Read the
+Windows installers are currently unsigned. Our application for free signing
+through SignPath Foundation has been submitted; approval and integration are pending. Read the
 [code signing policy](docs/CODE_SIGNING.md) and
 [privacy information](docs/PRIVACY.md).
 

@@ -1,10 +1,13 @@
 # Desktop release review
 
-Updated September 19, 2026. Candidate source is v0.4.0 — The Connected Atlas.
-PR #5 remains draft; stable v0.3.1 remains current. No merge, tag or stable
-publication has occurred. Fresh Linux/Windows candidate packages have passed.
+Updated September 19, 2026. Release: v0.4.0 — The Connected Atlas.
+The owner authorized merging PR #5, stable publication and download alias updates
+on September 19, including an unsigned Windows installer. Fresh Linux/Windows
+candidate packages passed; the stable release workflow rebuilds and verifies
+both platforms before publishing. GitHub Release assets and release.json record
+the final source revision and checksums.
 
-## Proposed release
+## Release scope
 
 The combined milestone adds the connected Atlas to Linux and Windows Personal
 Atlas. Visitors can publish a reviewed immutable inquiry, explore its Threadwalk,
@@ -55,7 +58,7 @@ usability did not.
   passed Linux/Windows standalone and installer checks. Both dedicated test
   installations run this candidate. The September 19 flight cues and versioned
   hosted loading are newer source changes; fresh versioned release packages
-  must include them before publication.
+  include them, as verified by the newer package workflow above.
 - 441 Python and 60 online/audio tests passed at the audio revision. The 60 tests
   and online build also pass after the scope change. [Push CI](https://github.com/MelaBuilt-AI/atlas-of-threads/actions/runs/35245312069)
   and [PR CI](https://github.com/MelaBuilt-AI/atlas-of-threads/actions/runs/35245316266)
@@ -98,13 +101,14 @@ preserved. Do not replay accepted deliveries merely to resume.
 
 ## Owner release decision
 
-Desktop smoothness and flight listening observations are complete. Owner review
-of the combined desktop release is next. Mobile remains experimental and Windows
+Desktop smoothness and flight listening observations are complete. The owner approved
+the combined desktop release on September 19, 2026. Mobile remains experimental and Windows
 installers remain unsigned.
 
 Version 0.4.0 metadata, candidate notes, fresh Linux/Windows packages and release
 checks are prepared. Existing user test installations still report v0.3.1 and
 remain separate from these new packages. The working connected-service address
 is retained for this candidate; a permanent custom domain is a separate decision.
-The final owner decision covers merging PR #5, publishing the stable tag/release
-and updating public download aliases. Keep PR #5 draft until that decision.
+The owner authorized merging PR #5, publishing the stable tag/release and
+updating public download aliases. SignPath application receipt is confirmed;
+review and signing integration are pending and do not block this unsigned release.

@@ -2,8 +2,7 @@
 
 Updated September 19, 2026. Atlas of Threads is maintained by MelaBuilt AI.
 This page describes the current desktop application and optional Connected Atlas.
-The current stable desktop is v0.3.1; connected desktop features are in the v0.4.0
-candidate until that release is published.
+Version 0.4.0 includes the optional Connected Atlas alongside the local desktop.
 
 ## Personal Atlas
 

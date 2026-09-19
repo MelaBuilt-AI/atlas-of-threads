@@ -4,8 +4,9 @@ Atlas of Threads is maintained by [MelaBuilt AI](https://github.com/MelaBuilt-AI
 
 ## Current status
 
-Windows releases are currently unsigned. We are applying to the
-[SignPath Foundation](https://signpath.org/) free open-source signing program.
+Windows releases are currently unsigned. We submitted an application to the
+[SignPath Foundation](https://signpath.org/) free open-source signing program
+on September 19, 2026; review is pending.
 An application is not approval, and no current installer should be described as
 SignPath-signed or Microsoft-approved.
 

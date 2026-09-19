@@ -1,8 +1,8 @@
 # Security policy
 
 Atlas of Threads `0.x` is a local-first Personal Atlas powered by the Thought
-Archaeology Framework. Stable downloads remain v0.3.1 while the v0.4.0 desktop candidate
-adds the optional connected Atlas with the boundary below.
+Archaeology Framework. Version 0.4.0 includes the optional
+Connected Atlas with the boundary below.
 
 ## Supported versions
 
@@ -21,12 +21,12 @@ can reproduce the problem.
 
 ## Local security boundary
 
-- Development portable inquiry files require content review before sharing.
+- Portable inquiry files require content review before sharing.
   Import validates bounded JSON, graph schemas, hashes and references; it does
   not fetch evidence or execute bundled content. Imported graphs are served
   read-only and guide discussion stays separate. Checksums do not authenticate
   publishers. See [portable inquiries](docs/PORTABLE_INQUIRIES.md).
-- Development excerpt Capsules require exact payload review before freezing or
+- Excerpt Capsules require exact payload review before freezing or
   sharing. Bounded schema/checksum validation precedes inert receipt. Receiving
   does not invoke an agent, import a graph or accept a contribution. A separate
   reviewed action sends chosen context to the configured collaborator. Sharing
@@ -57,16 +57,16 @@ can reproduce the problem.
 - A Knowledge Capsule launch writes a private local Markdown projection. It
   does not upload or publish the Capsule.
 
-The separate online preview in `online/` stores only deliberately uploaded
+The optional Connected Atlas service in `online/` stores only deliberately uploaded
 publication artifacts and explicitly sent excerpt Capsules. Local preparation sends nothing, and hosted content cannot
 invoke a collaborator or write a local store. A browser review and verified owner
 session/device credential are required to publish. GitHub numeric IDs identify
 owners; publisher-supplied sharing names and synthetic preview accounts are
 labeled separately. Session/device secrets are stored as hashes; Worker secrets
-never enter static assets. The preview has bounded requests and owner quotas,
+never enter static assets. The service has bounded requests and owner quotas,
 immutable snapshots, same-origin browser writes, withdrawal and tombstones.
 
-Development Personal Atlas pairing stores its credential in an owner-only
+Personal Atlas pairing stores its credential in an owner-only
 `online-connection.json`, outside graph/portable export payloads. A single-use,
 ten-minute code authorizes one device; only code and credential hashes live on
 the service. The local browser never receives the device bearer. HTTPS certificate
@@ -84,10 +84,10 @@ not an independently verified semantic interpretation. Render all incoming prose
 as text. The canonical downloaded bundle remains the source for local import.
 A withdrawn snapshot may remain in copies recipients already downloaded.
 
-Before the online milestone becomes a release, complete live identity/device
-pairing and revocation acceptance, durable returned-path consent, moderation and
-block management, request/CPU limits under representative load, and the two-PC
-release gate in [Online Atlas](docs/ONLINE_ATLAS.md).
+The v0.4.0 desktop release completed live identity/device pairing and revocation,
+returned-path consent, moderation/block management, bounded hosted capacity,
+and two-PC acceptance. See the [release review](docs/DESKTOP_RELEASE_REVIEW.md)
+for evidence and limits; future changes must preserve these boundaries.
 
 Connected excerpt Capsule delivery requires a separate complete audience/payload
 review. A directed recipient is an existing verified account; open delivery needs

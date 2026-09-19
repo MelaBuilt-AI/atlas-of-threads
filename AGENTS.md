@@ -14,8 +14,8 @@ schema, CLI, store, or browser authority.
   provider credentials must stay isolated from rendered content.
 - Preserve documented compatibility behavior unless a deliberate migration is
   part of the change.
-- Networking, accounts, and a shared Atlas remain future work unless explicitly
-  requested.
+- The optional Connected Atlas is included in v0.4.0. Preserve explicit review
+  before publication, delivery, and public doorway acceptance.
 
 ## Verification
 
