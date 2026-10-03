@@ -209,6 +209,7 @@ def test_thread_compass_and_parallel_endpoint_are_server_authored(tmp_path: Path
 
     replies = []
     handler = object.__new__(InhabitHandler)
+    handler.headers = {"Host": "127.0.0.1:7462"}
     handler.store = store
     handler._json = lambda code, body: replies.append((code, body))
     handler.path = f"/api/parallel/{request_ids[0]}"
@@ -462,6 +463,50 @@ def test_inhabit_json_carries_evidence_without_javascript_inference(
 def test_unknown_post_rejected(httpd_url: str):
     code, body = _post(httpd_url + "/api/sessions", {})
     assert code == 405
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [
+        # A cross-site form or text/plain fetch needs no CORS preflight.
+        {"Content-Type": "text/plain", "Origin": "https://malicious.example",
+         "Sec-Fetch-Site": "cross-site"},
+        {"Content-Type": "application/json", "Origin": "https://malicious.example"},
+        {"Content-Type": "application/json", "Host": "malicious.example"},
+    ],
+)
+@pytest.mark.parametrize(
+    "path", ["/api/workspace/inquiry", "/api/continuation", "/api/parallel"]
+)
+def test_cross_site_post_cannot_start_ai_work(httpd_url, monkeypatch, path, headers):
+    calls = []
+    # Stand in for the real handlers so reaching one would succeed; only the
+    # guard can turn these requests away.
+    for name in ("_workspace_inquiry", "_continuation_ready", "_parallel_ready"):
+        monkeypatch.setattr(
+            InhabitHandler,
+            name,
+            lambda self, name=name: calls.append(name) or self._json(200, {}),
+        )
+    req = Request(
+        httpd_url + path,
+        data=json.dumps({"prompt": "spend the owner's subscription"}).encode(),
+        method="POST",
+        headers=headers,
+    )
+    with pytest.raises(HTTPError) as caught:
+        urlopen(req, timeout=5)
+    assert caught.value.code == 400
+    assert calls == []
+
+
+def test_get_refuses_a_rebound_hostname(httpd_url: str):
+    with pytest.raises(HTTPError) as caught:
+        urlopen(Request(httpd_url + "/api/sessions",
+                        headers={"Host": "rebound.example"}), timeout=5)
+    assert caught.value.code == 403
+    code, _, _ = _get(httpd_url + "/api/sessions")
+    assert code == 200
 
 
 def test_workspace_switches_future_harness_and_preserves_watcher_timing(
@@ -1301,6 +1346,7 @@ def test_continuation_handler_without_socket(tmp_path: Path):
     node = graph.nodes[0]
     replies = []
     handler = object.__new__(InhabitHandler)
+    handler.headers = {"Host": "127.0.0.1:7462"}
     handler.store = store
     handler._read_json = lambda: {
         "node": node.id,
@@ -1356,6 +1402,7 @@ def test_inhabit_exposes_latest_ordinary_failure_for_retry(tmp_path: Path):
 
     replies = []
     handler = object.__new__(InhabitHandler)
+    handler.headers = {"Host": "127.0.0.1:7462"}
     handler.store = store
     handler._json = lambda code, body: replies.append((code, body))
     handler.path = f"/api/inhabit/{node.id}?graph={graph.id}&session={session_id}"

@@ -1024,6 +1024,9 @@ class InhabitHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         qs = parse_qs(parsed.query)
+        if not self._local_host():
+            self._json(403, {"error": "Atlas is available only at its local address"})
+            return
         try:
             if path.startswith("/api/capsules/"):
                 resource = path.removeprefix("/api/capsules/")
@@ -1385,25 +1388,35 @@ class InhabitHandler(BaseHTTPRequestHandler):
             raise ServeError("JSON object required")
         return data
 
+    def _local_host(self) -> bool:
+        # A loopback Host header defeats DNS rebinding: a rebound page still
+        # sends its own hostname.
+        hostname = urlparse(f"//{self.headers.get('Host') or ''}").hostname
+        return hostname in {"127.0.0.1", "localhost", "::1"}
+
     def _require_local_json_request(self) -> None:
         content_type = (self.headers.get("Content-Type") or "").split(";", 1)[0]
         if content_type.strip().lower() != "application/json":
             raise ServeError("application action requires a local JSON request")
         origin = (self.headers.get("Origin") or "").rstrip("/")
         host = self.headers.get("Host") or ""
-        hostname = urlparse(f"//{host}").hostname
-        if hostname not in {"127.0.0.1", "localhost", "::1"}:
-            raise ServeError("provider setup is available only from this Atlas window")
+        if not self._local_host():
+            raise ServeError("this action is available only from this Atlas window")
         if origin and origin != f"http://{host}":
-            raise ServeError("provider setup is available only from this Atlas window")
+            raise ServeError("this action is available only from this Atlas window")
         fetch_site = (self.headers.get("Sec-Fetch-Site") or "").lower()
         if fetch_site and fetch_site not in {"same-origin", "none"}:
-            raise ServeError("provider setup is available only from this Atlas window")
+            raise ServeError("this action is available only from this Atlas window")
 
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         path = parsed.path
         try:
+            # Every API write must come from this Atlas window. A cross-site
+            # text/plain POST needs no CORS preflight, so the content type,
+            # Host, Origin and Sec-Fetch-Site checks are what refuse it.
+            if path.startswith("/api/"):
+                self._require_local_json_request()
             if path.startswith("/api/capsules/"):
                 self._require_local_json_request()
                 body = self._read_json(max_bytes=capsules.MAX_BYTES * 6)
