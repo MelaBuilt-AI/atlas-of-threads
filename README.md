@@ -27,7 +27,7 @@
   ·
   <a href="https://downloads.atlasofthreads.com/releases/latest/AtlasOfThreadsSetup.exe"><strong>Download for Windows</strong></a>
   ·
-  <a href="https://github.com/MelaBuilt-AI/atlas-of-threads/releases/tag/v0.4.0"><strong>Release notes</strong></a>
+  <a href="https://github.com/MelaBuilt-AI/atlas-of-threads/releases/tag/v0.4.1"><strong>Release notes</strong></a>
 </p>
 
 ---
