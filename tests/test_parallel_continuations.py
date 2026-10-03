@@ -212,6 +212,7 @@ def test_parallel_handler_and_inhabit_payload_are_server_authored(
     _registry(monkeypatch, tmp_path)
     replies = []
     handler = object.__new__(InhabitHandler)
+    handler.headers = {"Host": "127.0.0.1:7462"}
     handler.store = store
     handler._json = lambda code, body: replies.append((code, body))
     handler._read_json = lambda: {

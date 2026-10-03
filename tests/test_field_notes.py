@@ -431,6 +431,7 @@ def test_field_note_cli_and_server_surfaces(tmp_path: Path):
 
     replies = []
     handler = object.__new__(InhabitHandler)
+    handler.headers = {"Host": "127.0.0.1:7462"}
     handler.store = store
     handler._json = lambda status, body: replies.append((status, body))
     handler._read_json = lambda: {

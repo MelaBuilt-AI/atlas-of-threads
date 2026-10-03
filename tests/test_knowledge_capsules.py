@@ -202,6 +202,7 @@ def test_stored_launcher_server_surface_persists_and_deploys(tmp_path: Path):
     )
     replies = []
     handler = object.__new__(InhabitHandler)
+    handler.headers = {"Host": "127.0.0.1:7462"}
     handler.store = store
     handler._json = lambda status, body: replies.append((status, body))
     handler._read_json = lambda: {
@@ -417,6 +418,7 @@ def test_capsule_schema_cli_server_and_inhabitation_surfaces(tmp_path: Path):
     )
     replies = []
     handler = object.__new__(InhabitHandler)
+    handler.headers = {"Host": "127.0.0.1:7462"}
     handler.store = server
     handler._json = lambda status, body: replies.append((status, body))
     handler._read_json = lambda: {"comparison_request_id": server_request}
